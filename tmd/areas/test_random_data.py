@@ -8,14 +8,6 @@ import jax
 import jax.numpy as jnp
 from jax.experimental.sparse import BCOO
 
-
-FIRST_YEAR = 2021
-LAST_YEAR = 2074
-INFILE_PATH = STORAGE_FOLDER / "output" / "tmd.csv.gz"
-WTFILE_PATH = STORAGE_FOLDER / "output" / "tmd_weights.csv.gz"
-GFFILE_PATH = STORAGE_FOLDER / "output" / "tmd_growfactors.csv"
-POPFILE_PATH = STORAGE_FOLDER / "input" / "cbo_population_forecast.yaml"
-
 REGULARIZATION_DELTA = 1.0e-9
 OPTIMIZE_FTOL = 1e-8
 OPTIMIZE_GTOL = 1e-8
@@ -173,21 +165,12 @@ def create_area_weights_file():
     jax.config.update("jax_enable_x64", True)  # use double precision floats
     
     num_targets, num_weights, noise = 10, 20_000, 0.2
-    
     A_dense, b = create_A_dense_b(num_targets, num_weights, noise, seed=123)
-    print(A_dense.shape)
-    print(b.shape)   
-    # density = np.count_nonzero(A_dense) / A_dense.size
-    # print(f"target_matrix sparsity ratio = {(1.0 - density):.3f}")
 
-    A = BCOO.from_scipy_sparse(csr_matrix(A_dense))  # A is JAX sparse matrix
-    
-    print(
-       # f"OPTIMIZE_WEIGHT_RATIOS: target_matrix.shape= {target_matrix.shape}\n"
-        f"REGULARIZATION_DELTA= {REGULARIZATION_DELTA:e}"
-    )
-
+    A = BCOO.from_scipy_sparse(csr_matrix(A_dense))  # A is JAX sparse matrix  
     b0=A_dense @ np.ones(num_weights)
+    
+    
     print("initial proportionate differences")
     print(['{:.3f}'.format(i) for i in (b0 / b)])
     
@@ -208,6 +191,7 @@ def create_area_weights_file():
         },
     )
     time1 = time.time()
+    print(f"REGULARIZATION_DELTA= {REGULARIZATION_DELTA:e}")
     res_summary = (
         f">>> optimization execution time: {(time1-time0):.1f} secs"
         f"  iterations={res.nit}  success={res.success}\n"
