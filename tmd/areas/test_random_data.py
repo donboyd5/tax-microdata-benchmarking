@@ -12,9 +12,9 @@ REGULARIZATION_DELTA = 1.0e-9
 OPTIMIZE_FTOL = 1e-8
 OPTIMIZE_GTOL = 1e-8
 OPTIMIZE_MAXITER = 5000
-OPTIMIZE_IPRINT = 20  # 20 is a good diagnostic value; set to 0 for production
+OPTIMIZE_IPRINT = 1  # 20 is a good diagnostic value; set to 0 for production
 
-def create_A_dense_b(num_targets, num_weights, density=1.0, noise=0.1, seed=42):
+def create_A_dense_b(num_targets, num_weights, density, noise, seed):
     np.random.seed(seed)
     
     # targets are rows, tax units are columns
@@ -54,11 +54,12 @@ def create_area_weights():
     
     qtiles = [0.0, 0.01, 0.1, 0.25, .5, 0.75, 0.9, 0.99, 1.0]
     
-    num_targets, num_weights, density, noise = 500, 200_000, 0.4, 0.1
+    # define problem chracteristics
+    num_targets, num_weights, density, noise, seed = 20, 200_000, 0.6, 0.3, 123
     
-    A_dense, b_unscaled = create_A_dense_b(num_targets, num_weights, density, noise, seed=123)
+    A_dense_unscaled, b_unscaled = create_A_dense_b(num_targets, num_weights, density, noise, seed)
     
-    A_dense_scaled = A_dense / b_unscaled[:, np.newaxis] 
+    A_dense_scaled = A_dense_unscaled / b_unscaled[:, np.newaxis] 
     b = np.ones_like(b_unscaled) 
 
     A = BCOO.from_scipy_sparse(csr_matrix(A_dense_scaled))  # A is JAX sparse matrix      
@@ -82,33 +83,36 @@ def create_area_weights():
     
     # describe problem characteristics - print AFTER any iteration printing so that
     # we can see them near the optimization results
-    density = np.count_nonzero(A_dense) / A_dense.size
-    b0_unscaled=A_dense @ np.ones(num_weights)
+    density = np.count_nonzero(A_dense_unscaled) / A_dense_unscaled.size
+    b0_unscaled=A_dense_unscaled @ np.ones(num_weights)
     init_rmse_targets = np.sqrt(np.mean(np.square(b0_unscaled - b_unscaled)))
     bratio0 = b0_unscaled / b_unscaled
     qbratio0=np.quantile(bratio0, qtiles)    
     
     prob_info = (
         "\nProblem characteristics: \n"
-        f"  A shape: {A.shape}\n"
-        f"  b shape: {b.shape}\n"
-        f"  A density: {density:.3f}\n"
-        f"  Target rmse at x0=1: {init_rmse_targets:.9e}\n"
-        f"  Quantiles: {', '.join(['{:.2f}'.format(i) for i in (qtiles)])}\n"
-        "  Target Ax / b quantiles at x0=1:\n"
-        f"  {', '.join(['{:.3f}'.format(i) for i in (qbratio0)])}\n"
+        f"  A shape:                     {A.shape}\n"
+        f"  b shape:                     {b.shape}\n"
+        f"  A density:                   {density:.3f}\n"
+        f"  Ax0 - b noise:               {noise:.3f}\n"
+        f"  Random seed:                 {seed}\n"
+        f"  Objective function at x0=1:  {objective_function(np.ones(num_weights), A, b, REGULARIZATION_DELTA):.9e}\n"
+        f"  Target rmse at x0=1:         {init_rmse_targets:.9e}\n"
+        f"  Quantile points:             {', '.join(['{:.2f}'.format(i) for i in (qtiles)])}\n"
+        "  Ax / b quantiles at x0=1:\n"
+        f"                               {', '.join(['{:.3f}'.format(i) for i in (qbratio0)])}\n"
         )
     print(prob_info)    
     
     prob_params = (
         f"Parameters:\n"        
-        f"  REGULARIZATION_DELTA= {REGULARIZATION_DELTA:e}\n"
-        f"  OPTIMIZE_FTOL= {OPTIMIZE_FTOL:e}\n"
-        f"  OPTIMIZE_GTOL= {OPTIMIZE_GTOL:e}\n"
+        f"  REGULARIZATION_DELTA=   {REGULARIZATION_DELTA:e}\n"
+        f"  OPTIMIZE_FTOL=          {OPTIMIZE_FTOL:e}\n"
+        f"  OPTIMIZE_GTOL=          {OPTIMIZE_GTOL:e}\n"
         )
     print(prob_params)    
     
-    bres=A_dense @ res.x
+    bres=A_dense_unscaled @ res.x
     rmse_targets = np.sqrt(np.mean(np.square(bres - b_unscaled)))
     rmse_xratios = np.sqrt(np.mean(np.square(res.x - 1.)))
     bratio = bres / b_unscaled
@@ -122,11 +126,11 @@ def create_area_weights():
         f"  objective function:    {res.fun:.9e}\n"
         f"  target rmse:           {rmse_targets:.9e}\n"
         f"  (x - 1) rmse:          {rmse_xratios:.9e}\n"        
-        f"  Quantiles: {', '.join(['{:.2f}'.format(i) for i in (qtiles)])}\n"
-        "  Target Ax / b quantiles at res.x:\n"
-        f"  {', '.join(['{:.3f}'.format(i) for i in (qbratio)])}\n"
+        f"  Quantile points:       {', '.join(['{:.2f}'.format(i) for i in (qtiles)])}\n"
+        "  Ax / b quantiles at res.x:\n"
+        f"                         {', '.join(['{:.3f}'.format(i) for i in (qbratio)])}\n"
         "  res.x quantiles:\n"
-        f"  {', '.join(['{:.3f}'.format(i) for i in (qx)])}\n"
+        f"                         {', '.join(['{:.3f}'.format(i) for i in (qx)])}\n"
         )
     print(res_info)
     print(">>> full optimization results:\n", res)
