@@ -12,79 +12,24 @@ REGULARIZATION_DELTA = 1.0e-9
 OPTIMIZE_FTOL = 1e-8
 OPTIMIZE_GTOL = 1e-8
 OPTIMIZE_MAXITER = 5000
-OPTIMIZE_IPRINT = 1  # 20 is a good diagnostic value; set to 0 for production
-OPTIMIZE_RESULTS = False  # set to True to see complete optimization results
-DUMP_ALL_TARGET_DEVIATIONS = False  # set to True only for diagnostic work
+OPTIMIZE_IPRINT = 20  # 20 is a good diagnostic value; set to 0 for production
 
-def create_A_dense_b(num_targets, num_weights, noise=0.1, seed=42):
+def create_A_dense_b(num_targets, num_weights, density=1.0, noise=0.1, seed=42):
     np.random.seed(seed)
     
     # targets are rows, tax units are columns
-    A_dense = np.random.rand(num_targets, num_weights)    
+    A_dense = np.random.rand(num_targets, num_weights)
+    # Zero out some elements to achieve the desired density
+    if density < 1.0:
+        mask = np.random.rand(num_targets, num_weights) > density
+        A_dense[mask] = 0    
+    
     x0 = np.ones(num_weights)        
     Ax0 = A_dense @ x0
     # make b vector close to initial Ax with slight perturbations
     b = Ax0 * np.random.normal(1, noise, num_targets)  # add small noise
     
     return A_dense, b
-
-
-def target_rmse(wght, target_matrix, target_array):
-    """
-    Return RMSE of the target deviations given specified arguments.
-    """
-    act = np.dot(wght, target_matrix)
-    act_minus_exp = act - target_array
-    ratio = act / target_array
-    if DUMP_ALL_TARGET_DEVIATIONS:
-        for tnum, ratio_ in enumerate(ratio):
-            print(
-                f"TARGET{(tnum + 1):03d}:ACT-EXP,ACT/EXP= "
-                f"{act_minus_exp[tnum]:16.9e}, {ratio_:.3f}"
-            )
-    # show distribution of target ratios
-    bins = [
-        0.0,
-        0.4,
-        0.8,
-        0.9,
-        0.99,
-        0.9995,
-        1.0005,
-        1.01,
-        1.1,
-        1.2,
-        1.6,
-        2.0,
-        3.0,
-        4.0,
-        5.0,
-        np.inf,
-    ]
-    tot = ratio.size
-    print(f"DISTRIBUTION OF TARGET ACT/EXP RATIOS (n={tot}):")
-    print(f"  with REGULARIZATION_DELTA= {REGULARIZATION_DELTA:e}")
-    header = (
-        "low bin ratio    high bin ratio"
-        "    bin #    cum #     bin %     cum %"
-    )
-    print(header)
-    out = pd.cut(ratio, bins, right=False, precision=6)
-    count = pd.Series(out).value_counts().sort_index().to_dict()
-    cum = 0
-    for interval, num in count.items():
-        cum += num
-        if cum == 0:
-            continue
-        line = (
-            f">={interval.left:13.6f}, <{interval.right:13.6f}:"
-            f"  {num:6d}   {cum:6d}   {num/tot:7.2%}   {cum/tot:7.2%}"
-        )
-        print(line)
-        if cum == tot:
-            break
-    # return RMSE of ACT-EXP targets
-    return np.sqrt(np.mean(np.square(act_minus_exp)))
 
 
 def objective_function(x, *args):
@@ -102,77 +47,21 @@ def objective_function(x, *args):
 JIT_FVAL_AND_GRAD = jax.jit(jax.value_and_grad(objective_function))
 
 
-def weight_ratio_distribution(ratio):
-    """
-    Print distribution of post-optimized to pre-optimized weight ratios.
-    """
-    bins = [
-        0.0,
-        1e-6,
-        0.1,
-        0.2,
-        0.5,
-        0.8,
-        0.85,
-        0.9,
-        0.95,
-        1.0,
-        1.05,
-        1.1,
-        1.15,
-        1.2,
-        2.0,
-        5.0,
-        1e1,
-        1e2,
-        1e3,
-        1e4,
-        1e5,
-        np.inf,
-    ]
-    tot = ratio.size
-    print(f"DISTRIBUTION OF AREA/US WEIGHT RATIO (n={tot}):")
-    print(f"  with REGULARIZATION_DELTA= {REGULARIZATION_DELTA:e}")
-    header = (
-        "low bin ratio    high bin ratio"
-        "    bin #    cum #     bin %     cum %"
-    )
-    print(header)
-    out = pd.cut(ratio, bins, right=False, precision=6)
-    count = pd.Series(out).value_counts().sort_index().to_dict()
-    cum = 0
-    for interval, num in count.items():
-        cum += num
-        if cum == 0:
-            continue
-        line = (
-            f">={interval.left:13.6f}, <{interval.right:13.6f}:"
-            f"  {num:6d}   {cum:6d}   {num/tot:7.2%}   {cum/tot:7.2%}"
-        )
-        print(line)
-        if cum == tot:
-            break
-    ssqdev = np.sum(np.square(ratio - 1.0))
-    print(f"SUM OF SQUARED AREA/US WEIGHT RATIO DEVIATIONS= {ssqdev:e}")
-
-
-# -- High-level logic of the script:
-
-
-def create_area_weights_file():
+def create_area_weights():
 
     jax.config.update("jax_platform_name", "cpu")  # ignore GPU/TPU if present
     jax.config.update("jax_enable_x64", True)  # use double precision floats
     
-    num_targets, num_weights, noise = 10, 20_000, 0.2
-    A_dense, b = create_A_dense_b(num_targets, num_weights, noise, seed=123)
+    qtiles = [0.0, 0.01, 0.1, 0.25, .5, 0.75, 0.9, 0.99, 1.0]
+    
+    num_targets, num_weights, density, noise = 500, 200_000, 0.4, 0.1
+    
+    A_dense, b_unscaled = create_A_dense_b(num_targets, num_weights, density, noise, seed=123)
+    
+    A_dense_scaled = A_dense / b_unscaled[:, np.newaxis] 
+    b = np.ones_like(b_unscaled) 
 
-    A = BCOO.from_scipy_sparse(csr_matrix(A_dense))  # A is JAX sparse matrix  
-    b0=A_dense @ np.ones(num_weights)
-    
-    
-    print("initial proportionate differences")
-    print(['{:.3f}'.format(i) for i in (b0 / b)])
+    A = BCOO.from_scipy_sparse(csr_matrix(A_dense_scaled))  # A is JAX sparse matrix      
     
     time0 = time.time()
     res = minimize(
@@ -187,28 +76,61 @@ def create_area_weights_file():
             "ftol": OPTIMIZE_FTOL,
             "gtol": OPTIMIZE_GTOL,
             "iprint": OPTIMIZE_IPRINT,
-            "disp": OPTIMIZE_IPRINT != 0,
         },
     )
     time1 = time.time()
-    print(f"REGULARIZATION_DELTA= {REGULARIZATION_DELTA:e}")
-    res_summary = (
-        f">>> optimization execution time: {(time1-time0):.1f} secs"
-        f"  iterations={res.nit}  success={res.success}\n"
-        f">>> message: {res.message}\n"
-        f">>> L-BFGS-B optimized objective function value: {res.fun:.9e}"
-    )
-    print(res_summary)
+    
+    # describe problem characteristics - print AFTER any iteration printing so that
+    # we can see them near the optimization results
+    density = np.count_nonzero(A_dense) / A_dense.size
+    b0_unscaled=A_dense @ np.ones(num_weights)
+    init_rmse_targets = np.sqrt(np.mean(np.square(b0_unscaled - b_unscaled)))
+    bratio0 = b0_unscaled / b_unscaled
+    qbratio0=np.quantile(bratio0, qtiles)    
+    
+    prob_info = (
+        "\nProblem characteristics: \n"
+        f"  A shape: {A.shape}\n"
+        f"  b shape: {b.shape}\n"
+        f"  A density: {density:.3f}\n"
+        f"  Target rmse at x0=1: {init_rmse_targets:.9e}\n"
+        f"  Quantiles: {', '.join(['{:.2f}'.format(i) for i in (qtiles)])}\n"
+        "  Target Ax / b quantiles at x0=1:\n"
+        f"  {', '.join(['{:.3f}'.format(i) for i in (qbratio0)])}\n"
+        )
+    print(prob_info)    
+    
+    prob_params = (
+        f"Parameters:\n"        
+        f"  REGULARIZATION_DELTA= {REGULARIZATION_DELTA:e}\n"
+        f"  OPTIMIZE_FTOL= {OPTIMIZE_FTOL:e}\n"
+        f"  OPTIMIZE_GTOL= {OPTIMIZE_GTOL:e}\n"
+        )
+    print(prob_params)    
+    
+    bres=A_dense @ res.x
+    rmse_targets = np.sqrt(np.mean(np.square(bres - b_unscaled)))
+    rmse_xratios = np.sqrt(np.mean(np.square(res.x - 1.)))
+    bratio = bres / b_unscaled
+    qbratio=np.quantile(bratio, qtiles)
+    qx=np.quantile(res.x, qtiles)
+    
+    res_info = (
+        f"Key results:\n"
+        f"  >>> optimization execution time: {(time1-time0):.1f} secs\n"
+        f"  # iterations:          {res.nit}\n"
+        f"  objective function:    {res.fun:.9e}\n"
+        f"  target rmse:           {rmse_targets:.9e}\n"
+        f"  (x - 1) rmse:          {rmse_xratios:.9e}\n"        
+        f"  Quantiles: {', '.join(['{:.2f}'.format(i) for i in (qtiles)])}\n"
+        "  Target Ax / b quantiles at res.x:\n"
+        f"  {', '.join(['{:.3f}'.format(i) for i in (qbratio)])}\n"
+        "  res.x quantiles:\n"
+        f"  {', '.join(['{:.3f}'.format(i) for i in (qx)])}\n"
+        )
+    print(res_info)
     print(">>> full optimization results:\n", res)
-    exit()        
-        
-    wght_area = res.x * wght_us
-    rmse = target_rmse(wght_area, target_matrix, target_array)
-    print(f"AREA-OPTIMIZED_TARGET_RMSE= {rmse:.9e}")
-    weight_ratio_distribution(res.x)
-
-    return rmse
-
+    return 
 
 if __name__ == "__main__":
-    create_area_weights_file()
+    create_area_weights()
