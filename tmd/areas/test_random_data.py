@@ -55,7 +55,7 @@ def create_area_weights():
     qtiles = [0.0, 0.01, 0.1, 0.25, .5, 0.75, 0.9, 0.99, 1.0]
     
     # define problem chracteristics
-    num_targets, num_weights, density, noise, seed = 20, 200_000, 0.6, 0.3, 123
+    num_targets, num_weights, density, noise, seed = 2000, 300_000, 0.4, 0.05, 1234
     
     A_dense_unscaled, b_unscaled = create_A_dense_b(num_targets, num_weights, density, noise, seed)
     
