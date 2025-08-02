@@ -178,7 +178,12 @@ The issue persisted because the Makefile runs `pytest . -v -n4` (line 54), which
 
 ### Final Solution
 
-**File Renaming**: Removed `test_` prefixes from diagnostic script names since pytest discovers any function starting with `test_` in files starting with `test_`.
+**File and Function Renaming**: 
+- Removed `test_` prefixes from diagnostic script filenames
+- Renamed all functions starting with `test_` to start with `check_` instead
+- Updated internal function calls to match new names
+
+**Root Cause**: Pytest discovers any function starting with `test_` regardless of filename, even in files that don't start with `test_`.
 
 ### Verification
 
