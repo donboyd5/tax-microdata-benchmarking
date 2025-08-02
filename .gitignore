@@ -23,3 +23,4 @@ tmd/storage/output/tax_expenditures
 venv/
 .python-version
 description_files/
+claude/

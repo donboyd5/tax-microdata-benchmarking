@@ -126,6 +126,73 @@ Detailed results:
 
 ---
 
+## 2025-08-02: Fix pytest Test Discovery Issue
+
+### Issue Description
+
+**Problem**: After fixing the SSL issue, `make data` was failing during the testing phase because pytest was attempting to run diagnostic scripts in the project root as tests.
+
+**Error**: 
+```
+ERROR final_cps_test.py::test_url_comprehensive
+ERROR test_cps_urls.py::test_streaming_support
+...
+fixture 'url' not found
+fixture 'year' not found
+```
+
+**Root Cause**: pytest automatically discovers and runs any function starting with `test_` in `.py` files. The diagnostic scripts created for SSL troubleshooting had functions like `test_url_comprehensive()` that weren't proper pytest tests.
+
+### Impact Assessment
+
+**Actual TMD Status**: ✅ **The core TMD data creation succeeded completely**
+- CPS data downloaded successfully
+- PUF processing completed  
+- Data integration and reweighting finished
+- Output files created properly
+
+**Test Results**: All legitimate TMD tests passed:
+- `tests/test_misc.py` - ✅ all passed
+- `tests/test_tax_revenue.py` - ✅ passed  
+- `tests/test_variable_totals.py` - ✅ passed
+- `tests/test_tax_expenditures.py` - ✅ passed
+
+### Solution Implemented
+
+**Files Modified**:
+- Created `claude/` directory for diagnostic scripts
+- Updated `.gitignore` to exclude `claude/` directory
+
+**Files Moved and Renamed**:
+- `test_cps_urls.py` → `claude/cps_url_diagnostic.py`
+- `final_cps_test.py` → `claude/cps_comprehensive_test.py`
+- `simple_cps_test.py` → `claude/cps_step_by_step_diagnostic.py`
+
+**Additional Changes**:
+- Created `claude/README.md` with usage instructions
+- Added `claude/` to `.gitignore`
+
+### Root Cause Detail
+
+The issue persisted because the Makefile runs `pytest . -v -n4` (line 54), which searches the entire directory recursively, overriding the `pytest.ini` configuration that specifies `testpaths = tmd`.
+
+### Final Solution
+
+**File Renaming**: Removed `test_` prefixes from diagnostic script names since pytest discovers any function starting with `test_` in files starting with `test_`.
+
+### Verification
+
+The diagnostic scripts remain available in `claude/` directory for future troubleshooting but won't interfere with pytest test discovery due to the naming change.
+
+### Best Practices Applied
+
+- **Separation of Concerns**: Diagnostic scripts separated from production test suite
+- **Git Hygiene**: Diagnostic files excluded from version control  
+- **Documentation**: Clear README explaining purpose and usage
+- **Preservation**: Scripts remain available for future troubleshooting
+
+---
+
 ## Development Notes Template
 
 For future changes, please document:
