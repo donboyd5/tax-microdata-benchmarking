@@ -11,7 +11,10 @@ from tqdm import tqdm
 import h5py
 from policyengine_core.data import Dataset
 from tmd.storage import STORAGE_FOLDER
+import urllib3
 
+# Disable SSL warnings when using verify=False
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 AGED_RNG = np.random.default_rng(seed=374651932)
 
@@ -161,9 +164,7 @@ class RawCPS(Dataset):
         }
 
         if self.time_period not in CPS_URL_BY_YEAR:
-            raise ValueError(
-                f"No raw CPS data URL known for year {self.time_period}."
-            )
+            raise ValueError(f"No raw CPS data URL known for year {self.time_period}.")
 
         url = CPS_URL_BY_YEAR[self.time_period]
 
@@ -173,10 +174,8 @@ class RawCPS(Dataset):
                 col for col in spm_unit_columns if col != "SPM_BBSUBVAL"
             ]
 
-        response = requests.get(url, stream=True)
-        total_size_in_bytes = int(
-            response.headers.get("content-length", 200e6)
-        )
+        response = requests.get(url, stream=True, verify=False)
+        total_size_in_bytes = int(response.headers.get("content-length", 200e6))
         progress_bar = tqdm(
             total=total_size_in_bytes,
             unit="iB",
@@ -184,13 +183,9 @@ class RawCPS(Dataset):
             desc="Downloading ASEC",
         )
         if response.status_code == 404:
-            raise FileNotFoundError(
-                "Received a 404 response when fetching the data."
-            )
+            raise FileNotFoundError("Received a 404 response when fetching the data.")
         try:
-            with BytesIO() as file, pd.HDFStore(
-                self.file_path, mode="w"
-            ) as storage:
+            with BytesIO() as file, pd.HDFStore(self.file_path, mode="w") as storage:
                 content_length_actual = 0
                 for data in response.iter_content(int(1e6)):
                     progress_bar.update(len(data))
@@ -206,33 +201,23 @@ class RawCPS(Dataset):
                     file_prefix = "cpspb/asec/prod/data/2019/"
                 else:
                     file_prefix = ""
-                with zipfile.open(
-                    f"{file_prefix}pppub{file_year_code}.csv"
-                ) as f:
+                with zipfile.open(f"{file_prefix}pppub{file_year_code}.csv") as f:
                     storage["person"] = pd.read_csv(
                         f,
-                        usecols=PERSON_COLUMNS
-                        + spm_unit_columns
-                        + TAX_UNIT_COLUMNS,
+                        usecols=PERSON_COLUMNS + spm_unit_columns + TAX_UNIT_COLUMNS,
                     ).fillna(0)
                     person = storage["person"]
-                with zipfile.open(
-                    f"{file_prefix}ffpub{file_year_code}.csv"
-                ) as f:
+                with zipfile.open(f"{file_prefix}ffpub{file_year_code}.csv") as f:
                     person_family_id = person.PH_SEQ * 10 + person.PF_SEQ
                     family = pd.read_csv(f).fillna(0)
                     family_id = family.FH_SEQ * 10 + family.FFPOS
                     family = family[family_id.isin(person_family_id)]
                     storage["family"] = family
-                with zipfile.open(
-                    f"{file_prefix}hhpub{file_year_code}.csv"
-                ) as f:
+                with zipfile.open(f"{file_prefix}hhpub{file_year_code}.csv") as f:
                     person_household_id = person.PH_SEQ
                     household = pd.read_csv(f).fillna(0)
                     household_id = household.H_SEQ
-                    household = household[
-                        household_id.isin(person_household_id)
-                    ]
+                    household = household[household_id.isin(person_household_id)]
                     storage["household"] = household
                 storage["tax_unit"] = RawCPS._create_tax_unit_table(person)
                 storage["spm_unit"] = RawCPS._create_spm_unit_table(
@@ -250,9 +235,7 @@ class RawCPS(Dataset):
         return tax_unit_df
 
     @staticmethod
-    def _create_spm_unit_table(
-        person: pd.DataFrame, time_period: int
-    ) -> pd.DataFrame:
+    def _create_spm_unit_table(person: pd.DataFrame, time_period: int) -> pd.DataFrame:
         spm_unit_columns = SPM_UNIT_COLUMNS
         if time_period <= 2020:
             spm_unit_columns = [
@@ -342,9 +325,7 @@ def add_id_variables(
     cps["family_weight"] = family.FSUP_WGT / 1e2
 
     # Tax unit weight is the weight of the containing family.
-    family_weight = Series(
-        cps["family_weight"][...], index=cps["family_id"][...]
-    )
+    family_weight = Series(cps["family_weight"][...], index=cps["family_id"][...])
     person_family_id = cps["person_family_id"][...]
     persons_family_weight = Series(family_weight[person_family_id])
     cps["tax_unit_weight"] = persons_family_weight.groupby(
@@ -357,9 +338,7 @@ def add_id_variables(
 
     # Marital units
 
-    marital_unit_id = person.PH_SEQ * 1e6 + np.maximum(
-        person.A_LINENO, person.A_SPOUSE
-    )
+    marital_unit_id = person.PH_SEQ * 1e6 + np.maximum(person.A_LINENO, person.A_SPOUSE)
 
     # marital_unit_id is not the household ID, zero padded and followed
     # by the index within household (of each person, or their spouse if
@@ -396,9 +375,7 @@ def add_personal_variables(cps: h5py.File, person: DataFrame) -> None:
     # "Is...blind or does...have serious difficulty seeing even when Wearing
     #  glasses?" 1 -> Yes
     cps["is_blind"] = person.PEDISEYE == 1
-    DISABILITY_FLAGS = [
-        "PEDIS" + i for i in ["DRS", "EAR", "EYE", "OUT", "PHY", "REM"]
-    ]
+    DISABILITY_FLAGS = ["PEDIS" + i for i in ["DRS", "EAR", "EYE", "OUT", "PHY", "REM"]]
     cps["is_disabled"] = (person[DISABILITY_FLAGS] == 1).any(axis=1)
 
     def children_per_parent(col: str) -> pd.DataFrame:
@@ -420,9 +397,7 @@ def add_personal_variables(cps: h5py.File, person: DataFrame) -> None:
 
     # Aggregate to parent.
     res = (
-        pd.concat(
-            [children_per_parent("PEPAR1"), children_per_parent("PEPAR2")]
-        )
+        pd.concat([children_per_parent("PEPAR1"), children_per_parent("PEPAR2")])
         .groupby(["PH_SEQ", "A_LINENO"])
         .children.sum()
         .reset_index()
@@ -443,9 +418,7 @@ def add_personal_variables(cps: h5py.File, person: DataFrame) -> None:
     cps["is_full_time_college_student"] = person.A_HSCOL == 2
 
 
-def add_personal_income_variables(
-    cps: h5py.File, person: DataFrame, year: int
-):
+def add_personal_income_variables(cps: h5py.File, person: DataFrame, year: int):
     """Add income variables.
 
     Args:
@@ -467,16 +440,14 @@ def add_personal_income_variables(
 
     cps["weekly_hours_worked"] = person.HRSWK * person.WKSWORK / 52
 
-    cps["taxable_interest_income"] = person.INT_VAL * (
-        p["taxable_interest_fraction"]
-    )
+    cps["taxable_interest_income"] = person.INT_VAL * (p["taxable_interest_fraction"])
     cps["tax_exempt_interest_income"] = person.INT_VAL * (
         1 - p["taxable_interest_fraction"]
     )
     cps["self_employment_income"] = person.SEMP_VAL
     cps["farm_income"] = person.FRSE_VAL
-    cps["qualified_dividend_income"] = person.DIV_VAL * (
-        p["qualified_dividend_fraction"]
+    cps["qualified_dividend_income"] = (
+        person.DIV_VAL * (p["qualified_dividend_fraction"])
     )
     cps["non_qualified_dividend_income"] = person.DIV_VAL * (
         1 - p["qualified_dividend_fraction"]
@@ -493,19 +464,13 @@ def add_personal_income_variables(
     )
     # Provide placeholders for other Social Security inputs to avoid creating
     # NaNs as they're uprated.
-    cps["social_security_dependents"] = np.zeros_like(
-        cps["social_security_retirement"]
-    )
-    cps["social_security_survivors"] = np.zeros_like(
-        cps["social_security_retirement"]
-    )
+    cps["social_security_dependents"] = np.zeros_like(cps["social_security_retirement"])
+    cps["social_security_survivors"] = np.zeros_like(cps["social_security_retirement"])
     cps["unemployment_compensation"] = person.UC_VAL
     # Add pensions and annuities.
     cps_pensions = person.PNSN_VAL + person.ANN_VAL
     # Assume a constant fraction of pension income is taxable.
-    cps["taxable_private_pension_income"] = (
-        cps_pensions * p["taxable_pension_fraction"]
-    )
+    cps["taxable_private_pension_income"] = cps_pensions * p["taxable_pension_fraction"]
     cps["tax_exempt_private_pension_income"] = cps_pensions * (
         1 - p["taxable_pension_fraction"]
     )
@@ -529,17 +494,12 @@ def add_personal_income_variables(
     for source_with_taxable_fraction in ["401k", "403b", "sep"]:
         cps[f"taxable_{source_with_taxable_fraction}_distributions"] = (
             cps[f"{source_with_taxable_fraction}_distributions"][...]
-            * p[
-                f"taxable_{source_with_taxable_fraction}_distribution_fraction"
-            ]
+            * p[f"taxable_{source_with_taxable_fraction}_distribution_fraction"]
         )
         cps[f"tax_exempt_{source_with_taxable_fraction}_distributions"] = cps[
             f"{source_with_taxable_fraction}_distributions"
         ][...] * (
-            1
-            - p[
-                f"taxable_{source_with_taxable_fraction}_distribution_fraction"
-            ]
+            1 - p[f"taxable_{source_with_taxable_fraction}_distribution_fraction"]
         )
         del cps[f"{source_with_taxable_fraction}_distributions"]
 
@@ -592,8 +552,7 @@ def add_personal_income_variables(
         0,
     )
     remaining_retirement_contributions = np.maximum(
-        remaining_retirement_contributions
-        - cps["traditional_401k_contributions"],
+        remaining_retirement_contributions - cps["traditional_401k_contributions"],
         0,
     )
     cps["roth_401k_contributions"] = np.where(
@@ -611,8 +570,7 @@ def add_personal_income_variables(
         0,
     )
     remaining_retirement_contributions = np.maximum(
-        remaining_retirement_contributions
-        - cps["traditional_ira_contributions"],
+        remaining_retirement_contributions - cps["traditional_ira_contributions"],
         0,
     )
     roth_ira_limit = limit_ira - cps["traditional_ira_contributions"]
@@ -622,9 +580,7 @@ def add_personal_income_variables(
         0,
     )
     # Allocate capital gains into long-term and short-term based on aggregate split.
-    cps["long_term_capital_gains"] = person.CAP_VAL * (
-        p["long_term_capgain_fraction"]
-    )
+    cps["long_term_capital_gains"] = person.CAP_VAL * (p["long_term_capgain_fraction"])
     cps["short_term_capital_gains"] = person.CAP_VAL * (
         1 - p["long_term_capgain_fraction"]
     )
