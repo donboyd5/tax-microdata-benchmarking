@@ -22,3 +22,4 @@ tmd/storage/output/tax_expenditures
 # Boyd local files
 venv/
 .python-version
+description_files/
