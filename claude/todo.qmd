@@ -13,6 +13,21 @@ This document tracks outstanding tasks and improvements for the TMD project.
 
 ## Active Tasks
 
+### 2025-08-04: Open issues in tax-microdata-benchmarking for TODOs that we explore seriously
+
+### 2025-08-04: Allow use of NVIDIA GPU if possible
+ 
+When running an area optimization we get a warning noting that we can't use NVIDIA GPUs even if present. Explore what's involved in doing this and possibly allow it if it doesn't break anything else and if it can spee things up.
+
+(venv) areas$ python make_all.py
+Create area weights for the following areas:
+     mn     xx
+WARNING:2025-08-04 08:09:10,874:jax._src.xla_bridge:872: An NVIDIA GPU may be present on this machine, but a CUDA-enabled jaxlib is not installed. Falling back to cpu.
+
+### 2025-08-04: L-BFGS-B callback to allow custom stopping criteria
+
+Don't spend excessive time seeking accuracy that is not meaningful.
+
 ### 2025-08-02: Fix SciPy Deprecation Warning in Area Weights
 
 **Priority**: Medium  
