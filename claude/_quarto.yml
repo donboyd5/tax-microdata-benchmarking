@@ -1,0 +1,23 @@
+project:
+  type: book
+  output-dir: _book 
+
+book:
+  title: "Tax Microdata Benchmarking Review"
+  author: 
+    - "Don Boyd"
+    - "Claude"
+  date: today
+  chapters:
+    - index.qmd
+    - todo.qmd
+    - description.qmd
+    - changes.qmd
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+
+execute:
+  freeze: true

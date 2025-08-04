@@ -19,8 +19,8 @@ tmd/storage/output/tax_expenditures
 # Local Netlify folder
 .netlify
 
-# Boyd local files
+# Boyd local files and folders
 venv/
 .python-version
-description_files/
-claude/
+.quarto/
+_book/

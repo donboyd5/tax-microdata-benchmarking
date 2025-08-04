@@ -1,0 +1,19 @@
+# Introduction
+
+This book documents the review and analysis of tax microdata benchmarking processes. It contains our findings, recommendations, and implementation details for improving the benchmarking methodology.
+
+## Overview
+
+The Tax Microdata Benchmarking Review examines current practices and identifies areas for improvement in how tax microdata is validated and benchmarked against known targets.
+
+## Structure
+
+This book is organized into the following sections:
+
+- **Todo**: Outstanding tasks and action items
+- **Description**: Detailed description of the benchmarking methodology
+- **Changes**: Documentation of changes made during the review process
+
+## Authors
+
+This review is a collaborative effort between Don Boyd and Claude, combining domain expertise with analytical insights.
