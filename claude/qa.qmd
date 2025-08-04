@@ -57,6 +57,124 @@ The CPS and PUF datasets must be synchronized to the same tax year because they'
 
 ---
 
+## CPS Data Targeting and Growth Adjustments
+
+### Q: How if at all are the CPS data currently targeted to 2021? What would be involved in (1) targeting the 2021 CPS data to 2022 values, or, alternatively, (2) incorporating the 2022 CPS data?
+
+**A: CPS data is NOT currently "targeted" to 2021 in the same way PUF data is uprated. The CPS data represents actual survey responses from the 2021 tax year without additional growth adjustments.**
+
+#### Current CPS 2021 Configuration
+
+**No Growth Factor Application**: Unlike PUF data (which is uprated from 2015 to 2021 using SOI growth factors), CPS data is used as-is from the survey responses:
+
+- **Survey Year**: CPS 2021 comes from the March 2022 survey (`asecpub22csv.zip`)
+- **Data Processing**: Raw survey data is cleaned and transformed but not adjusted for growth
+- **Income Values**: All income variables (wages, interest, dividends, etc.) represent actual 2021 amounts as reported by survey respondents
+- **Implementation**: `tmd/datasets/cps.py:CPS_2021` - processes raw data without temporal adjustments
+
+**Key Point**: The 2021 CPS data already represents 2021 tax year information, so no "targeting" to 2021 is needed.
+
+#### Option 1: Targeting 2021 CPS Data to 2022 Values
+
+This would involve applying growth factors to existing 2021 CPS data:
+
+**Implementation Requirements**:
+
+1. **Create Growth Factor System** (similar to PUF uprating in `tmd/datasets/uprate_puf.py`):
+   ```python
+   # New file: tmd/datasets/uprate_cps.py
+   def uprate_cps_2021_to_2022():
+       # Apply income-specific growth rates to CPS variables
+       # E.g., wages grow by wage growth rate, interest by interest rate changes
+   ```
+
+2. **Modify CPS Processing** (`tmd/datasets/cps.py`):
+   ```python
+   class CPS_2022_from_2021(CPS):
+       # Apply growth factors during load_cps() processing
+       # Adjust income variables by appropriate growth rates
+   ```
+
+3. **Growth Rate Sources**:
+   - SOI data for income categories
+   - Bureau of Labor Statistics for wage growth
+   - Economic indicators for investment income growth
+
+**Challenges**:
+- **Inconsistent Growth Patterns**: Different household types may have different growth patterns
+- **Survey Representativeness**: Growth adjustments may not capture population composition changes
+- **Validation Difficulty**: Less reliable than using actual 2022 survey data
+
+#### Option 2: Incorporating 2022 CPS Data (Recommended)
+
+This involves using the actual 2022 CPS survey data:
+
+**Implementation Requirements**:
+
+1. **Create New CPS Classes** (in `tmd/datasets/cps.py`):
+   ```python
+   class RawCPS_2022(RawCPS):
+       time_period = 2022
+       name = "raw_cps_2022"
+       label = "Raw CPS 2022"
+       file_path = STORAGE_FOLDER / "input" / "raw_cps_2022.h5"
+
+   class CPS_2022(CPS):
+       name = "cps_2022"
+       label = "CPS 2022"
+       raw_cps = RawCPS_2022
+       file_path = STORAGE_FOLDER / "output" / "cps_2022.h5"
+       time_period = 2022
+   ```
+
+2. **Update URL Configuration**: 2022 data is already available:
+   ```python
+   # Already exists in CPS_URL_BY_YEAR
+   2022: "https://www2.census.gov/programs-surveys/cps/datasets/2023/march/asecpub23csv.zip"
+   ```
+
+3. **Create New Functions**:
+   ```python
+   def create_cps_2022():
+       CPS_2022().generate()
+   ```
+
+4. **Update Main Integration** (`tmd/datasets/tmd.py`):
+   ```python
+   def create_tmd_2022():
+       create_cps_2022()
+       create_pe_puf_2022()  # Also needs to be created
+       
+       tc_puf_22 = create_tc_dataset(PUF_2022, 2022)
+       tc_cps_22 = create_tc_dataset(CPS_2022, 2022)
+       # ... rest of integration logic
+   ```
+
+**Advantages of Option 2**:
+- **Actual Data**: Uses real 2022 survey responses instead of projections
+- **Population Changes**: Captures actual demographic and economic changes from 2021 to 2022
+- **Consistency**: Maintains the established pattern of using survey data as-is
+- **Validation**: Can be validated against known 2022 economic indicators
+
+#### Data Processing Notes
+
+**No Year Parameter Impact**: The `year` parameter in `create_tc_dataset(CPS_2021, 2021)` is used for:
+- Tax calculation periods in PolicyEngine-US
+- Output file naming
+- NOT for applying growth adjustments to the underlying data
+
+**CPS Weight Scaling**: The only adjustment currently applied to CPS data is the weight scaling factor (`CPS_WEIGHTS_SCALE = 0.5806`) to properly represent the non-filing population.
+
+#### Recommendation
+
+**Option 2 (incorporating 2022 CPS data) is strongly recommended** because:
+1. More accurate representation of the 2022 population
+2. Consistent with TMD's methodology of using survey data as-is
+3. Avoids assumptions about income growth patterns across different populations
+4. Easier to validate against external benchmarks
+
+---
+
 ## Template for New Q&A Items
 
 ### Q: Question text here?
