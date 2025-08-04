@@ -15,9 +15,12 @@ book:
     - changes.qmd
 
 format:
-  html:
+  html:cd 
     theme: cosmo
     toc: true
+    toc-depth: 3
+    toc-location: left
+    toc-expand: 1    
 
 execute:
   freeze: true
