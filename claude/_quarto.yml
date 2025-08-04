@@ -11,11 +11,12 @@ book:
   chapters:
     - index.qmd
     - todo.qmd
+    - qa.qmd
     - description.qmd
     - changes.qmd
 
 format:
-  html:cd 
+  html:
     theme: cosmo
     toc: true
     toc-depth: 3

@@ -1,0 +1,72 @@
+---
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    toc-expand: 1
+---
+
+# Tax-Microdata-Benchmarking (TMD): Questions & Answers
+
+This document contains questions and answers about the TMD project implementation, configuration, and methodology.
+
+## Data Year Configuration
+
+### Q: If I want to update PUF targets to 2022 from 2021, do I also need to update CPS targets to 2022? How would I do that?
+
+**A: Yes, if you update PUF targets to 2022, you should also update CPS targets to 2022.** Here's why and how:
+
+#### Current Configuration (2021)
+- **PUF**: Currently configured for 2021 (`PUF_2021`, `create_pe_puf_2021()`)
+- **CPS**: Currently configured for 2021 (`CPS_2021`, `create_cps_2021()`)
+- **Integration**: The main function `create_tmd_2021()` combines both datasets
+- **CPS URL**: 2021 CPS data comes from 2022 survey (`asecpub22csv.zip`)
+
+#### Why Both Need to be Updated Together
+
+The TMD system integrates PUF (filers) with CPS (non-filers) to create a complete population representation. From `tmd/datasets/tmd.py:14-26`:
+
+1. Both datasets are processed to the same target year
+2. CPS records are used to identify non-filers using filing rules for that year
+3. The datasets are combined to represent the complete tax-filing population
+
+#### How to Update to 2022
+
+You would need to update several components:
+
+**1. CPS Data (`tmd/datasets/cps.py`)**
+- CPS 2022 data is already available in the URL mapping: `2022: "https://www2.census.gov/programs-surveys/cps/datasets/2023/march/asecpub23csv.zip"`
+- Create new `CPS_2022` class and `create_cps_2022()` function
+
+**2. PUF Data (`tmd/datasets/puf.py`)**  
+- Create new `PUF_2022` class and `create_pe_puf_2022()` function
+- Update uprating logic to grow 2015 PUF data to 2022 using SOI growth factors
+
+**3. Main Integration (`tmd/datasets/tmd.py`)**
+- Create new `create_tmd_2022()` function
+- Update SOI targets for 2022 reweighting
+
+**4. SOI Targets (`tmd/utils/soi_targets.py`)**
+- Verify 2022 SOI target data is available
+- Update target processing for 2022
+
+#### Key Point
+
+The CPS and PUF datasets must be synchronized to the same tax year because they're combined to represent the same population in the same time period. Using different years would create temporal inconsistencies in the integrated dataset.
+
+---
+
+## Template for New Q&A Items
+
+### Q: Question text here?
+
+**A: Answer text here**
+
+Brief explanation with:
+- Technical details
+- Code references where relevant
+- Implementation considerations
+- File paths using the format `file_path:line_number`
+
+---
