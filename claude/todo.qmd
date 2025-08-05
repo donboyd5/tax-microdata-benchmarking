@@ -13,6 +13,10 @@ This document tracks outstanding tasks and improvements for the TMD project.
 
 ## Active Tasks
 
+### 2025-08-05: Export all tensorboard output to a csv file
+
+See this: https://www.perplexity.ai/search/can-i-export-data-to-csv-from-R0O5DNQASe22q6kEmmf4gQ
+
 ### 2025-08-04: Open issues in tax-microdata-benchmarking for TODOs that we explore seriously
 
 ### 2025-08-04: Allow use of NVIDIA GPU if possible
