@@ -175,6 +175,448 @@ This involves using the actual 2022 CPS survey data:
 
 ---
 
+## Optimization Approaches: National vs Area Weights
+
+### Q: The project uses one approach to minimizing a cost function when developing weights for the national file (pytorch I think) and another approach for the area weights (L-BFGS-B via scipy minimize). Please explain the 2 approaches, the pros and cons of the two approaches, and what would be involved in switching the national weighting to the L-BFGS-B approach (but don't do it!).
+
+**A: The project uses two different optimization approaches for different weighting problems:**
+
+#### 1. National File Weights - PyTorch with Adam Optimizer
+
+**Implementation**: `tmd/utils/reweight.py:216-279`
+
+The national file reweighting uses PyTorch with the Adam optimizer:
+
+```python
+optimizer = torch.optim.Adam([weight_multiplier], lr=1e-1)
+for i in tqdm(range(2_000), desc="Optimising weights"):
+    optimizer.zero_grad()
+    new_weights = weights * torch.clamp(weight_multiplier, min=0.5, max=2.0)
+    outputs = (new_weights * output_matrix_tensor.T).sum(axis=1)
+    loss_value = ((outputs + 1) / (target_array + 1) - 1) ** 2).sum() + weight_deviation_penalty
+    loss_value.backward()
+    optimizer.step()
+```
+
+**Objective Function**: Minimizes squared relative errors between projected and target SOI statistics, plus a regularization term penalizing weight deviations from original values (`tmd/utils/reweight.py:245-247`).
+
+**Constraints**: Uses `torch.clamp()` to constrain weight multipliers between configurable bounds (default 0.5 to 2.0).
+
+#### 2. Area Weights - L-BFGS-B via SciPy
+
+**Implementation**: `tmd/areas/create_area_weights.py:576-590`
+
+The area weighting uses SciPy's L-BFGS-B algorithm with JAX for gradients:
+
+```python
+res = minimize(
+    fun=JIT_FVAL_AND_GRAD,  # objective function and its gradient
+    x0=wght0,  # initial guess for weight ratios
+    jac=True,  # use gradient from JIT_FVAL_AND_GRAD function
+    args=(A, b, delta),  # fixed arguments of objective function
+    method="L-BFGS-B",  # use L-BFGS-B algorithm
+    bounds=Bounds(0.0, np.inf),  # consider only non-negative weights
+)
+```
+
+**Objective Function**: Bi-criterion optimization using regularization (`tmd/areas/create_area_weights.py:371-380`):
+```python
+def objective_function(x, *args):
+    A, b, delta = args
+    ssq_target_deviations = jnp.sum(jnp.square(A @ x - b))
+    ssq_weight_deviations = jnp.sum(jnp.square(x - 1.0))
+    return ssq_target_deviations + delta * ssq_weight_deviations
+```
+
+**Regularization Loop**: Uses decreasing delta values to balance target hitting vs. weight smoothness (`tmd/areas/create_area_weights.py:574-612`).
+
+#### Pros and Cons Comparison
+
+**PyTorch/Adam Approach (National)**:
+
+*Pros*:
+- **Flexible**: Easy to add complex constraints and custom loss functions
+- **Automatic differentiation**: PyTorch handles gradient computation seamlessly
+- **Monitoring**: Built-in TensorBoard logging for optimization tracking
+- **Stochastic optimization**: Adam can escape local minima better than deterministic methods
+- **GPU acceleration**: Can leverage GPU for large-scale problems
+
+*Cons*:
+- **Hyperparameter sensitive**: Learning rate, iteration count need tuning
+- **Less precise convergence**: May not reach as tight convergence as L-BFGS-B
+- **Memory overhead**: PyTorch computational graph uses more memory
+- **Non-deterministic**: Results may vary slightly between runs
+
+**L-BFGS-B/SciPy Approach (Area)**:
+
+*Pros*:
+- **Mathematically rigorous**: Based on proven convex optimization theory
+- **Precise convergence**: Achieves very tight convergence tolerances
+- **Memory efficient**: Limited-memory BFGS uses minimal memory
+- **Deterministic**: Same inputs always produce same results
+- **Bound constraints**: Native support for box constraints on variables
+- **Regularization framework**: Clean mathematical formulation for bi-criterion problems
+
+*Cons*:
+- **Less flexible**: Harder to incorporate complex, non-smooth constraints
+- **Gradient requirement**: Needs smooth, differentiable objective function
+- **Local optimization**: Can get stuck in local minima
+- **CPU only**: No GPU acceleration available
+
+#### What Would Be Involved in Switching National to L-BFGS-B
+
+**1. Objective Function Restructuring** (`tmd/utils/reweight.py:245-247`):
+- Convert PyTorch tensors to NumPy/JAX arrays
+- Reformulate as matrix multiplication: `A @ x - b` where `x` are weight multipliers
+- Add regularization term: `delta * ||x - 1||²`
+
+**2. Gradient Computation**:
+- Replace `loss_value.backward()` with JAX `jax.value_and_grad()`
+- Implement analytical gradients for the quadratic objective function
+
+**3. Constraint Handling**:
+- Replace `torch.clamp()` with SciPy `Bounds(min_val, max_val)`
+- Current bounds would become `Bounds(0.5, 2.0)`
+
+**4. Matrix Construction** (`tmd/utils/reweight.py:188-200`):
+- Convert the loss matrix construction to work with sparse matrices
+- Use `scipy.sparse.csr_matrix` or JAX `BCOO` format for efficiency
+
+**5. Regularization Parameter**:
+- Add delta parameter tuning (similar to area weights approach)
+- Implement regularization loop if needed for better target hitting
+
+**6. Monitoring/Logging**:
+- Replace TensorBoard logging with custom logging
+- Monitor convergence through SciPy optimization callbacks
+
+**Example conversion structure**:
+```python
+# Replace PyTorch optimization loop with:
+def objective_func(weight_multipliers, output_matrix, target_array, original_weights, delta):
+    new_weights = original_weights * weight_multipliers
+    outputs = output_matrix.T @ new_weights
+    target_deviations = ((outputs + 1) / (target_array + 1) - 1) ** 2
+    weight_deviations = (weight_multipliers - 1.0) ** 2
+    return jnp.sum(target_deviations) + delta * jnp.sum(weight_deviations)
+
+result = minimize(
+    fun=jax.jit(jax.value_and_grad(objective_func)),
+    x0=np.ones(len(weights)),
+    jac=True,
+    method="L-BFGS-B",
+    bounds=Bounds(0.5, 2.0),
+    args=(output_matrix, target_array, original_weights, delta)
+)
+```
+
+**Key Implementation Challenge**: The national problem targets ~190 SOI statistics across AGI ranges and filing statuses, creating a large, potentially ill-conditioned optimization problem that may be why the more robust Adam optimizer was chosen initially.
+
+#### Follow-up Questions:
+
+**Q1: Please say more about the regularization term in both optimization problems. Is one larger than the other or likely to have greater impact?**
+
+**A1: The regularization terms differ significantly between the two approaches:**
+
+**National (PyTorch) Regularization** (`tmd/utils/reweight.py:240-244`):
+```python
+weight_deviation = (
+    (new_weights - original_weights).abs().sum()
+    / original_weights.sum()
+    * weight_deviation_penalty
+    * original_loss_value
+)
+```
+- **Default penalty**: `REWEIGHT_DEVIATION_PENALTY = 0.0` (`tmd/imputation_assumptions.py:19`)
+- **Scaling**: Penalty is scaled by `original_loss_value` (initial target miss magnitude)
+- **Metric**: Uses L1 norm (absolute deviations) relative to total weight
+- **Impact**: Currently **disabled by default** (penalty = 0.0), meaning no regularization
+
+**Area (L-BFGS-B) Regularization** (`tmd/areas/create_area_weights.py:379`):
+```python
+ssq_weight_deviations = jnp.sum(jnp.square(x - 1.0))
+return ssq_target_deviations + delta * ssq_weight_deviations
+```
+- **Default penalty**: `DELTA_INIT_VALUE = 1.0e-9` (`tmd/areas/create_area_weights.py:41`)
+- **Scaling**: Direct multiplicative factor on squared deviations
+- **Metric**: Uses L2 norm (squared deviations from unity)
+- **Impact**: **Active but very small** initially, with adaptive reduction in regularization loop
+
+**Comparison**: The area approach has greater regularization impact because:
+1. It's actually enabled (delta > 0 vs. penalty = 0)
+2. Uses L2 penalty which penalizes large deviations more heavily
+3. Has adaptive regularization loop that finds optimal balance
+
+**Q2: I would like to examine output from the national optimizer. In particular, I'd like to know (a) how small the minimum is, in a relative sense taking into account the number of elements in the objective function (the number of targets), (b) how far the resulting values are from their targets (elements of the objective function) e.g., quantiles of relative errors, and (c) how much the weights have changed from original weights (e.q., quantiles of relative change and absolute change) -- how hard is it to get these things and are they reported/saved now?**
+
+**A2: Current reporting exists but could be enhanced:**
+
+**Currently Available** (`tmd/utils/reweight.py:250-276`):
+- **TensorBoard logs**: Saved to `STORAGE_FOLDER/output/reweighting/{time_period}_{timestamp}/`
+- **Loss tracking**: `Summary/Loss` every 100 iterations
+- **Individual target tracking**: `Estimate/{metric_name}`, `Target/{metric_name}`, `Absolute relative error/{metric_name}`
+- **Aggregate metrics**: `Summary/Max relative error`, `Summary/Mean relative error`
+
+**What's Missing for Your Analysis**:
+
+**(a) Normalized minimum value**: Currently logs raw loss, not normalized by number of targets
+- **Easy to add**: `final_loss / len(target_array)` or `sqrt(final_loss / len(target_array))` for RMSE
+
+**(b) Quantiles of relative errors**: Currently only tracks max/mean
+- **Moderate effort**: Add quantile computation:
+```python
+rel_errors = ((outputs + 1) / (target_array + 1) - 1).abs()
+for q in [0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]:
+    writer.add_scalar(f"Summary/P{int(q*100)} relative error", torch.quantile(rel_errors, q), i)
+```
+
+**(c) Weight change quantiles**: Not currently tracked
+- **Easy to add**: Track weight multiplier statistics:
+```python
+weight_ratios = new_weights / original_weights
+for q in [0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]:
+    writer.add_scalar(f"Weights/P{int(q*100)} ratio", torch.quantile(weight_ratios, q), i)
+```
+
+**Implementation Difficulty**: **Low to Moderate**
+- Basic enhancements would require ~20 lines of code additions
+- Access existing TensorBoard logs with: `tensorboard --logdir STORAGE_FOLDER/output/reweighting/`
+- Could also add CSV export of final statistics for easier analysis
+
+**How to Read TensorBoard Logs**:
+
+TensorBoard logs are stored in binary format and require TensorBoard to view. Here are the methods to access them:
+
+**Method 1: TensorBoard Web Interface (Recommended)**
+```bash
+# Navigate to your project directory
+cd /path/to/tax-microdata-benchmarking
+
+# Start TensorBoard (replace STORAGE_FOLDER with actual path)
+tensorboard --logdir=STORAGE_FOLDER/output/reweighting/
+
+# Or for a specific run:
+tensorboard --logdir=STORAGE_FOLDER/output/reweighting/2021_2025-08-04T10:30:45.123456/
+```
+Then open http://localhost:6006 in your browser to view interactive plots and metrics.
+
+**Method 2: Python Script to Extract Data**
+```python
+import pandas as pd
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+import os
+from pathlib import Path
+
+def extract_tensorboard_data(log_dir):
+    """Extract TensorBoard data to pandas DataFrames"""
+    ea = EventAccumulator(log_dir)
+    ea.Reload()
+    
+    # Get available scalar summaries
+    scalar_keys = ea.Tags()['scalars']
+    print(f"Available metrics: {scalar_keys}")
+    
+    # Extract data for each metric
+    data = {}
+    for key in scalar_keys:
+        scalar_events = ea.Scalars(key)
+        data[key] = pd.DataFrame([
+            {'step': event.step, 'value': event.value, 'wall_time': event.wall_time}
+            for event in scalar_events
+        ])
+    
+    return data
+
+# Usage example:
+log_dir = "STORAGE_FOLDER/output/reweighting/2021_2025-08-04T10:30:45.123456/"
+metrics_data = extract_tensorboard_data(log_dir)
+
+# Access specific metrics:
+loss_data = metrics_data['Summary/Loss']
+max_error_data = metrics_data['Summary/Max relative error']
+```
+
+**Method 3: Command Line Extraction**
+```bash
+# Install tensorboard if not already installed
+pip install tensorboard
+
+# Extract specific metrics to CSV
+python -c "
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+import pandas as pd
+import sys
+
+ea = EventAccumulator(sys.argv[1])
+ea.Reload()
+loss_events = ea.Scalars('Summary/Loss')
+df = pd.DataFrame([{'step': e.step, 'value': e.value} for e in loss_events])
+df.to_csv('loss_data.csv', index=False)
+" STORAGE_FOLDER/output/reweighting/2021_*/
+```
+
+**Available Metrics** (from `tmd/utils/reweight.py:251-275`):
+- `Summary/Loss` - Overall optimization loss value
+- `Summary/Max relative error` - Maximum relative error across all targets  
+- `Summary/Mean relative error` - Mean relative error across all targets
+- `Estimate/{metric_name}` - Projected values for each SOI target
+- `Target/{metric_name}` - Target values for each SOI statistic
+- `Absolute relative error/{metric_name}` - Absolute relative error for each target
+
+**How to Interpret TensorBoard Metric Names and Graphs**:
+
+**Metric Name Structure**: The metric names follow a specific pattern created in `tmd/utils/reweight.py:158-173`. Let's break down your example:
+
+`"Absolute relative error/adjusted gross income/total/AGI in 1m-2m/all returns/Married Filing Separately"`
+
+This breaks down as:
+1. **`Absolute relative error`** - The metric type (how far our estimate is from the SOI target)
+2. **`adjusted gross income`** - The variable being targeted (from SOI data)
+3. **`total`** - Whether we're measuring total dollar amounts vs. counts of returns
+4. **`AGI in 1m-2m`** - The AGI range filter ($1M to $2M adjusted gross income)
+5. **`all returns`** - Taxable status filter (includes both taxable and non-taxable returns)
+6. **`Married Filing Separately`** - Filing status filter
+
+**Full Pattern**: `{metric_type}/{variable_name}/{aggregation_type}/AGI in {range}/{taxable_filter}/{filing_status}`
+
+**Common Patterns**:
+- **Variables**: `adjusted_gross_income`, `employment_income`, `business_net_profits`, `capital_gains_gross`, `ordinary_dividends`, etc.
+- **Aggregation**: `total` (dollar amounts) vs. `count` (number of returns)
+- **AGI Ranges**: `1k-5k`, `50k-75k`, `1m-2m`, `5m-10m`, etc. (see `tmd/utils/reweight.py:18-39`)
+- **Taxable Status**: `all returns` vs. `taxable returns`
+- **Filing Status**: `Single`, `Married Filing Jointly/Surviving Spouse`, `Head of Household`, `Married Filing Separately`
+
+**How to Interpret the Graphs**:
+
+**Absolute Relative Error Graphs**:
+- **Y-axis**: Absolute relative error = ||(estimate - target) / target||
+- **X-axis**: Optimization iteration (every 100 steps)
+- **Goal**: Values should decrease toward 0 over time
+- **Good performance**: Error < 0.05 (5% error)
+- **Interpretation**: 
+  - 0.01 = 1% error (excellent)
+  - 0.05 = 5% error (good)  
+  - 0.10 = 10% error (acceptable)
+  - 0.20+ = 20%+ error (poor fit)
+
+**Target vs. Estimate Graphs**:
+- Compare `Target/{metric_name}` vs. `Estimate/{metric_name}` 
+- **Target line**: SOI published statistic (horizontal line, doesn't change)
+- **Estimate line**: Our reweighted projection (should converge to target)
+- **Goal**: Estimate line should approach and stabilize near Target line
+
+**Summary Graphs**:
+- **`Summary/Loss`**: Overall objective function value (should decrease)
+- **`Summary/Max relative error`**: Worst-performing target (should decrease)
+- **`Summary/Mean relative error`**: Average performance across all targets (should decrease)
+
+**Example Interpretation**:
+For `"Absolute relative error/adjusted gross income/total/AGI in 1m-2m/all returns/Married Filing Separately"`:
+- This tracks how well we match the **total AGI** for **married filing separately** returns with **AGI between $1M-$2M**
+- If the final error is 0.03, we're within 3% of the SOI target for this specific demographic
+- If the graph shows steady decrease from ~0.2 to ~0.03, the optimization successfully improved the fit
+
+**Q3: When I create area weights I get "WARNING:2025-08-04 08:09:10,874:jax._src.xla_bridge:872: An NVIDIA GPU may be present on this machine, but a CUDA-enabled jaxlib is not installed. Falling back to cpu." This suggests GPU questions for both optimizers. (1) Do I understand correctly that even though the warning is for area optimization, GPU is not being used for national optimization either? Would the changes you offered allow GPU usage for national optimization and gracefully fall back if no GPU? (2) Does the warning mean GPU is not being used for L-BFGS-B but could be? Would that improve performance and how would we enable it?**
+
+**A3: You're correct - neither optimizer currently uses GPU, but for different reasons:**
+
+#### National Optimization (PyTorch) - GPU Not Configured
+
+**Current Status**: National optimizer (`tmd/utils/reweight.py`) uses PyTorch but **tensors are created on CPU by default**.
+
+**Current code** (`tmd/utils/reweight.py:181-186`):
+```python
+weights = torch.tensor(flat_file.s006.values, dtype=torch.float32)  # defaults to CPU
+weight_multiplier = torch.tensor(
+    np.ones_like(flat_file.s006.values),
+    dtype=torch.float32,
+    requires_grad=True,  # also on CPU
+)
+```
+
+**GPU-enabled version with graceful fallback**:
+```python
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")  # helpful for debugging
+weights = torch.tensor(flat_file.s006.values, dtype=torch.float32, device=device)
+weight_multiplier = torch.tensor(
+    np.ones_like(flat_file.s006.values),
+    dtype=torch.float32,
+    requires_grad=True,
+    device=device
+)
+# Also move other tensors to GPU:
+output_matrix_tensor = torch.tensor(output_matrix.values, dtype=torch.float32, device=device)
+target_array = torch.tensor(target_array, dtype=torch.float32, device=device)
+```
+
+**Required Changes**:
+1. **Add device detection with fallback** (2 lines)
+2. **Move tensors to device** (~5 lines of modifications)
+3. **Move results back to CPU** for numpy conversion: `flat_file["s006"] = new_weights.cpu().detach().numpy()`
+
+**Performance Impact**: **Significant speedup expected** - 2,000 optimization iterations with matrix operations would benefit substantially from GPU parallelization.
+
+#### Area Optimization (L-BFGS-B + JAX) - JAX GPU Not Available
+
+**Current Status**: Area optimizer (`tmd/areas/create_area_weights.py`) uses JAX for gradient computation but falls back to CPU because CUDA-enabled JAX is not installed.
+
+**Where JAX is Used** (`tmd/areas/create_area_weights.py:383`):
+```python
+JIT_FVAL_AND_GRAD = jax.jit(jax.value_and_grad(objective_function))
+# This computes gradients, then L-BFGS-B uses them
+```
+
+**Current Configuration** (`tmd/areas/create_area_weights.py:473-474`):
+```python
+jax.config.update("jax_platform_name", "cpu")  # Force CPU usage
+jax.config.update("jax_enable_x64", True)  # Use double precision
+```
+
+**GPU Performance Considerations**:
+- **L-BFGS-B algorithm itself**: Runs on CPU (from scipy), cannot be GPU-accelerated
+- **JAX gradient computation**: Could run on GPU for the objective function and gradient calculations
+- **Bottleneck analysis**: L-BFGS-B is already highly optimized; gradient computation is relatively fast
+
+**To Enable JAX GPU** (moderate performance gain expected):
+
+1. **Install CUDA-enabled JAX**:
+```bash
+pip install "jax[cuda12]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+```
+
+2. **Modify configuration** (`tmd/areas/create_area_weights.py:473`):
+```python
+# Remove CPU forcing, let JAX auto-detect GPU
+# jax.config.update("jax_platform_name", "cpu")  # Comment out this line
+jax.config.update("jax_enable_x64", True)
+print(f"JAX devices available: {jax.devices()}")  # Show available devices
+```
+
+3. **Add fallback handling**:
+```python
+try:
+    if jax.devices()[0].platform == 'gpu':
+        print("Using GPU for JAX gradient computation")
+    else:
+        print("Using CPU for JAX gradient computation")
+except:
+    print("JAX device detection failed, using default")
+```
+
+**Performance Impact**: **Modest improvement expected**
+- JAX gradient computation would be faster on GPU
+- Overall speedup limited because L-BFGS-B (the main algorithm) remains on CPU
+- Most beneficial for problems with many targets/constraints where gradient computation is expensive
+
+**Recommendation Priority**:
+1. **National GPU enablement**: High impact, easy implementation
+2. **Area JAX GPU**: Lower impact, requires additional JAX installation
+
+Both changes include graceful fallback to CPU when GPU is unavailable.
+
+---
+
 ## Template for New Q&A Items
 
 ### Q: Question text here?
