@@ -1,0 +1,44 @@
+# Change Log
+
+## August 26, 2025
+
+### SSL Certificate Verification Fix
+- **Issue:** CPS data downloads failing due to SSL verification errors
+- **Fix:** Added `verify=False` to `requests.get()` call in `tmd/datasets/cps.py`
+- **Status:** PR submitted for review
+- **Impact:** Resolves data generation pipeline blockage
+
+### Tax-Calculator Version Issue Identified
+- **Issue:** Tests fail with Tax-Calculator 5.2.0, pass with 5.1.0
+- **Status:** Deferred to separate issue/PR after SSL fix
+- **Impact:** Temporary test failures, does not affect SSL fix functionality
+
+### Development Environment Updates
+- **SSH Authentication:** Set up SSH keys for GitHub access
+- **Repository Access:** Confirmed trusted contributor model workflow
+- **Documentation:** Created comprehensive Quarto project documentation
+
+### Process Improvements
+- **Separation of Concerns:** Addressing SSL fix independently from Tax-Calculator compatibility
+- **Documentation:** Established clear issue tracking and resolution process
+- **Contributing Guidelines:** Documented trusted contributor workflow
+
+## Previous Changes
+
+### March 11, 2025
+- **Version 1.0.0 Release:** Major milestone release
+- **Phase 4+ Results:** Updated examination results using Tax-Calculator 4.5.0
+
+### Recent Commits (from git log)
+- Fix SSL certificate verification for CPS downloads
+- Update TMD data using Tax-Calculator 4.5.0 growfactors.csv file
+- Update 2022 examination results using T-C 4.4.1
+- Add clarification to tmd/examination/2022/results.md file
+- Add tmd/examination/2022/sampling_variability.py logic
+
+## Future Changes
+
+### Planned
+- Resolution of Tax-Calculator 5.2.0 compatibility issue
+- Complete test suite validation
+- Additional benchmarking improvements as identified

@@ -1,0 +1,3 @@
+#!/bin/bash
+cd /home/don-boyd/Documents/psl/tax-microdata-benchmarking/claude
+python3 voice_input.py "$@"

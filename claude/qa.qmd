@@ -1,0 +1,45 @@
+# Questions and Answers
+
+## Common Issues
+
+### Q: Why are CPS downloads failing with SSL errors?
+
+**A:** The Census Bureau's SSL certificate configuration has compatibility issues with certain Python/requests/SSL library combinations. This is resolved by adding `verify=False` to the requests call, which is safe since the Census Bureau is a trusted government data source.
+
+### Q: Why do tests fail with Tax-Calculator 5.2.0?
+
+**A:** There are compatibility issues between the current TMD codebase and Tax-Calculator version 5.2.0. Tests pass with version 5.1.0. This is being addressed as a separate issue from the SSL fix to allow independent resolution.
+
+### Q: How do I contribute to this project?
+
+**A:** This project uses a trusted contributor model:
+1. Push branches directly to the upstream repository (don't fork)
+2. Create pull requests from upstream branches
+3. Use SSH authentication for GitHub access
+4. Allow 1-2 days for review before merging
+
+### Q: What's the difference between the phases?
+
+**A:** Each phase represents an iteration of dataset improvement:
+- **Phase 1:** Initial dataset based on PolicyEngine-US data
+- **Phase 2-3:** Refinements based on benchmarking results
+- **Phase 4+:** Current phase with comprehensive validation
+
+## Technical Questions
+
+### Q: How do I set up the development environment?
+
+**A:** 
+1. Clone the repository
+2. Install dependencies: `pip install -e .`
+3. License and obtain 2015 PUF data from IRS/SOI
+4. Place PUF files in `tmd/storage/input/`
+5. Run `make data` to generate TMD files
+
+### Q: How do I run the tests?
+
+**A:** Use pytest: `pytest tests/` (Note: currently requires Tax-Calculator 5.1.0)
+
+### Q: Where are the examination results?
+
+**A:** See the `tmd/examination/` directory for detailed benchmarking results comparing TMD estimates with federal agency projections.
