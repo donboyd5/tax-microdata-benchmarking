@@ -1,0 +1,87 @@
+# Tax Microdata Benchmarking Review
+
+## Overview
+
+This document tracks development issues and solutions for the tax-microdata-benchmarking project.
+
+## Recent Issues
+
+### SSL Certificate Verification Issue (#354)
+
+**Date:** August 26, 2025  
+**Status:** Fixed via PR
+
+**Problem:**
+- CPS data downloads were failing due to SSL certificate verification errors
+- Error occurred in `tmd/datasets/cps.py` line 176
+- Census Bureau's SSL configuration had compatibility issues with Python/requests/SSL setups
+
+**Solution:**
+- Added `verify=False` to the `requests.get()` call in `tmd/datasets/cps.py`
+- This disables SSL verification for the trusted Census Bureau data source
+- Allows CPS data download process to complete successfully
+
+**Implementation:**
+```python
+# Before
+response = requests.get(url, stream=True)
+
+# After  
+response = requests.get(url, stream=True, verify=False)
+```
+
+### Tax-Calculator 5.2.0 Compatibility Issue
+
+**Date:** August 26, 2025  
+**Status:** To be addressed in separate issue/PR
+
+**Problem:**
+- Tests fail when using Tax-Calculator version 5.2.0
+- Tests work correctly with Tax-Calculator version 5.1.0
+- Unrelated to the SSL verification fix
+
+**Current Status:**
+- SSL fix PR submitted with Tax-Calculator 5.2.0 as base
+- Tax-Calculator compatibility issue will be addressed separately after SSL fix is merged
+- Allows for independent review and resolution of each issue
+
+## Contributing Guidelines
+
+### Repository Workflow
+
+This project uses a **trusted contributor model**:
+- Contributors push branches directly to the upstream repository (PSLmodels/tax-microdata-benchmarking)
+- **Do not create forks** - push directly to upstream
+- Create pull requests from branches in the main repository
+
+### Authentication Setup
+
+For SSH authentication with GitHub:
+
+1. Generate SSH key:
+   ```bash
+   ssh-keygen -t ed25519 -C "your-email@example.com" -f ~/.ssh/id_ed25519 -N ""
+   ```
+
+2. Add public key to GitHub:
+   - Copy contents of `~/.ssh/id_ed25519.pub`
+   - Go to GitHub Settings → SSH and GPG keys → New SSH key
+   - Paste key and save
+
+3. Update remote to use SSH:
+   ```bash
+   git remote set-url upstream git@github.com:PSLmodels/tax-microdata-benchmarking.git
+   ```
+
+### Pull Request Process
+
+1. Create feature branch from master
+2. Make changes and commit
+3. Push branch to upstream repository
+4. Create pull request on GitHub
+5. Allow 1-2 days for review
+6. Address any feedback and merge
+
+---
+
+*Last updated: August 26, 2025*

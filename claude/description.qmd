@@ -1,0 +1,40 @@
+# Project Description
+
+## Tax Microdata Benchmarking
+
+This repository develops a general-purpose validated microdata file for use in tax microsimulation models, specifically:
+
+- [PolicyEngine-US](https://github.com/PolicyEngine/policyengine-us)
+- [Tax-Calculator](https://github.com/PSLmodels/Tax-Calculator)
+
+## Development Phases
+
+The project progresses through multiple phases of refinement:
+
+1. **Phase 1:** Base dataset from PolicyEngine-US PUF-enhanced CPS data
+2. **Phase 2-3:** Iterative improvements and validation
+3. **Phase 4+/6:** Current phase (version 1.0.0 released March 2025)
+
+## Key Components
+
+### Data Sources
+- Licensed 2015 PUF data from IRS/SOI
+- Current Population Survey (CPS) data from Census Bureau
+- Various targeting data for validation
+
+### Outputs
+- Three TMD CSV files for Tax-Calculator usage
+- Comprehensive benchmarking results
+- Sub-national area weights for geographic analysis
+
+### Validation
+- Extensive comparison with federal agency estimates
+- Testing against CBO, JCT, and Treasury projections
+- Multi-year validation (2023, 2026)
+
+## Technical Infrastructure
+
+- Python-based data processing pipeline
+- Comprehensive testing framework with pytest
+- Quarto-based documentation system
+- Git-based version control with trusted contributor model

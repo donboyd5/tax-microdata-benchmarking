@@ -1,0 +1,39 @@
+# Todo and Action Items
+
+## Current Status
+
+### Completed (August 26, 2025)
+- ✅ Fixed SSL certificate verification issue for CPS downloads
+- ✅ Created and submitted PR #355 for SSL fix
+- ✅ Set up SSH authentication for GitHub
+- ✅ Upgraded to Tax-Calculator 5.2.0
+- ✅ Documented issues in Quarto project
+
+### Pending
+- ⏳ **Review Period:** Allow 1-2 days for SSL fix PR review
+- ⏳ **Tax-Calculator Compatibility:** Create separate issue and PR for Tax-Calculator 5.2.0 compatibility problems
+- ⏳ **Testing:** Run full test suite once Tax-Calculator issue is resolved
+
+## Upcoming Actions
+
+1. **Monitor SSL Fix PR**
+   - Track review comments and feedback
+   - Address any requested changes
+   - Merge once approved
+
+2. **Address Tax-Calculator 5.2.0 Issue**
+   - Create new GitHub issue documenting test failures
+   - Investigate compatibility problems between TMD and Tax-Calculator 5.2.0
+   - Develop and test fix
+   - Submit separate PR with solution
+
+3. **Validation**
+   - Run complete test suite
+   - Verify all data generation pipelines work
+   - Update documentation as needed
+
+## Notes
+
+- Following trusted contributor model - pushing directly to upstream repository
+- Each issue addressed separately for cleaner review process
+- SSL fix takes priority as it blocks data generation entirely
