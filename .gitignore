@@ -26,3 +26,8 @@ tmd/storage/output/tax_expenditures
 claude/_book/
 
 venv/
+claude/data_defrag_v2.log
+claude/data_hybrid_test.log
+claude/data_master_test2.log
+claude/gpu_test_v1.log
+claude/gpu_test_v2.log
