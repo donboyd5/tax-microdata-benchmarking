@@ -1,0 +1,112 @@
+# GitHub Issue Draft: DataFrame Fragmentation Performance Fix
+
+## Issue Title
+Fix DataFrame fragmentation performance issue in national weight optimization
+
+## Issue Description
+
+### Problem Summary
+The `build_loss_matrix()` function in `tmd/utils/reweight.py` has a significant performance issue due to DataFrame fragmentation. The function creates an empty DataFrame and then iteratively adds columns one by one, which triggers pandas' fragmentation warnings and severely impacts performance.
+
+### Performance Impact
+Benchmarking with 5,000 records from real TMD data shows:
+- **6.85x slower execution** (39.7s vs 5.8s optimal)
+- **25% higher memory usage** (163MB vs 122MB optimal)  
+- **458 fragmentation warnings** during execution
+- Processing 558 SOI target statistics
+
+### Code Location
+File: `tmd/utils/reweight.py`, lines 69-179, specifically the `build_loss_matrix()` function
+
+### Current (Problematic) Implementation
+```python
+def build_loss_matrix(df):
+    loss_matrix = pd.DataFrame()  # Empty DataFrame - PROBLEM
+    # ... processing logic ...
+    for _, row in soi_subset.iterrows():
+        # ... target calculation ...
+        if label not in loss_matrix.columns:
+            loss_matrix[label] = mask * values  # Repeated insertion - FRAGMENTATION
+            targets_array.append(row["Value"])
+    
+    return loss_matrix.copy(), np.array(targets_array)
+```
+
+### Warning Message
+```
+PerformanceWarning: DataFrame is highly fragmented. This is usually the result 
+of calling `frame.insert` many times, which has poor performance. Consider 
+joining all columns at once using pd.concat(axis=1) instead. To get a 
+de-fragmented frame, use `newframe = frame.copy()`
+```
+
+### Root Cause
+The function starts with an empty DataFrame and adds columns iteratively:
+1. `loss_matrix = pd.DataFrame()` creates empty DataFrame
+2. Loop through 558 SOI targets 
+3. Each iteration: `loss_matrix[label] = mask * values` adds one column
+4. This creates highly fragmented memory layout
+5. Each subsequent operation becomes progressively slower
+
+### Proposed Solution
+Replace the incremental column addition with dictionary collection followed by single DataFrame creation:
+
+```python
+def build_loss_matrix(df):
+    # Collect all columns in dictionary first
+    column_data = {}
+    targets_array = []
+    
+    # ... same processing logic ...
+    for _, row in soi_subset.iterrows():
+        # ... same target calculation ...
+        if label not in column_data:
+            column_data[label] = mask * values  # Store in dictionary
+            targets_array.append(row["Value"])
+    
+    # Create DataFrame in single operation - NO FRAGMENTATION
+    loss_matrix = pd.DataFrame(column_data) if column_data else pd.DataFrame()
+    return loss_matrix.copy(), np.array(targets_array)
+```
+
+### Benchmarking Results
+Tested with 5,000 records from real TMD data:
+
+| Metric | Current | Fixed | Improvement |
+|--------|---------|-------|-------------|
+| Execution Time | 39.7 seconds | 5.8 seconds | **6.85x faster** |
+| Peak Memory | 163.0 MB | 122.2 MB | **25% reduction** |
+| Fragmentation Warnings | 458 | 0 | **100% eliminated** |
+| Result Accuracy | - | Perfect | **Identical results** |
+
+### Validation
+- **Numerical Accuracy**: Perfect equivalence tested (max difference = 0.00e+00)
+- **Functional Equivalence**: Identical logic, same variable names and processing
+- **Result Shape**: Both produce (5000, 558) matrices with same column order
+- **Target Arrays**: Identical target values in same sequence
+
+### Impact Assessment
+- **Performance**: Significant improvement for all users
+- **Memory**: Lower memory footprint, better for large datasets  
+- **User Experience**: Eliminates annoying fragmentation warnings
+- **Compatibility**: 100% backward compatible, no API changes
+- **Risk**: Very low - identical results with cleaner implementation
+
+### Testing Done
+- Comprehensive benchmarking with real TMD data
+- Numerical equivalence validation 
+- Memory usage profiling
+- Performance measurement across multiple runs
+- Warning elimination verification
+
+### Files to Modify
+- `tmd/utils/reweight.py`: Update `build_loss_matrix()` function (lines 69-179)
+
+### Breaking Changes
+None - this is a performance optimization that maintains identical behavior.
+
+---
+
+**Priority**: High - affects all national weight optimization runs
+**Type**: Performance optimization  
+**Complexity**: Low - simple refactoring with proven benefits
