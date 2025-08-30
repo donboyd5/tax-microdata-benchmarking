@@ -67,7 +67,8 @@ def reweight(
     print(f"...reweighting for year {time_period}")
 
     def build_loss_matrix(df):
-        loss_matrix = pd.DataFrame()
+        # Initialize collections - use dictionary to avoid DataFrame fragmentation
+        column_data = {}
         df = tc_to_soi(df, time_period)
         agi = df["adjusted_gross_income"].values
         filer = df["is_tax_filer"].values
@@ -172,10 +173,14 @@ def reweight(
                     f"{agi_range_label}/{taxable_label}/{filing_status_label}"
                 )
 
-            if label not in loss_matrix.columns:
-                loss_matrix[label] = mask * values
+            if label not in column_data:
+                column_data[label] = mask * values
                 targets_array.append(row["Value"])
 
+        # Create DataFrame in single operation to avoid fragmentation
+        loss_matrix = (
+            pd.DataFrame(column_data) if column_data else pd.DataFrame()
+        )
         return loss_matrix.copy(), np.array(targets_array)
 
     weights = torch.tensor(flat_file.s006.values, dtype=torch.float32)
