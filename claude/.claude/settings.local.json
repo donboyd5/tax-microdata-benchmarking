@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(/home/donboyd5/Documents/python_projects/tax-microdata-benchmarking/**)",
+      "Read(/home/donboyd5/Documents/python_projects/tax-microdata-benchmarking/tmd/utils/**)",
+      "Bash(git checkout:*)",
+      "Read(/home/donboyd5/Documents/python_projects/tax-microdata-benchmarking/tmd/utils/**)",
+      "Read(/home/donboyd5/Documents/python_projects/tax-microdata-benchmarking/**)",
+      "Read(/home/donboyd5/Documents/python_projects/tax-microdata-benchmarking/**)",
+      "Read(/home/donboyd5/Documents/python_projects/tax-microdata-benchmarking/tmd/datasets/**)",
+      "Read(/home/donboyd5/Documents/python_projects/tax-microdata-benchmarking/**)",
+      "Read(/home/donboyd5/Documents/python_projects/tax-microdata-benchmarking/tmd/datasets/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,23 @@
+[
+  {
+    "name": "lr_0.1_baseline",
+    "learning_rate": 0.1,
+    "duration_seconds": 13.419268608093262,
+    "sample_size": 2000,
+    "completed": true
+  },
+  {
+    "name": "lr_0.05_medium",
+    "learning_rate": 0.05,
+    "duration_seconds": 14.052417278289795,
+    "sample_size": 2000,
+    "completed": true
+  },
+  {
+    "name": "lr_0.01_low",
+    "learning_rate": 0.01,
+    "duration_seconds": 14.817787885665894,
+    "sample_size": 2000,
+    "completed": true
+  }
+]
