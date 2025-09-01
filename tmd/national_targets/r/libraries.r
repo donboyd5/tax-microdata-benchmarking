@@ -10,7 +10,7 @@ library(fs)
 # tools
 library(vroom)
 library(readxl)
-library(openxlsx) # for writing xlsx files
+library(openxlsx2) # for writing xlsx files
 library(lubridate)
 library(RColorBrewer)
 library(RcppRoll)
@@ -24,9 +24,9 @@ library(tidyjson)
 
 
 # boyd libraries
-library(btools)
+# library(btools)
 # library(bdata)
-library(bggtools)
+# library(bggtools)
 # library(bmaps)
 
 # graphics
