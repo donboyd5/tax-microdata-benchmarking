@@ -1,0 +1,12 @@
+/.quarto/
+
+# folders
+_book/
+_freeze/
+
+# file types
+~*.xls*
+*.rds
+
+# files
+.Rhistory
