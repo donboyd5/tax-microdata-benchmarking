@@ -51,7 +51,7 @@ tabmeta |>
 
 ```
 
-## Download the IRS spreadsheets (if the code chunk's eval option is set to TRUE)
+## ONETIME: Download the IRS spreadsheets (if the code chunk's eval option is set to TRUE)
 
 ```{r}
 #| label: CAUTION-download-irs-spreadsheets
@@ -252,7 +252,7 @@ get_irsdata <- function(
   df2
 }
 
-
+# TODO: code below expects 2015 AND 2021 files to be in the same folder but they aren't. ----
 ptargets_nested <- tabget |>
   # filter(row_number() == 4) |>
   mutate(
