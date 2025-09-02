@@ -11,7 +11,14 @@ editor_options:
 ```{r}
 #| label: setup
 
-QDIR <- here::here("tmd", "national_targets")
+if (Sys.getenv("QUARTO_PROJECT_DIR") != "") {
+  # When rendering via quarto render
+  QDIR <- Sys.getenv("QUARTO_PROJECT_DIR")
+} else {
+  # When running interactively
+  QDIR <- here::here("tmd", "national_targets")
+}
+
 source(fs::path(QDIR, "r", "libraries.R"))
 source(fs::path(QDIR, "r", "functions.R"))
 
@@ -36,7 +43,7 @@ targfn <- "target_recipes.xlsx"
 #| label: get-recipes
 #| output: false
 
-df1 <- read_excel(path(dd, targfn), sheet = "irs_downloads")
+df1 <- read_excel(fs::path(dd, targfn), sheet = "irs_downloads")
 
 # tabmeta has information about each Excel file we want to download
 tabmeta <- expand_grid(year = c(2015, 2021) |> as.integer(), df1) |>
@@ -70,7 +77,8 @@ f <- function(upath) {
   )
 }
 
-walk(tabmeta$upath, f) # walk through the list of paths, downloading and saving each file
+# uncomment the next line to download files
+# walk(tabmeta$upath, f) # walk through the list of paths, downloading and saving each file
 
 ```
 
@@ -164,7 +172,6 @@ get_colmap <- function(tab) {
 
 ```{r}
 #| label: read-irs-spreadsheets
-#| eval: true
 #| output: false
 
 allcols <- xlcols(400) # get a large number of potential excel column names
@@ -214,6 +221,7 @@ tabget <- tabmeta |>
 
 get_irsdata <- function(
   fname,
+  year,
   startrow,
   endrow,
   maxcol,
@@ -222,7 +230,7 @@ get_irsdata <- function(
 ) {
   # a single file, a single year, a single datatype (filers or taxable)
   # print(fname); print(datatype)
-  fpath <- path(irsd, fname)
+  fpath <- fs::path(dd, year, fname)
 
   # read relevant rows, but all columns from the first column through the last in columns
   #   we cannot read just the desired columns, due to limitations of read_excel
@@ -258,6 +266,7 @@ ptargets_nested <- tabget |>
   mutate(
     targets = get_irsdata(
       fname,
+      year,
       startrow,
       endrow,
       maxcol,
@@ -283,11 +292,13 @@ ptargets <- ptargets_nested |>
   relocate(xlcolumn, xlrownum, .after = fname) |>
   arrange(table, year, vname, incsort)
 
-saveRDS(ptargets, here::here("data", "potential_targets.rds"))
+saveRDS(ptargets, fs::path(QDIR, "data", "potential_targets.rds"))
 
 ptargets |>
-  write_csv(here::here("data", "potential_targets.csv"))
+  write_csv(fs::path(QDIR, "data", "potential_targets.csv"))
 
+# check for identical
+# sha256sum potential_targets_original.csv potential_targets.csv
 
 ```
 
@@ -298,7 +309,7 @@ ptargets |>
 #| output: true
 #| column: page
 
-ptargets <- readRDS(here::here("data", "potential_targets.rds"))
+ptargets <- readRDS(fs::path(QDIR, "data", "potential_targets.rds"))
 
 # datatable(ptargets, options = list(scrollX = TRUE, scrollY = '400px', paging = TRUE))
 
