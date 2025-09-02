@@ -8,6 +8,12 @@
 - Current branch `create-national-target-folder-structure` contains the completed work
 
 ### Next Steps
-- Create national_targets folder structure for PR (excluding _book/ and _freeze/ directories)
-- Prepare branch for upstream push to create PR
+- ✅ Create national_targets folder structure for PR (excluding _book/ and _freeze/ directories)
+- ✅ Prepare branch for upstream push to create PR (branch: `national-targets-pr`)
+
+### Important Workflow Reminder
+This project uses a **trusted contributor model** - always push PRs to `upstream`, not `origin`:
+```bash
+git push -u upstream national-targets-pr
+```
 

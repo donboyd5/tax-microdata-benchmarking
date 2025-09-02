@@ -77,10 +77,15 @@ For SSH authentication with GitHub:
 
 1. Create feature branch from master
 2. Make changes and commit
-3. Push branch to upstream repository
+3. **Push branch to upstream repository** (NOT origin):
+   ```bash
+   git push -u upstream branch-name
+   ```
 4. Create pull request on GitHub
 5. Allow 1-2 days for review
 6. Address any feedback and merge
+
+**Important:** Always push PRs to `upstream`, never to `origin` in this trusted contributor model.
 
 ---
 
