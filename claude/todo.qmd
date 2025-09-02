@@ -1,2 +1,13 @@
 # ToDo
 
+## Completed Work (2025-09-02)
+
+### Quarto Project Update for 2021 Potential Targets
+- Updated the quarto project configuration so that `quarto render` now properly reproduces the 2021 potential targets
+- All quarto files and configurations are working correctly for target generation
+- Current branch `create-national-target-folder-structure` contains the completed work
+
+### Next Steps
+- Create national_targets folder structure for PR (excluding _book/ and _freeze/ directories)
+- Prepare branch for upstream push to create PR
+
