@@ -115,6 +115,63 @@ git merge master  # Instead of rebase
 git push origin claude  # No force needed
 ```
 
+## Understanding Rebase vs Merge
+
+### Rebasing
+Rebasing **replays** your commits on top of master, creating a linear history:
+
+**Before rebase:**
+```
+master:  A---B---C---D---E
+              \
+claude:        X---Y---Z (your commits)
+```
+
+**After rebase (if successful):**
+```
+master:  A---B---C---D---E
+                          \
+claude:                    X'---Y'---Z' (your commits replayed)
+```
+
+Your commits X, Y, Z are "replayed" as new commits X', Y', Z' on top of master's latest commit E. This creates a clean, linear history BUT requires resolving conflicts for each commit being replayed.
+
+### Merging
+Merging combines two branches together, preserving both histories:
+
+**Before merge:**
+```
+master:  A---B---C---D---E
+              \
+claude:        X---Y---Z (your commits)
+```
+
+**After merge:**
+```
+master:  A---B---C---D---E
+              \           \
+claude:        X---Y---Z---M (merge commit)
+```
+
+A new merge commit (M) is created that combines both histories. Your original commits (X, Y, Z) stay exactly where they were, and Git just adds a merge commit that brings in master's changes.
+
+### Key Differences
+- **Rebase**: 
+  - Rewrites history to be linear
+  - Requires resolving conflicts for each commit being replayed
+  - Results in a cleaner project history
+  - Use `--force-with-lease` when pushing after rebase
+  
+- **Merge**: 
+  - Preserves both branch histories
+  - Only needs to resolve conflicts once (if any)
+  - Creates a merge commit
+  - Safer and simpler for branches with many commits
+
+### When to Use Each
+- **Use Rebase**: When you want a clean, linear history and have few commits
+- **Use Merge**: When you have many commits or complex changes, or when preserving exact history is important
+
 ## Troubleshooting
 
 ### Conflicts During Rebase
