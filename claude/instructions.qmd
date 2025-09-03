@@ -1,0 +1,4 @@
+# Instructions to Claude
+
+- read all qmd files in the claude folder
+
