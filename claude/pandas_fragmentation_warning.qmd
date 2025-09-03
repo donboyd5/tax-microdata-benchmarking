@@ -41,14 +41,16 @@ This is **chained assignment** where:
 - This could lead to subtle bugs where data isn't updated as expected
 
 ### The Fix
-Replace chained assignment with direct assignment using `.loc`:
+Replace chained assignment with direct assignment using `.at`:
 ```python
 # Current (problematic):
 added.YEAR.iat[idx] = last_puf_year + idx + 1
 
 # Fixed:
-added.loc[idx, 'YEAR'] = last_puf_year + idx + 1
+added.at[idx, 'YEAR'] = last_puf_year + idx + 1
 ```
+
+**Important**: Use `.at` not `.loc` - the `.loc` accessor can create new rows if the index doesn't exist, while `.at` works exactly like `.iat` but without chained assignment.
 
 ## System Differences Investigation
 
@@ -196,7 +198,7 @@ Create a pull request to fix the chained assignment in `tmd/create_taxcalc_growt
 added.YEAR.iat[idx] = last_puf_year + idx + 1
 
 # To:
-added.loc[idx, 'YEAR'] = last_puf_year + idx + 1
+added.at[idx, 'YEAR'] = last_puf_year + idx + 1
 ```
 
 ### GitHub Issue Template
