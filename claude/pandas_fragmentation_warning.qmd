@@ -1,0 +1,277 @@
+# Pandas ChainedAssignmentError Warning Investigation
+
+## Issue Description
+
+A `FutureWarning` appears when running `make clean; make data` on some systems but not others:
+
+```
+python tmd/create_taxcalc_growth_factors.py
+/home/don-boyd/Documents/psl/tax-microdata-benchmarking/tmd/create_taxcalc_growth_factors.py:78: 
+FutureWarning: ChainedAssignmentError: behaviour will change in pandas 3.0!
+You are setting values through chained assignment. Currently this works in certain cases, 
+but when using Copy-on-Write (which will become the default behaviour in pandas 3.0) 
+this will never work to update the original DataFrame or Series, because the intermediate 
+object on which we are setting values will behave as a copy.
+
+A typical example is when you are setting values in a column of a DataFrame, like:
+df["col"][row_indexer] = value
+
+Use `df.loc[row_indexer, "col"] = values` instead, to perform the assignment in a single 
+step and ensure this keeps updating the original `df`.
+
+  added.YEAR.iat[idx] = last_puf_year + idx + 1
+```
+
+## Problem Analysis
+
+### What's Happening
+The warning occurs at line 78 of `tmd/create_taxcalc_growth_factors.py`:
+```python
+added.YEAR.iat[idx] = last_puf_year + idx + 1
+```
+
+This is **chained assignment** where:
+1. `added.YEAR` creates an intermediate Series object
+2. `.iat[idx]` tries to modify that intermediate object
+3. The modification may or may not propagate back to the original DataFrame
+
+### Why It's a Problem
+- **Pandas 3.0 will enforce Copy-on-Write (CoW)** by default
+- Under CoW, chained assignments will fail silently (won't update the original DataFrame)
+- This could lead to subtle bugs where data isn't updated as expected
+
+### The Fix
+Replace chained assignment with direct assignment using `.loc`:
+```python
+# Current (problematic):
+added.YEAR.iat[idx] = last_puf_year + idx + 1
+
+# Fixed:
+added.loc[idx, 'YEAR'] = last_puf_year + idx + 1
+```
+
+## System Differences Investigation
+
+### Why the Warning Appears on Some Systems But Not Others
+
+The warning visibility depends on several factors:
+
+1. **Pandas Version**: Different versions have different warning behaviors
+2. **Warning Filters**: Python warning settings may differ
+3. **Python Version**: Different Python versions handle warnings differently
+4. **Environment Variables**: Some environments suppress warnings
+
+### Commands to Investigate Version Differences
+
+Run these commands on both systems to compare:
+
+#### 1. Check Python and Pandas Versions in the TMD Environment
+
+```bash
+# Activate the TMD environment first
+source venv/bin/activate  # or however you activate it
+
+# Check Python version
+python --version
+
+# Check pandas version
+python -c "import pandas; print(f'Pandas version: {pandas.__version__}')"
+
+# Check if Copy-on-Write is enabled
+python -c "import pandas as pd; print(f'CoW mode: {pd.options.mode.copy_on_write}')"
+
+# Check warning settings
+python -c "import warnings; print(f'Warning filters: {warnings.filters[:3]}')"
+```
+
+#### 2. Check System-Wide Python Configuration
+
+```bash
+# Check for environment variables that affect warnings
+echo "PYTHONWARNINGS: $PYTHONWARNINGS"
+echo "PYTHONDONTWRITEBYTECODE: $PYTHONDONTWRITEBYTECODE"
+
+# Check Python path and installation
+which python
+python -c "import sys; print(f'Python path: {sys.executable}')"
+```
+
+#### 3. Run a Test Script to Check Warning Behavior
+
+Create and run this test script on both systems:
+
+```python
+# test_warnings.py
+import pandas as pd
+import warnings
+
+print(f"Pandas version: {pd.__version__}")
+print(f"CoW enabled: {pd.options.mode.copy_on_write}")
+
+# Test chained assignment
+df = pd.DataFrame({'A': [1, 2, 3], 'B': [4, 5, 6]})
+print("\nTesting chained assignment...")
+df.A.iat[0] = 10  # This should trigger the warning
+print(f"Value updated: {df.A.iloc[0]}")
+```
+
+Run it with:
+```bash
+python test_warnings.py
+```
+
+#### 4. Check Git Configuration for Line Endings (may affect script execution)
+
+```bash
+git config core.autocrlf
+git config core.eol
+```
+
+### Comprehensive Version Check Script
+
+Save this as `check_versions.sh` and run on both systems:
+
+```bash
+#!/bin/bash
+echo "=== System Information ==="
+echo "Hostname: $(hostname)"
+echo "OS: $(uname -a)"
+echo ""
+
+echo "=== Python Information ==="
+python --version
+echo "Python path: $(which python)"
+echo ""
+
+echo "=== Package Versions ==="
+python -c "
+import pandas as pd
+import numpy as np
+import sys
+
+print(f'Python: {sys.version}')
+print(f'Pandas: {pd.__version__}')
+print(f'NumPy: {np.__version__}')
+print(f'CoW mode: {pd.options.mode.copy_on_write}')
+"
+
+echo ""
+echo "=== Warning Configuration ==="
+python -c "
+import warnings
+print('Warning filters (first 3):')
+for i, f in enumerate(warnings.filters[:3]):
+    print(f'  {i}: {f}')
+"
+
+echo ""
+echo "=== Environment Variables ==="
+echo "PYTHONWARNINGS: ${PYTHONWARNINGS:-'not set'}"
+echo "PYTHONDONTWRITEBYTECODE: ${PYTHONDONTWRITEBYTECODE:-'not set'}"
+```
+
+## Likely Causes of Difference
+
+### Most Probable Explanations
+
+1. **Pandas Version Mismatch**
+   - Newer pandas versions (≥1.5.0) show this warning more prominently
+   - Older versions might not show it at all
+
+2. **Warning Filter Settings**
+   - WSL2 Ubuntu might have different default warning settings
+   - Native Linux might have warnings configured differently
+
+3. **Virtual Environment Differences**
+   - Different `pip` versions when creating the environment
+   - Different dependency resolution
+
+## Recommended Actions
+
+### Immediate Fix
+Create a pull request to fix the chained assignment in `tmd/create_taxcalc_growth_factors.py`:
+
+```python
+# Line 78, change from:
+added.YEAR.iat[idx] = last_puf_year + idx + 1
+
+# To:
+added.loc[idx, 'YEAR'] = last_puf_year + idx + 1
+```
+
+### GitHub Issue Template
+
+```markdown
+## Pandas FutureWarning: ChainedAssignmentError in create_taxcalc_growth_factors.py
+
+### Description
+A FutureWarning appears when running `make data` regarding chained assignment that will break in pandas 3.0.
+
+### Warning Message
+[Include the full warning message]
+
+### Location
+File: `tmd/create_taxcalc_growth_factors.py`
+Line: 78
+Code: `added.YEAR.iat[idx] = last_puf_year + idx + 1`
+
+### Proposed Fix
+Replace chained assignment with direct assignment using `.loc`:
+```python
+added.loc[idx, 'YEAR'] = last_puf_year + idx + 1
+```
+
+### Impact
+- Currently works but shows warning
+- Will break when pandas 3.0 is released
+- Fix is backwards compatible
+
+### Testing
+- Verified fix eliminates warning
+- Produces identical results
+```
+
+## Testing the Fix
+
+To verify the fix works correctly:
+
+```bash
+# 1. Make the change in the file
+# 2. Run the pipeline
+make clean
+make data
+
+# 3. Verify no warning appears
+# 4. Verify output is identical to previous run
+```
+
+## Additional Notes
+
+### Related Issues in the Codebase
+There may be other instances of chained assignment. To find them:
+
+```bash
+# Search for potential chained assignments with .iat
+grep -r "\.iat\[" tmd/
+
+# Search for potential chained assignments with .at
+grep -r "\.at\[" tmd/
+
+# Search for potential problematic patterns
+grep -r "\]\[" tmd/ --include="*.py" | grep -v "^\s*#"
+```
+
+### Future-Proofing
+To prevent similar issues:
+1. Enable Copy-on-Write mode in development to catch issues early
+2. Add to development environment setup:
+   ```python
+   import pandas as pd
+   pd.options.mode.copy_on_write = True
+   ```
+3. Update code style guide to prohibit chained assignment
+
+---
+
+*Investigation started: 2025-09-03*  
+*Systems affected: Native Linux (warning visible) vs WSL2 Ubuntu (no warning)*
