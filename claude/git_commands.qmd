@@ -1,0 +1,137 @@
+# Git Commands for Branch Management
+
+## Overview
+
+This document provides the git command sequence for maintaining branches in sync with upstream and origin repositories in the tax-microdata-benchmarking project.
+
+## Command Sequence
+
+### 1. Update Local Master with Upstream
+
+First, ensure your local master branch is up to date with the upstream repository:
+
+```bash
+# Switch to master branch
+git checkout master
+
+# Fetch latest changes from upstream
+git fetch upstream
+
+# Merge upstream/master into local master
+git merge upstream/master
+```
+
+Alternative using pull:
+```bash
+# Switch to master branch
+git checkout master
+
+# Pull latest changes from upstream/master
+git pull upstream master
+```
+
+### 2. Rebase Claude Branch onto Updated Master
+
+Update your claude branch to start from the newly updated master:
+
+```bash
+# Switch to claude branch
+git checkout claude
+
+# Rebase onto master
+git rebase master
+```
+
+If you encounter conflicts during rebase:
+```bash
+# Resolve conflicts in your editor, then:
+git add <resolved-files>
+git rebase --continue
+
+# Or to abort the rebase:
+git rebase --abort
+```
+
+### 3. Push Local Branch to Origin (Fork)
+
+Push your updated claude branch to your fork (origin), NOT to upstream:
+
+```bash
+# Push claude branch to origin
+git push origin claude
+
+# If the rebase changed history, you may need to force push:
+git push --force-with-lease origin claude
+```
+
+## Complete Sequence
+
+Here's the complete sequence as a single script:
+
+```bash
+# Update local master with upstream
+git checkout master
+git fetch upstream
+git merge upstream/master
+
+# Rebase claude branch onto updated master
+git checkout claude
+git rebase master
+
+# Push to origin (your fork)
+git push --force-with-lease origin claude
+```
+
+## Important Notes
+
+### Repository Remotes
+- **upstream**: The main repository (PSLmodels/tax-microdata-benchmarking)
+- **origin**: Your fork of the repository
+
+### Verify Remotes
+Check your configured remotes:
+```bash
+git remote -v
+```
+
+Expected output:
+```
+origin    git@github.com:YOUR_USERNAME/tax-microdata-benchmarking.git (fetch)
+origin    git@github.com:YOUR_USERNAME/tax-microdata-benchmarking.git (push)
+upstream  git@github.com:PSLmodels/tax-microdata-benchmarking.git (fetch)
+upstream  git@github.com:PSLmodels/tax-microdata-benchmarking.git (push)
+```
+
+### Force Push Safety
+- Use `--force-with-lease` instead of `--force` for safer force pushing
+- This prevents accidentally overwriting others' work
+- Only needed after rebase or when rewriting history
+
+### Alternative: Merge Instead of Rebase
+If you prefer to preserve branch history:
+```bash
+git checkout claude
+git merge master  # Instead of rebase
+git push origin claude  # No force needed
+```
+
+## Troubleshooting
+
+### Conflicts During Rebase
+1. Fix conflicts in your editor
+2. Stage resolved files: `git add <file>`
+3. Continue rebase: `git rebase --continue`
+4. Or abort: `git rebase --abort`
+
+### Push Rejected
+If push is rejected after rebase:
+```bash
+git push --force-with-lease origin claude
+```
+
+### Check Branch Status
+Before and after operations:
+```bash
+git status
+git log --oneline -5
+```
