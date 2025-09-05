@@ -8,7 +8,7 @@ editor_options:
 
 This chapter reads the manually created "target recipes" xlsx file and reads the IRS xls* files identifed within.
 
-It then saves them as ptargets.rds, to be used for further investigation and testing to be sure they seem correct.
+It then saves them as potential_targets_preliminary.rds, to be used for further investigation and testing to be sure they seem correct.
 
 ## Setup
 
@@ -176,34 +176,11 @@ ptargets <- ptargets_nested |>
 
 ```{r}
 #| label: save-raw-irs-data
-#| eval: false
 #| output: false
 
 saveRDS(ptargets, fs::path(QDIR, "data", "potential_targets_preliminary.rds"))
 
 ptargets |>
   write_csv(fs::path(QDIR, "data", "potential_targets_preliminary.csv"))
-
-```
-
-<!-- ## Show potential targets {#sec-show-targets} -->
-
-```{r}
-#| label: show-targets
-#| eval: false
-#| output: true
-#| column: page
-
-# ptargets <- readRDS(fs::path(QDIR, "data", "potential_targets.rds"))
-
-# # datatable(ptargets, options = list(scrollX = TRUE, scrollY = '400px', paging = TRUE))
-
-# datatable(
-#   ptargets |>
-#     select(-table_description),
-#   options = list(scrollX = TRUE, scrollY = '1500px', pageLength = 20),
-#   filter = "top"
-# ) |>
-#   formatCurrency(columns = c("ptarget"), currency = "", digits = 0)
 
 ```

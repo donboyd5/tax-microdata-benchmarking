@@ -1,0 +1,54 @@
+---
+output: html_document
+editor_options: 
+ chunk_output_type: console
+---
+
+# Examine preliminary IRS targets to verify technical correctness
+
+This chapter reads examines previously created data.
+
+## Setup
+
+```{r}
+#| label: setup
+
+source(here::here("tmd", "national_targets", "setup.R"))
+
+# note - will load the functions that help with reading excel files, possibly isolte those later
+
+```
+
+
+## Get previously prepared data data
+
+```{r}
+
+# df1 <- read_excel(fs::path(DATADIR, targfn), sheet = "irs_downloads")
+ptargets <- readRDS(fs::path(QDIR, "data", "potential_targets_preliminary.rds"))
+
+```
+
+
+<!-- ## Show potential targets {#sec-show-targets} -->
+
+```{r}
+#| label: show-targets
+#| eval: false
+#| output: true
+#| column: page
+
+# ptargets <- readRDS(fs::path(QDIR, "data", "potential_targets.rds"))
+
+# # datatable(ptargets, options = list(scrollX = TRUE, scrollY = '400px', paging = TRUE))
+
+# datatable(
+#   ptargets |>
+#     select(-table_description),
+#   options = list(scrollX = TRUE, scrollY = '1500px', pageLength = 20),
+#   filter = "top"
+# ) |>
+#   formatCurrency(columns = c("ptarget"), currency = "", digits = 0)
+
+```
+
