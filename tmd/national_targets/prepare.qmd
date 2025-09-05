@@ -4,7 +4,7 @@ editor_options:
  chunk_output_type: console
 ---
 
-# Get files
+# Read "recipes", read IRS files, and save preliminary version of target data
 
 This chapter reads the manually created "target recipes" xlsx file and reads the IRS xls* files identifed within.
 
@@ -17,8 +17,9 @@ It then saves them as ptargets.rds, to be used for further investigation and tes
 
 source(here::here("tmd", "national_targets", "setup.R"))
 
-```
+# note - will load the functions that help with reading excel files, possibly isolte those later
 
+```
 
 ## Read the target_recipes tab that defines IRS table spreadsheets to download
 
@@ -41,91 +42,6 @@ tabmeta |>
 
 ```
 
-## Functions to read IRS spreadsheets
-
-### Function to read mapping tab for an IRS spreadsheet (found in **target_recipes.xlsx**)
-
-```{r}
-#| label: irs-functions
-
-# tab <- "tab11"
-
-get_rowmap <- function(tab) {
-  # reads the target recipes xlsx file to
-  # get start and end row for key data for each year of a particular IRS spreadsheet
-  # from its associated mapping tab in the recipes file
-  # assumes DATADIR and targfn (targets filename) are in the environment
-  sheet <- paste0(tab, "_map")
-  read_excel(
-    path(DATADIR, targfn),
-    sheet = sheet,
-    range = cellranger::cell_rows(1:3)
-  ) |>
-    pivot_longer(-rowtype, values_to = "xlrownum") |>
-    separate_wider_delim(name, delim = "_", names = c("datatype", "year")) |>
-    mutate(
-      table = tab,
-      year = as.integer(year),
-      xlrownum = as.integer(xlrownum)
-    ) |>
-    select(table, datatype, year, rowtype, xlrownum) |>
-    arrange(table, year, datatype, desc(rowtype))
-}
-
-xlcols <- function(n) {
-  # create a vector of letters in the order that Excel uses
-
-  # a helper function that allows us to put letter column names on a dataframe
-  #   that was read from an Excel file
-
-  # usage:
-  #   xlcols(53)
-  #   gets the letters for the first 53 columns in a spreadsheet
-  # only good for 1- and 2-letter columns, or 26 + 26 x 26 = 702 columns
-  xl_letters <- c(
-    LETTERS,
-    sapply(LETTERS, function(x) paste0(x, LETTERS, sep = ""))
-  )
-  return(xl_letters[1:n])
-}
-
-get_colmap <- function(tab) {
-  # reads the target_recipes.xlsx file to
-  # get columns of interest for each year of a particular IRS spreadsheet,
-  # from its associated mapping tab in the recipes file
-
-  # assumes DATADIR, targfn (targets filename), and allcols are in the environment
-  sheet <- paste0(tab, "_map")
-  col_map <- read_excel(path(DATADIR, targfn), sheet = sheet, skip = 3) |>
-    pivot_longer(
-      -c(vname, description, units, notes),
-      values_to = "xlcolumn"
-    ) |>
-    separate_wider_delim(name, delim = "_", names = c("datatype", "year")) |>
-    mutate(
-      table = tab,
-      year = as.integer(year),
-      xl_colnumber = match(xlcolumn, allcols)
-    ) |>
-    select(
-      table,
-      datatype,
-      year,
-      xl_colnumber,
-      xlcolumn,
-      vname,
-      description,
-      units,
-      notes
-    ) |>
-    filter(!is.na(xlcolumn), !is.na(vname)) |>
-    arrange(table, datatype, year, xl_colnumber)
-  col_map
-}
-
-# allcols <- xlcols(400); get_colmap("tab11")
-
-```
 
 ## Read IRS spreadsheets and save data frame of targets as csv file
 
@@ -138,7 +54,6 @@ ht(allcols)
 
 get_rowmap("tab11")
 get_rowmap("tab21")
-
 
 # tabs <- c("tab11", "tab12")
 # tabs <- c("tab11", "tab12", "tab14")
@@ -251,33 +166,44 @@ ptargets <- ptargets_nested |>
   relocate(xlcolumn, xlrownum, .after = fname) |>
   arrange(table, year, vname, incsort)
 
-saveRDS(ptargets, fs::path(QDIR, "data", "potential_targets.rds"))
-
-ptargets |>
-  write_csv(fs::path(QDIR, "data", "potential_targets.csv"))
-
 # check for identical
 # sha256sum potential_targets_original.csv potential_targets.csv
 
 ```
 
-## Show potential targets {#sec-show-targets}
+
+## Save preliminary target data
+
+```{r}
+#| label: save-raw-irs-data
+#| eval: false
+#| output: false
+
+saveRDS(ptargets, fs::path(QDIR, "data", "potential_targets_preliminary.rds"))
+
+ptargets |>
+  write_csv(fs::path(QDIR, "data", "potential_targets_preliminary.csv"))
+
+```
+
+<!-- ## Show potential targets {#sec-show-targets} -->
 
 ```{r}
 #| label: show-targets
+#| eval: false
 #| output: true
 #| column: page
 
-ptargets <- readRDS(fs::path(QDIR, "data", "potential_targets.rds"))
+# ptargets <- readRDS(fs::path(QDIR, "data", "potential_targets.rds"))
 
-# datatable(ptargets, options = list(scrollX = TRUE, scrollY = '400px', paging = TRUE))
+# # datatable(ptargets, options = list(scrollX = TRUE, scrollY = '400px', paging = TRUE))
 
-datatable(
-  ptargets |>
-    select(-table_description),
-  options = list(scrollX = TRUE, scrollY = '1500px', pageLength = 20),
-  filter = "top"
-) |>
-  formatCurrency(columns = c("ptarget"), currency = "", digits = 0)
+# datatable(
+#   ptargets |>
+#     select(-table_description),
+#   options = list(scrollX = TRUE, scrollY = '1500px', pageLength = 20),
+#   filter = "top"
+# ) |>
+#   formatCurrency(columns = c("ptarget"), currency = "", digits = 0)
 
 ```
