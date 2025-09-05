@@ -11,14 +11,15 @@ editor_options:
 ```{r}
 #| label: setup
 
-if (Sys.getenv("QUARTO_PROJECT_DIR") != "") {
-  # When rendering via quarto render
-  QDIR <- Sys.getenv("QUARTO_PROJECT_DIR")
-} else {
-  # When running interactively
-  QDIR <- here::here("tmd", "national_targets")
-}
+# if (Sys.getenv("QUARTO_PROJECT_DIR") != "") {
+#   # When rendering via quarto render
+#   QDIR <- Sys.getenv("QUARTO_PROJECT_DIR")
+# } else {
+#   # When running interactively
+#   QDIR <- here::here("tmd", "national_targets")
+# }
 
+QDIR <- here::here("tmd", "national_targets")
 source(fs::path(QDIR, "r", "libraries.R"))
 source(fs::path(QDIR, "r", "functions.R"))
 

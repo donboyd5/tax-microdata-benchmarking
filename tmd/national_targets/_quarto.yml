@@ -1,10 +1,8 @@
 project:
   type: book
+  execute-dir: project  
 
 execute:
-  # Sets the execution directory for all R code to the project root.
-  # This makes all paths relative to the folder containing _quarto.yml.
-  execute-dir: project  
   eval: true
   echo: true
   output: true
