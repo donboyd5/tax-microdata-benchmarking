@@ -1,6 +1,6 @@
 ---
 output: html_document
-editor_options: 
+editor_options:
   chunk_output_type: console
 ---
 
@@ -14,8 +14,130 @@ This mapping documents the relationships between: - PUF microdata variables (201
 
 The goal is to establish appropriate mappings for setting national targets based on IRS data.
 
-## Mapping Table 1
+Steps:
 
+-   compare reported aggregates in IRS tables for 2015 to the documentation for 2015
+
+```{r}
+#| label: setup
+
+# QROOT <- normalizePath(
+#   file.path(getwd(), "tmd", "national_targets"),
+#   winslash = "/"
+# )
+
+GROOT <- rprojroot::find_root(rprojroot::has_file(".git/index"))
+DINPUT <- fs::path(GROOT, "tmd", "storage", "input")
+pufpath <- fs::path(DINPUT, "puf_2015.csv")
+
+QROOT <- local({
+  root <- tryCatch(quarto::get_running_project_root(), error = function(e) NULL) # non-NULL only during render
+  if (!is.null(root)) {
+    normalizePath(root, winslash = "/") # use Quarto’s actual project root
+  } else {
+    normalizePath(file.path(getwd(), "tmd", "national_targets"), winslash = "/") # interactive default
+  }
+})
+
+source(fs::path(QROOT, "setup.R"))
+
+# note - will load the functions that help with reading excel files
+# also loads QROOT, DATADIR, and targfn
+
+```
+
+## Get data on weighted sums
+
+### Data from PUF documentation
+
+The following data is from the PUF documentation booklet. Tables were copied carefully into the Excel file used below and carefully supplemented. It is the most labor-intensive and error-prone part of the targets process.
+
+Get weighted sums of numeric variables, from PUF 2015 documentation pages 46-50. The screenshot below shows what the table looks like. It includes:
+
+-   SOI PUF 2015 variable name – e.g., first row is PUF variable E00100, Adjusted gross income
+
+-   2015 Full SOI Individual Sample amount – this is the amount in the full (non-public-use) IRS sample (we do **not** have this data file). It is also, generally, the amount found in IRS public tables and what we should consider a control total for 2015.
+
+-   2015 Public Use Sample amount - We generally can calculate this from the full 2015 PUF sample (as long as we include the four aggregate records).
+
+Our detective job is to:
+
+-   Pick an important PUF variable that we may want to target
+
+-   Verify that it is what we think it is by summarizing the 2015 PUF and comparing to this table
+
+-   Find its counterpart in 2015 published IRS tables so that we know which IRS table has detailed targeting information for that variable
+
+-   Find its counterpart in 2022 published IRS tables so that we know which 2022 IRS table has detailed targeting information for that variable
+
+![](images/paste-1.png)
+
+```{r}
+
+xlpath <- fs::path(DATADIR, targfn)
+sheet <- "puf2015_wtdsums"
+range <- "A3:E176"
+
+mainvars <- readxl::read_excel(xlpath, sheet = sheet, range = range)
+
+```
+
+### PUF weighted sums, for comparison
+
+```{r}
+#| label: get-raw-puf
+
+puf <- vroom::vroom(pufpath)
+
+pufsums <- puf |>
+  select(RECID, S006, any_of(mainvars$puf_name)) |>
+  summarise(across(-c(RECID, S006), \(x) sum(x * S006 / 100))) |>
+  pivot_longer(cols = everything(), names_to = "puf_name", values_to = "pufsum")
+
+
+```
+
+### Compare PUF weighted sums to
+
+```{r}
+temp <- mainvars |>
+  left_join(
+    pufsums |> mutate(pufsumk = pufsum / 1000) |> select(puf_name, pufsumk),
+    by = join_by(puf_name)
+  ) |>
+  mutate(diff = pufsumk - PUF_2015, pdiff = diff / PUF_2015)
+
+temp |>
+  select(-form_location_2015) |>
+  arrange(desc(abs(diff))) |>
+  filter(abs(pdiff) > .01) |>
+  gt() |>
+  fmt_number(
+    columns = c(SOI_sample_2015, PUF_2015, pufsumk, pdiff),
+    decimals = 0
+  ) |>
+  fmt_percent(columns = pdiff, decimals = 1)
+
+```
+
+![](images/paste-4.png)
+
+![](images/paste-3.png)
+
+## Get data
+
+```{r}
+
+# potential targets
+ptargets <- readRDS(fs::path(
+  QROOT,
+  "data",
+  "potential_targets_preliminary.rds"
+))
+
+```
+
+## Mapping Table 1
 
 ## Mapping Table 2
 
