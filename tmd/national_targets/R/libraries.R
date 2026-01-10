@@ -26,3 +26,29 @@ libs <- function() {
 }
 
 suppressPackageStartupMessages(libs())
+
+# pkgs <- c(
+#   "tidyverse",
+#   "readxl",
+#   "vroom",
+#   "fs",
+#   "openxlsx2",
+#   "arrow",
+#   "jsonlite",
+#   "tidyjson",
+#   "skimr",
+#   "janitor",
+#   "gtExtras",
+#   "DT",
+#   "htmltools",
+#   "kableExtra",
+#   "knitr",
+#   "Hmisc",
+#   "gt"
+# )
+
+# url <- "https://cran.r-project.org/src/contrib/xml2_1.5.1.tar.gz"
+# install.packages("https://cran.r-project.org/src/contrib/xml2_1.5.1.tar.gz", repos = NULL, type = "source")
+# devtools::install_github("colearendt/tidyjson")
+# pkgs <- c("tidyjson")
+# install.packages(pkgs)
