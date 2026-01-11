@@ -101,7 +101,7 @@ temp <- mainvars |>
 temp |>
   select(-form_location_2015) |>
   arrange(desc(abs(diff))) |>
-  filter(abs(pdiff) > .01) |>
+  filter(abs(pdiff) > 0.01) |>
   gt() |>
   fmt_number(
     columns = c(SOI_sample_2015, PUF_2015, pufsumk, pdiff),
