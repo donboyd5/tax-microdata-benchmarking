@@ -177,9 +177,9 @@ ptargets <- ptargets_nested |>
 #| label: save-raw-irs-data
 #| output: false
 
-saveRDS(ptargets, fs::path(QROOT, "data", "potential_targets_preliminary.rds"))
+saveRDS(ptargets, fs::path(DATADIR, "potential_targets_preliminary.rds"))
 
 ptargets |>
-  write_csv(fs::path(QROOT, "data", "potential_targets_preliminary.csv"))
+  write_csv(fs::path(DATADIR, "potential_targets_preliminary.csv"))
 
 ```
