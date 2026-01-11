@@ -1,5 +1,5 @@
 ---
-output: html_document
+format: html
 editor_options:
   chunk_output_type: console
 ---
@@ -30,19 +30,7 @@ GITROOT <- rprojroot::find_root(rprojroot::has_file(".git/index"))
 QROOT <- fs::path(GITROOT, "tmd", "national_targets", "qmd")
 source(fs::path(QROOT, "setup.R"))
 
-
 pufpath <- fs::path(TMDINPUT, "puf_2015.csv")
-
-QROOT <- local({
-  root <- tryCatch(quarto::get_running_project_root(), error = function(e) NULL) # non-NULL only during render
-  if (!is.null(root)) {
-    normalizePath(root, winslash = "/") # use Quarto’s actual project root
-  } else {
-    normalizePath(file.path(getwd(), "tmd", "national_targets"), winslash = "/") # interactive default
-  }
-})
-
-source(fs::path(QROOT, "setup.R"))
 
 # note - will load the functions that help with reading excel files
 # also loads QROOT, DATADIR, and targfn
@@ -132,11 +120,7 @@ temp |>
 ```{r}
 
 # potential targets
-ptargets <- readRDS(fs::path(
-  QROOT,
-  "data",
-  "potential_targets_preliminary.rds"
-))
+ptargets <- readRDS(fs::path(DATADIR, "potential_targets_preliminary.rds"))
 
 ```
 
