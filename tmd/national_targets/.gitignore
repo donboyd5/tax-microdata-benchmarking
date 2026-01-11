@@ -3,8 +3,7 @@
 # folders
 _book/
 _freeze/
-puf_irs_mapping/puf_irs_mapping_files/
-site_libs/
+*_files/
 
 # file types
 ~*.xls*
