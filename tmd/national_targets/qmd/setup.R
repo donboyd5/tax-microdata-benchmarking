@@ -1,5 +1,6 @@
 # QROOT <- here::here("tmd", "national_targets")
 
+TMDINPUT <- fs::path(GITROOT, "tmd", "storage", "input")
 DATADIR <- fs::path(QROOT, "data")
 targfn <- "target_recipes_v2.xlsx"
 

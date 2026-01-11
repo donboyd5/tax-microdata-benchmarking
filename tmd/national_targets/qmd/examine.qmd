@@ -1,6 +1,6 @@
 ---
 output: html_document
-editor_options: 
+editor_options:
  chunk_output_type: console
 ---
 
@@ -14,14 +14,8 @@ This chapter reads and examines previously created data.
 #| label: setup
 
 # source(here::here("tmd", "national_targets", "setup.R"))
-QROOT <- local({
-  root <- tryCatch(quarto::get_running_project_root(), error = function(e) NULL) # non-NULL only during render
-  if (!is.null(root)) {
-    normalizePath(root, winslash = "/") # use Quarto’s actual project root
-  } else {
-    normalizePath(file.path(getwd(), "tmd", "national_targets"), winslash = "/") # interactive default
-  }
-})
+GITROOT <- rprojroot::find_root(rprojroot::has_file(".git/index"))
+QROOT <- fs::path(GITROOT, "tmd", "national_targets", "qmd")
 source(fs::path(QROOT, "setup.R"))
 
 ```

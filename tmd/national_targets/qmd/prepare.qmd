@@ -1,6 +1,6 @@
 ---
 output: html_document
-editor_options: 
+editor_options:
  chunk_output_type: console
 ---
 
@@ -15,20 +15,8 @@ It then saves them as potential_targets_preliminary.rds, to be used for further 
 ```{r}
 #| label: setup
 
-# QROOT <- normalizePath(
-#   file.path(getwd(), "tmd", "national_targets"),
-#   winslash = "/"
-# )
-
-QROOT <- local({
-  root <- tryCatch(quarto::get_running_project_root(), error = function(e) NULL) # non-NULL only during render
-  if (!is.null(root)) {
-    normalizePath(root, winslash = "/") # use Quarto’s actual project root
-  } else {
-    normalizePath(file.path(getwd(), "tmd", "national_targets"), winslash = "/") # interactive default
-  }
-})
-
+GITROOT <- rprojroot::find_root(rprojroot::has_file(".git/index"))
+QROOT <- fs::path(GITROOT, "tmd", "national_targets", "qmd")
 source(fs::path(QROOT, "setup.R"))
 
 # note - will load the functions that help with reading excel files

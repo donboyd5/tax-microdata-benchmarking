@@ -26,9 +26,12 @@ Steps:
 #   winslash = "/"
 # )
 
-GROOT <- rprojroot::find_root(rprojroot::has_file(".git/index"))
-DINPUT <- fs::path(GROOT, "tmd", "storage", "input")
-pufpath <- fs::path(DINPUT, "puf_2015.csv")
+GITROOT <- rprojroot::find_root(rprojroot::has_file(".git/index"))
+QROOT <- fs::path(GITROOT, "tmd", "national_targets", "qmd")
+source(fs::path(QROOT, "setup.R"))
+
+
+pufpath <- fs::path(TMDINPUT, "puf_2015.csv")
 
 QROOT <- local({
   root <- tryCatch(quarto::get_running_project_root(), error = function(e) NULL) # non-NULL only during render
