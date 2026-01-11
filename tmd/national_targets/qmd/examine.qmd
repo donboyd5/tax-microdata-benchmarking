@@ -130,16 +130,70 @@ show_tab <- function(tab, year, datatype = c("filers", "taxable")) {
 
 ```
 
+
 ## Get previously prepared data
 
 ```{r}
 #| label: get-data
 
-ptargets <- readRDS(fs::path(
-  QROOT,
-  "data",
-  "potential_targets_preliminary.rds"
-))
+ptargets <- readRDS(fs::path(DATADIR, "potential_targets_preliminary.rds"))
+
+```
+
+```{r}
+
+datatype <- c("filers", "taxable")
+year <- 2015
+tab <- "tab11"
+
+df <- ptargets |>
+  dplyr::filter(
+    table == tab,
+    year == {{ year }},
+    datatype %in% {{ datatype }}
+  ) |>
+  dplyr::select(table, datatype, vname, ptarget, xlcolumn, xlrownum) |>
+  dplyr::mutate(nxlcolumn = xlcol_to_num(xlcolumn)) |>
+  dplyr::arrange(nxlcolumn, xlrownum) |>
+  dplyr::select(-nxlcolumn) |>
+  tidyr::pivot_wider(
+    names_from = c(xlcolumn, vname, datatype),
+    values_from = ptarget
+  )
+
+# Targets: R cols 3..last => JS zero-based 2..(n-1)
+right_align_js_targets <- if (ncol(df) >= 3) 2:(ncol(df) - 1) else integer(0)
+cols_to_fmt <- if (ncol(df) >= 3) 3:ncol(df) else integer(0)
+
+# Build DT widget (no 'nowrap'; auto width; adjust on init; collapse scroll when short)
+tbl <- DT::datatable(
+  df,
+  class = "display stripe cell-border",
+  rownames = FALSE,
+  options = list(
+    scrollX = TRUE,
+    scrollY = "400px",
+    scrollCollapse = TRUE, # <-- collapses extra vertical whitespace
+    pageLength = 30,
+    autoWidth = TRUE,
+    deferRender = TRUE,
+    columnDefs = list(
+      list(targets = right_align_js_targets, className = "dt-right")
+    ),
+    initComplete = htmlwidgets::JS(
+      "function(settings, json) {
+           var api = this.api();
+           // Let the header stretch and wrap; then sync widths
+           $(api.table().container()).find('.dataTables_scrollHeadInner, .dataTables_scrollHead table')
+             .css({'width':'100%'});
+           // Make sure widths are recalculated after styles apply
+           setTimeout(function(){ api.columns.adjust(); }, 0);
+           $(api.table().container()).css({'font-size': '9px'});
+         }"
+    )
+  ),
+  filter = "top"
+)
 
 ```
 
