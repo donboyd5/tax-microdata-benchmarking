@@ -148,11 +148,33 @@ Thus, we adjust the full sample amounts for these variables by a factor of 10 so
 
 ![](images/paste-3.png)
 
-## Get data
+## Compare adjusted full-sample amounts to amounts in IRS tables
+
 
 ```{r}
 
+# adjust the full-sample numbers
+
+compdata1 <- tabdata |>
+  select(row, puf_name, description, SOI_sample_2015, PUF_2015, pufsumk) |>
+  mutate(
+    adjust = abs(pufsumk) / abs(PUF_2015) > 9,
+    mult = ifelse(is.na(adjust) | adjust, 10, 1),
+    soi2015_adj = SOI_sample_2015 * mult,
+    puf2015_adj = PUF_2015 * mult
+  )
+skimr::skim_without_charts(compdata1)
+compdata1 |> filter(adjust)
+
+compdata <- compdata1 |> select(puf_name, description, soi2015_adj, pufsumk)
+
 # potential targets
 ptargets <- readRDS(fs::path(DATADIR, "potential_targets_preliminary.rds"))
+
+```
+
+# Compare to IRS table amounts
+
+```{r}
 
 ```
