@@ -21,11 +21,6 @@ Steps:
 ```{r}
 #| label: setup
 
-# QROOT <- normalizePath(
-#   file.path(getwd(), "tmd", "national_targets"),
-#   winslash = "/"
-# )
-
 GITROOT <- rprojroot::find_root(rprojroot::has_file(".git/index"))
 QROOT <- fs::path(GITROOT, "tmd", "national_targets", "qmd")
 source(fs::path(QROOT, "setup.R"))
