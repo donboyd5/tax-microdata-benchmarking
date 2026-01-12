@@ -83,21 +83,54 @@ pufsums <- puf |>
 
 ```
 
-### Compare PUF weighted sums to
+### Compare PUF weighted sums to those reported in PUF documentation
 
 ```{r}
-temp <- mainvars |>
+
+tabdata <- mainvars |>
   left_join(
     pufsums |> mutate(pufsumk = pufsum / 1000) |> select(puf_name, pufsumk),
     by = join_by(puf_name)
   ) |>
-  mutate(diff = pufsumk - PUF_2015, pdiff = diff / PUF_2015)
-
-temp |>
+  mutate(diff = pufsumk - PUF_2015, pdiff = diff / PUF_2015) |>
   select(-form_location_2015) |>
   arrange(desc(abs(diff))) |>
-  filter(abs(pdiff) > 0.01) |>
+  mutate(row = row_number(), .before = puf_name)
+
+tol <- 0.0001
+tol_txt <- scales::label_percent(accuracy = 0.01)(tol)
+nvars <- nrow(tabdata)
+
+```
+
+The table below compares weighted sums for variables included in puf 2015 to what the PUF documentation says to expect, where the calculated sum is different from the sum reported in the documentation by more than `{r} tol_txt`. It also shows the amount in the full SOI sample, which is the amount we would expect to find in IRS spreadsheets.
+
+Almost all `{r} nvars` PUF variables compared are within `{r} tol_txt`. Of those that differ by more, all but one differ by approximately a factor of 10. This suggests that for these variables the IRS accidentally either (1) truncated the reported amounts by one digit, making the expected amount too low, or (2) increased the amounts on the PUF by a factor of 10, making the amounts in the data too large by a factor of 10.
+
+```{r}
+
+tabdata |>
+  filter(abs(pdiff) > tol) |>
   gt() |>
+  tab_header(
+    paste0(
+      "PUF 2015 weighted sums that differ from PUF 2015 documentation by more than ",
+      tol_txt,
+      ". Amounts in $ thousands"
+    ),
+    subtitle = paste0("Out of ", nvars, " variables")
+  ) |>
+  tab_spanner(
+    "PUF 2015 documentation",
+    columns = c(SOI_sample_2015, PUF_2015)
+  ) |>
+  cols_label(
+    SOI_sample_2015 = "2015 Full SOI sample (What we should expect to find in IRS spreadsheets)",
+    PUF_2015 = "2015 Public Use sample (What we should expect for calculated sum)",
+    pufsumk = "Calculated weighted sum",
+    diff = "Calculated minus expected",
+    pdiff = "% difference from expected"
+  ) |>
   fmt_number(
     columns = c(SOI_sample_2015, PUF_2015, pufsumk, pdiff),
     decimals = 0
@@ -105,6 +138,11 @@ temp |>
   fmt_percent(columns = pdiff, decimals = 1)
 
 ```
+
+
+Note that the reported full sample amounts are also off by a factor of 10. The next two tables show values in IRS tables for state and local tax deductions and for deductible interest. This makes clear that the reported full sample amounts for these variables in the PUF documentation are wrong.
+
+Thus, we adjust the full sample amounts for these variables by a factor of 10 so that we can compare them to amounts found in IRS tables.
 
 ![](images/paste-4.png)
 
@@ -117,178 +155,4 @@ temp |>
 # potential targets
 ptargets <- readRDS(fs::path(DATADIR, "potential_targets_preliminary.rds"))
 
-```
-
-## Mapping Table 1
-
-## Mapping Table 2
-
-::: table-scroll
-| Concept | 2015 PUF variable | 2015 PUF Sample | 2015 Full SOI | 2015 IRS Table | 2015 IRS Cell | 2015 IRS value | 2022 tmd value | 2022 IRS Table | 2022 IRS Cell | 2022 IRS value | Notes |
-|------|------|------|------|------|------|------|------|------|------|------|------|
-| Adjusted gross income | e00100 | 10,250.8 | 10,210.3 |  |  |  |  |  |  |  |  |
-|  |  |  |  |  |  |  |  |  |  |  |  |
-|  |  |  |  |  |  |  |  |  |  |  |  |
-|  |  |  |  |  |  |  |  |  |  |  |  |
-|  |  |  |  |  |  |  |  |  |  |  |  |
-:::
-
-## How to Edit This Table Visually
-
-This table can be edited directly in the markdown source.
-
-For visual editing in quarto, use ctrl-shift-F4 to toggle visual and source modes.
-
-For easier visual editing:
-
-### Using Markdown Table Extensions
-
-1.  **Click inside any cell** of the table (between the `|` characters)
-
-2.  **Open Command Palette**: Press `Ctrl+Shift+P` (Windows/Linux) or `Cmd+Shift+P` (Mac)
-
-3.  **Type "Markdown Table"** to see available commands:
-
-    -   "Markdown Table: Add Row Below" - Add a new row
-    -   "Markdown Table: Add Column Right" - Add a new column
-    -   "Markdown Table: Format Table" - Auto-format the table
-    -   "Markdown Table: Delete Row" - Remove current row
-
-4.  **Alternative: Right-click** inside a table cell to see context menu options
-
-### Using Online Table Generator
-
-If the extension commands don't work: 1. Go to https://www.tablesgenerator.com/markdown_tables 2. Create/edit your table visually 3. Click "Generate" to get markdown code 4. Copy and paste into this file (replace the existing table between the `::: {.table-scroll}` markers)
-
-### Required Extensions
-
--   "Markdown Table" (TakumiI.markdowntable), or
--   "Markdown All in One" (yzhang.markdown-all-in-one)
-
-## Troubleshooting Quarto "Database is Locked" Error
-
-If you encounter a "database is locked" error when trying to render or preview this document, try these solutions in order:
-
-1.  **Close all Quarto preview windows** - Other Quarto processes may be holding a lock
-
-2.  **Restart Cursor/VS Code** - This will close any background Quarto processes
-
-3.  **Wait 2-3 minutes** - Sometimes the lock clears automatically
-
-4.  **Clear Quarto cache** (Windows):
-
-    -   Close Cursor/VS Code
-    -   Open File Explorer and navigate to: `%LOCALAPPDATA%\Quarto\`
-    -   Delete the `cache` or `kv` folder if it exists
-    -   Restart Cursor/VS Code
-
-5.  **Render from command line** instead of using preview:
-
-    ``` bash
-    quarto render puf_irs_mapping.qmd
-    ```
-
-The document can still be edited even if preview doesn't work - you just won't see the rendered HTML until the lock is cleared.
-
-```{=html}
-<style>
-.table-scroll {
-  overflow-x: auto;
-  overflow-y: visible;
-  width: 100%;
-  margin: 1em 0;
-}
-
-.table-scroll table {
-  min-width: 100%;
-  border-collapse: collapse;
-}
-
-.table-scroll table th,
-.table-scroll table td {
-  padding: 0.5em;
-  border: 1px solid #ddd;
-  white-space: nowrap;
-}
-
-.table-scroll table th {
-  background-color: #f2f2f2;
-  font-weight: bold;
-  text-align: left;
-}
-
-/* Column width controls - adjust as needed */
-.table-scroll table th:nth-child(1),
-.table-scroll table td:nth-child(1) {
-  width: 15%; /* Concept */
-  min-width: 120px;
-}
-
-.table-scroll table th:nth-child(2),
-.table-scroll table td:nth-child(2) {
-  width: 10%; /* 2015 PUF variable */
-  min-width: 100px;
-}
-
-.table-scroll table th:nth-child(3),
-.table-scroll table td:nth-child(3) {
-  width: 8%; /* 2015 PUF Sample */
-  min-width: 90px;
-}
-
-.table-scroll table th:nth-child(4),
-.table-scroll table td:nth-child(4) {
-  width: 8%; /* 2015 Full SOI */
-  min-width: 90px;
-}
-
-.table-scroll table th:nth-child(5),
-.table-scroll table td:nth-child(5) {
-  width: 8%; /* 2015 IRS Table */
-  min-width: 80px;
-}
-
-.table-scroll table th:nth-child(6),
-.table-scroll table td:nth-child(6) {
-  width: 6%; /* 2015 IRS Cell */
-  min-width: 70px;
-}
-
-.table-scroll table th:nth-child(7),
-.table-scroll table td:nth-child(7) {
-  width: 8%; /* 2015 IRS value */
-  min-width: 90px;
-}
-
-.table-scroll table th:nth-child(8),
-.table-scroll table td:nth-child(8) {
-  width: 8%; /* 2022 tmd value */
-  min-width: 90px;
-}
-
-.table-scroll table th:nth-child(9),
-.table-scroll table td:nth-child(9) {
-  width: 8%; /* 2022 IRS Table */
-  min-width: 80px;
-}
-
-.table-scroll table th:nth-child(10),
-.table-scroll table td:nth-child(10) {
-  width: 6%; /* 2022 IRS Cell */
-  min-width: 70px;
-}
-
-.table-scroll table th:nth-child(11),
-.table-scroll table td:nth-child(11) {
-  width: 8%; /* 2022 IRS value */
-  min-width: 90px;
-}
-
-.table-scroll table th:nth-child(12),
-.table-scroll table td:nth-child(12) {
-  width: 15%; /* Notes */
-  min-width: 150px;
-  white-space: normal; /* Allow wrapping in notes */
-}
-</style>
 ```
