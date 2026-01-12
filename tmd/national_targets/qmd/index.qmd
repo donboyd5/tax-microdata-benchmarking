@@ -2,7 +2,7 @@
 
 This target-getting project implements, in R, a way to get summary data on tax return items for historical years from IRS spreadsheets. These data, sometimes with adjustment, may be used to construct aggregate and distributional potential targets for PUF variables. The project creates a csv file with a large number of potential targets. I do not expect that we will target all of these items, but rather will choose a subset to target.
 
-The project produces a [web page](https://boyd-irs-targets.netlify.app/) with a useful datatable in @sec-show-targets that displays the potential targets and allows filtering and sorting to explore the targets.
+The project produces a [web page](https://boyd-irs-targets.netlify.app/) with a useful datatable in @sec-show-targets [TO COME] that displays the potential targets and allows filtering and sorting to explore the targets.
 
 The project also produces a csv file that is in the [data folder](https://github.com/donboyd5/irs_targets/tree/main/data) of the GitHub repo for this [irs_targets project](https://github.com/donboyd5/irs_targets/tree/main).
 

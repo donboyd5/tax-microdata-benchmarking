@@ -314,10 +314,6 @@ show_tab("tab21", 2022, "taxable")
 ![](images/paste-24.png)
 :::
 
-```{r stop_here, echo=FALSE}
-knitr::knit_exit()
-```
-
 ## Compare totals and sums of details
 
 ```{r}
@@ -338,4 +334,11 @@ ptargets |>
 
 ```
 
-<!-- ## Show potential targets {#sec-show-targets} -->
+## Show potential targets {#sec-show-targets}
+
+TODO: Datatable here
+
+
+```{r stop_here, echo=FALSE}
+knitr::knit_exit()
+```
