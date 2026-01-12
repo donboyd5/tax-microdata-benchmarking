@@ -1,6 +1,6 @@
 project:
   type: book
-  execute-dir: project  
+  execute-dir: project
 
 execute:
   eval: true
@@ -18,11 +18,12 @@ book:
     - index.qmd
     - prepare.qmd
     - examine.qmd
+    # - map_puf_variable_names_to_irs_spreadsheet_locations.qmd
 
 format:
   html:
     theme: cosmo
-    code-fold: true    
+    code-fold: true
 
 editor_options:
   chunk_output_type: console
@@ -31,7 +32,7 @@ editor_options:
 # possibly use this at start of each doc
 # ---
 # output: html_document
-# editor_options: 
+# editor_options:
 #   chunk_output_type: console
 # ---
 
@@ -39,5 +40,3 @@ editor_options:
 # ```{r stop_here, echo=FALSE}
 # knitr::knit_exit()
 # ```
-  
-  
