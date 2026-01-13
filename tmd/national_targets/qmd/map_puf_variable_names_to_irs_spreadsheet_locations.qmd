@@ -38,19 +38,32 @@ pufpath <- fs::path(TMDINPUT, "puf_2015.csv")
 
 # potential targets
 ptargets1 <- readRDS(fs::path(DATADIR, "potential_targets_preliminary.rds"))
+count(ptargets1, table, fname)
+count(ptargets1, table)
 
 ptargets2 <- ptargets1 |>
   mutate(
-    subgroup= case_when(table == "tab11" ~ "all", .default = "ERROR"),
+    subgroup = case_when(
+      table == "tab11" ~ "all",
+      table == "tab14" ~ "all",
+      table == "tab12" ~ "marstat",
+      table == "tab21" ~ "itemizers",
+      .default = "ERROR"
+    ),
     targtype = case_when(
-      str_starts(vname, "nret") ~
+      str_starts(vname, "nret") ~ # review this for other kinds of variables
         "number",
       .default = "amount"
-    )
-  )
+    ),
+    .after = datatype
+  ) |>
+  arrange(year, datatype, subgroup, targtype) |>
+  mutate(id = row_number(), .before = 1)
 
+glimpse(ptargets2)
+skimr::skim_without_charts(ptargets2)
 
-count(ptargets2, year, targtype, subgroup, datatype)
+count(ptargets2, year, datatype, subgroup, targtype)
 
 ```
 
@@ -101,7 +114,6 @@ pufsums <- puf |>
   select(RECID, S006, any_of(mainvars$puf_name)) |>
   summarise(across(-c(RECID, S006), \(x) sum(x * S006 / 100))) |>
   pivot_longer(cols = everything(), names_to = "puf_name", values_to = "pufsum")
-
 
 ```
 
