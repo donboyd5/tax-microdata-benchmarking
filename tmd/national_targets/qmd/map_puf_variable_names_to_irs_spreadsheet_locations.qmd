@@ -32,6 +32,28 @@ pufpath <- fs::path(TMDINPUT, "puf_2015.csv")
 
 ```
 
+## Add target type to ptargets -- later, put in prepare.qmd
+
+```{r}
+
+# potential targets
+ptargets1 <- readRDS(fs::path(DATADIR, "potential_targets_preliminary.rds"))
+
+ptargets2 <- ptargets1 |>
+  mutate(
+    subgroup= case_when(table == "tab11" ~ "all", .default = "ERROR"),
+    targtype = case_when(
+      str_starts(vname, "nret") ~
+        "number",
+      .default = "amount"
+    )
+  )
+
+
+count(ptargets2, year, targtype, subgroup, datatype)
+
+```
+
 ## Get data on weighted sums
 
 ### Data from PUF documentation
@@ -168,12 +190,9 @@ compdata1 |> filter(adjust)
 
 compdata <- compdata1 |> select(puf_name, description, soi2015_adj, pufsumk)
 
-# potential targets
-ptargets <- readRDS(fs::path(DATADIR, "potential_targets_preliminary.rds"))
-
 ```
 
-# Compare to IRS table amounts
+## Compare to IRS table amounts
 
 ```{r}
 
@@ -185,8 +204,8 @@ tol <- 0.01
 compare <- compdata |>
   mutate(lb = soi2015_adj * (1 - tol), ub = soi2015_adj * (1 + tol)) |>
   left_join(comptargets, join_by(lb <= ptarget, ub >= ptarget)) |>
-  mutate(diff=ptarget - soi2015_adj, pdiff=diff/soi2015_adj) |>
-  relocate(vname, .after=description) |>
+  mutate(diff = ptarget - soi2015_adj, pdiff = diff / soi2015_adj) |>
+  relocate(vname, .after = description) |>
   relocate(c(ptarget, diff, pdiff), .after = soi2015_adj)
 
 compare2 <- compare |>
@@ -194,3 +213,40 @@ compare2 <- compare |>
   arrange(desc(soi2015_adj), desc(abs(diff)))
 
 ```
+
+## Go through successive rounds of identifying and saving puf-irs mappings
+
+We map the totals records.
+
+### Round 1: EXACT MATCH
+
+TODO: CREATE TARGET IDNUM
+
+
+```{r}
+#| label: round1-explore
+
+dtol <- 0.0
+ptol <- 0.0
+compare <- compdata |>
+  mutate(lb = soi2015_adj * (1 - dtol), ub = soi2015_adj * (1 + dtol)) |>
+  left_join(comptargets, join_by(lb <= ptarget, ub >= ptarget)) |>
+  mutate(diff = ptarget - soi2015_adj, pdiff = diff / soi2015_adj) |>
+  relocate(vname, .after = description) |>
+  relocate(c(ptarget, diff, pdiff), .after = soi2015_adj)
+
+compare2 <- compare |>
+  filter(!is.na(ptarget)) |>
+  arrange(desc(soi2015_adj), desc(abs(diff)))
+
+comma_vars <- c("soi2015_adj", "ptarget", "diff", "pufsumk")
+pct_vars <- c("pdiff")
+compare2 |>
+  select(puf_name:pufsumk, fname, xlcolumn, xlrownum) |>
+  gt() |>
+  fmt_number(columns = comma_vars, decimals = 0) |>
+  fmt_percent(columns = pct_vars, decimals = 2)
+
+```
+
+### Round 2: Expected amounts within 0.01% of IRS
