@@ -177,4 +177,20 @@ ptargets <- readRDS(fs::path(DATADIR, "potential_targets_preliminary.rds"))
 
 ```{r}
 
+comptargets <- ptargets |>
+  filter(incsort == 1, year == 2015, datatype == "filers") |>
+  filter(!str_detect(vname, "nret"))
+
+tol <- 0.01
+compare <- compdata |>
+  mutate(lb = soi2015_adj * (1 - tol), ub = soi2015_adj * (1 + tol)) |>
+  left_join(comptargets, join_by(lb <= ptarget, ub >= ptarget)) |>
+  mutate(diff=ptarget - soi2015_adj, pdiff=diff/soi2015_adj) |>
+  relocate(vname, .after=description) |>
+  relocate(c(ptarget, diff, pdiff), .after = soi2015_adj)
+
+compare2 <- compare |>
+  filter(!is.na(ptarget)) |>
+  arrange(desc(soi2015_adj), desc(abs(diff)))
+
 ```
