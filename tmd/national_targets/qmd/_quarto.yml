@@ -5,7 +5,7 @@ project:
 execute:
   eval: true
   echo: true
-  output: true
+  output: false
   freeze: false  # auto: during global project renders, re-render only when source changes
 
 book:
@@ -18,7 +18,7 @@ book:
     - index.qmd
     - prepare.qmd
     - examine.qmd
-    # - map_puf_variable_names_to_irs_spreadsheet_locations.qmd
+    - map_puf_variable_names_to_irs_spreadsheet_locations.qmd
 
 format:
   html:
@@ -31,7 +31,7 @@ editor_options:
 
 # possibly use this at start of each doc
 # ---
-# output: html_document
+# format: html
 # editor_options:
 #   chunk_output_type: console
 # ---
