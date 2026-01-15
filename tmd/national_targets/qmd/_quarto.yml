@@ -16,7 +16,7 @@ book:
   date-format: long
   chapters:
     - index.qmd
-    - prepare.qmd
+    - prepare_potential_targets.qmd
     - examine.qmd
     - map_puf_variable_names_to_irs_spreadsheet_locations.qmd
 
