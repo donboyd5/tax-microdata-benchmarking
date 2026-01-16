@@ -37,31 +37,31 @@ xlcols <- function(n) {
 }
 
 
-get_rowmap <- function(tab, DATADIR, targfn) {
-  # reads the target recipes xlsx file to
-  # get start and end row for key data for each year of a particular IRS spreadsheet
-  # from its associated mapping tab in the recipes file
-  # targfn is the targets filename
-  sheet <- paste0(tab, "_map")
-  readxl::read_excel(
-    fs::path(DATADIR, targfn),
-    sheet = sheet,
-    range = cellranger::cell_rows(1:3)
-  ) |>
-    tidyr::pivot_longer(-rowtype, values_to = "xlrownum") |>
-    tidyr::separate_wider_delim(
-      name,
-      delim = "_",
-      names = c("datatype", "year")
-    ) |>
-    dplyr::mutate(
-      table = tab,
-      year = as.integer(year),
-      xlrownum = as.integer(xlrownum)
-    ) |>
-    dplyr::select(table, datatype, year, rowtype, xlrownum) |>
-    dplyr::arrange(table, year, datatype, desc(rowtype))
-}
+# get_rowmap <- function(tab, DATADIR, targfn) {
+#   # reads the target recipes xlsx file to
+#   # get start and end row for key data for each year of a particular IRS spreadsheet
+#   # from its associated mapping tab in the recipes file
+#   # targfn is the targets filename
+#   sheet <- paste0(tab, "_map")
+#   readxl::read_excel(
+#     fs::path(DATADIR, targfn),
+#     sheet = sheet,
+#     range = cellranger::cell_rows(1:3)
+#   ) |>
+#     tidyr::pivot_longer(-rowtype, values_to = "xlrownum") |>
+#     tidyr::separate_wider_delim(
+#       name,
+#       delim = "_",
+#       names = c("datatype", "year")
+#     ) |>
+#     dplyr::mutate(
+#       table = tab,
+#       year = as.integer(year),
+#       xlrownum = as.integer(xlrownum)
+#     ) |>
+#     dplyr::select(table, datatype, year, rowtype, xlrownum) |>
+#     dplyr::arrange(table, year, datatype, desc(rowtype))
+# }
 
 
 get_colmap <- function(tab, DATADIR, targfn) {
