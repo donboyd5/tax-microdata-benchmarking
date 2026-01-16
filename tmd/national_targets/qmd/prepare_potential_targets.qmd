@@ -19,24 +19,46 @@ GITROOT <- rprojroot::find_root(rprojroot::has_file(".git/index"))
 QROOT <- fs::path(GITROOT, "tmd", "national_targets", "qmd")
 source(fs::path(QROOT, "setup.R"))
 
+targfn <- "target_recipes_v3.xlsx"
+
 # note - will load the functions that help with reading excel files
 # also loads QROOT, DATADIR, and targfn
 
 ```
 
-## Read the target_recipes tab that defines IRS table spreadsheets to download
+## Read the target_recipes tab that defines IRS tables of interest
+
+Get and display information on needed IRS tables.
+
+```{r}
+#| output: true
+
+needed_irs_tables <- read_excel(
+  fs::path(DATADIR, targfn),
+  sheet = "irs_downloads"
+)
+
+needed_irs_tables |>
+  gt() |>
+  tab_header("Key IRS tables that contain potential targets") |>
+  cols_label(
+    fname_base = "Base file name",
+    fname_example = "Example: Base name prepended with first 2 digits of data year"
+  )
+
+```
+
+Construct IRS file names for each year of interest (base file name prepended by 2-digit year).
 
 ```{r}
 #| label: get-recipes
 #| output: false
 
-df1 <- read_excel(fs::path(DATADIR, targfn), sheet = "irs_downloads")
-
 # tabmeta has information about each Excel file we want to download
 tabmeta <- expand_grid(
   year = c(2015, 2021:2022) |>
     as.integer(),
-  df1
+  needed_irs_tables
 ) |>
   mutate(
     fname = paste0(str_sub(year, 3, 4), fname_base),
@@ -51,6 +73,37 @@ tabmeta |>
 
 
 ## Read IRS spreadsheets and save data frame of targets as csv file
+
+```{r}
+
+
+get_rowmap <- function(tab, DATADIR, targfn) {
+  # reads the target recipes xlsx file to
+  # get start and end row for key data for each year of a particular IRS spreadsheet
+  # from its associated mapping tab in the recipes file
+  # targfn is the targets filename
+  sheet <- paste0(tab, "_map")
+  readxl::read_excel(
+    fs::path(DATADIR, targfn),
+    sheet = sheet,
+    range = cellranger::cell_rows(1:3)
+  ) |>
+    tidyr::pivot_longer(-rowtype, values_to = "xlrownum") |>
+    tidyr::separate_wider_delim(
+      name,
+      delim = "_",
+      names = c("subgroup", "year")
+    ) |>
+    dplyr::mutate(
+      table = tab,
+      year = as.integer(year),
+      xlrownum = as.integer(xlrownum)
+    ) |>
+    dplyr::select(table, subgroup, year, rowtype, xlrownum) |>
+    dplyr::arrange(table, year, subgroup, desc(rowtype))
+}
+
+```
 
 ```{r}
 #| label: read-irs-spreadsheets
