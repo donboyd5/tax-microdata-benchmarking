@@ -54,8 +54,8 @@ Construct IRS file names for each year of interest (base file name prepended by 
 #| label: get-recipes
 #| output: false
 
-# tabmeta has information about each Excel file we want to download
-tabmeta <- expand_grid(
+# table_meta has information about each Excel file we want to download
+table_meta <- expand_grid(
   year = c(2015, 2021:2022) |>
     as.integer(),
   needed_irs_tables
@@ -65,8 +65,8 @@ tabmeta <- expand_grid(
     upath = paste0(baseurl, fname)
   )
 
-glimpse(tabmeta)
-tabmeta |>
+glimpse(table_meta)
+table_meta |>
   select(1:3)
 
 ```
@@ -75,7 +75,6 @@ tabmeta |>
 ## Read IRS spreadsheets and save data frame of targets as csv file
 
 ```{r}
-
 
 get_rowmap <- function(tab, DATADIR, targfn) {
   # reads the target recipes xlsx file to
@@ -86,78 +85,91 @@ get_rowmap <- function(tab, DATADIR, targfn) {
   readxl::read_excel(
     fs::path(DATADIR, targfn),
     sheet = sheet,
-    range = cellranger::cell_rows(1:3)
+    range = "F1:I3"
   ) |>
-    tidyr::pivot_longer(-rowtype, values_to = "xlrownum") |>
-    tidyr::separate_wider_delim(
-      name,
-      delim = "_",
-      names = c("subgroup", "year")
+    tidyr::pivot_longer(
+      -indextype,
+      names_to = "year",
+      values_to = "xlrownum"
     ) |>
     dplyr::mutate(
       table = tab,
       year = as.integer(year),
       xlrownum = as.integer(xlrownum)
     ) |>
-    dplyr::select(table, subgroup, year, rowtype, xlrownum) |>
-    dplyr::arrange(table, year, subgroup, desc(rowtype))
+    dplyr::select(table, year, indextype, xlrownum) |>
+    dplyr::arrange(table, year, desc(indextype))
+}
+
+get_colmap <- function(tab, DATADIR, targfn) {
+  # reads the target_recipes.xlsx file to
+  # get columns of interest for each year of a particular IRS spreadsheet,
+  # from its associated mapping tab in the recipes file
+
+  # assumes DATADIR and targfn (targets filename) are in the environment
+  sheet <- paste0(tab, "_map")
+  col_map <- readxl::read_excel(
+    path(DATADIR, targfn),
+    sheet = sheet,
+    skip = 3,
+    col_types = "text"
+  ) |>
+    filter(!is.na(vname)) |>
+    select(
+      vname,
+      vtype,
+      subgroup,
+      marstat,
+      vdescription,
+      `2015`,
+      `2021`,
+      `2022`
+    ) |>
+    pivot_longer(
+      -c(vname, vtype, subgroup, marstat, vdescription),
+      names_to = "year",
+      values_to = "xlcolumn"
+    ) |>
+    filter(!is.na(xlcolumn)) |> # only keep variable-year combos that we have identified in the excel file
+    mutate(
+      table = tab,
+      year = as.integer(year),
+      xl_colnumber = xlcol_to_num(xlcolumn)
+    ) |>
+    select(
+      table,
+      year,
+      vname,
+      vtype,
+      subgroup,
+      marstat,
+      xl_colnumber,
+      xlcolumn,
+      vdescription
+    ) |>
+    arrange(table, vtype, year, vname, subgroup, marstat, xl_colnumber)
+  col_map
 }
 
 ```
 
 ```{r}
-#| label: read-irs-spreadsheets
-#| output: false
 
-# tabs <- c("tab11", "tab12")
-# tabs <- c("tab11", "tab12", "tab14")
-tabs <- c("tab11", "tab12", "tab14", "tab21")
-
-# get start and end rows for each file of interest
-tabrows <- tabs |>
-  purrr::map(\(tab) get_rowmap(tab, DATADIR, targfn)) |>
-  list_rbind() |>
-  pivot_wider(names_from = rowtype, values_from = xlrownum)
-tabrows
-
-tabcols <- tabs |>
-  purrr::map(\(tab) get_colmap(tab, DATADIR, targfn)) |>
-  list_rbind()
-tabcols
-
-tabcols_nested <- tabcols |>
-  summarise(
-    maxcol = max(xl_colnumber),
-    column_letters = list(xlcolumn),
-    vnames = list(vname),
-    .by = c(table, datatype, year)
-  )
-tabcols_nested
-
-# tabcols_nested |>
-#   unnest(cols=column_letters)
-
-# define the tables to get
-tabget <- tabmeta |>
-  filter(table %in% tabs) |>
-  select(table, year, fname, table_description) |>
-  left_join(tabrows, by = join_by(table, year)) |>
-  left_join(tabcols_nested, by = join_by(table, datatype, year))
-
-# fname <- "15in11si.xls"
-# startrow <- 10; endrow <- 29; maxcol <- 7; column_letters <- list(c("A", "B", "D", "G")); colnames <- list(c("x1", "x2", "x3", "x4"))
+# test data for get_irsdata
+# fname <- "15in11si.xls"; year <- 2015
+# startrow <- 10; endrow <- 29; max_xl_colnumber <- 7; column_letters <- list(c("A", "B", "D", "G"))
+#  vnames <- list(c("incrange", "x2", "x3", "x4"))
 
 get_irsdata <- function(
   fname,
   year,
   startrow,
   endrow,
-  maxcol,
-  column_letters,
-  vnames
+  max_xl_colnumber,
+  column_letters
 ) {
-  # a single file, a single year, a single datatype (filers or taxable)
-  # print(fname); print(datatype)
+  # read a single file for a single year
+  # print(fname)
   fpath <- fs::path(DATADIR, year, fname)
 
   # read relevant rows, but all columns from the first column through the last in columns
@@ -166,57 +178,187 @@ get_irsdata <- function(
   df1 <- read_excel(
     fpath,
     sheet = 1,
-    range = cellranger::cell_limits(c(startrow, 1), c(endrow, maxcol)),
-    col_names = xlnum_to_col(1:maxcol),
+    range = cellranger::cell_limits(
+      c(startrow, 1),
+      c(endrow, max_xl_colnumber)
+    ),
+    col_names = xlnum_to_col(1:max_xl_colnumber),
     col_types = "text"
   )
 
   # keep desired columns, substitute the passed-in column names for letters, and pivot
   df2 <- df1 |>
     select(all_of(unlist(column_letters))) |>
-    setNames(unlist(vnames)) |>
+    rename(incrange = 1) |>
+    # setNames(unlist(vnames)) |>
     mutate(xlrownum = startrow:endrow, incsort = row_number()) |>
     pivot_longer(
       cols = -c(incsort, xlrownum, incrange),
-      names_to = "vname",
+      names_to = "xlcolumn",
       values_to = "ptarget"
     ) |>
     mutate(ptarget = as.numeric(ptarget)) |> # every column had better be a number stored as text!
-    relocate(incsort, xlrownum)
+    select(incsort, xlrownum, incrange, xlcolumn, ptarget) |>
+    arrange(xlcolumn, incsort)
   df2
 }
 
-# TODO: code below expects 2015 AND 2021 files to be in the same folder but they aren't. ----
-ptargets_nested <- tabget |>
-  # filter(row_number() == 4) |>
+```
+
+```{r}
+#| label: read-irs-spreadsheets
+#| output: false
+
+# we want to create a csv file (tibble) with the following columns:
+#   table -- tab11, tab12, tab14, tab21
+#   year (2015, 2021, 2022)
+#   fname
+#   table_description
+#   vtype (stub, count, amount)
+#   subgroup (filers, TBD)
+#   marstat (all, mfjss, mfs, single, hoh)
+#   vname (name we are using for an IRS variable)
+#   vdescription
+#   incsort ()
+#   incrange (text description, may vary from file to file)
+#   xlrownum
+#   xlcolumn
+#   ptarget (potential target)
+
+# combine table metadata, row specs, and column specs to get the specs needed to read the data files and get the data
+# after getting data merge back against variable specs (used to create column specs) to get variable names and other variable info
+tabs <- c("tab11", "tab12", "tab14", "tab21")
+
+table_meta
+
+# get start and end rows for each file of interest
+table_rowspecs <- tabs |>
+  purrr::map(\(tab) get_rowmap(tab, DATADIR, targfn)) |>
+  list_rbind() |>
+  pivot_wider(names_from = indextype, values_from = xlrownum)
+table_rowspecs
+
+table_variable_specs <- tabs |>
+  purrr::map(\(tab) get_colmap(tab, DATADIR, targfn)) |>
+  list_rbind() |>
+  arrange(table, year, xl_colnumber)
+# TODO: make sure we don't have any repeated column numbers within a table -- that would indicate an error in the recipe file
+
+table_colspecs <- table_variable_specs |>
+  dplyr::summarise(
+    nvars = n(),
+    max_xl_colnumber = max(xl_colnumber),
+    column_letters = list(xlcolumn),
+    .by = c(table, year)
+  )
+skimr::skim_without_charts(table_colspecs)
+
+table_specs <- table_meta |>
+  filter(table %in% tabs) |>
+  select(table, year, fname, table_description, table_type) |>
+  left_join(table_rowspecs, by = join_by(year, table)) |>
+  left_join(table_colspecs, by = join_by(table, year))
+# now we have what we need to get the data from each table
+
+table_data <- table_specs |>
   mutate(
     targets = get_irsdata(
       fname,
       year,
       startrow,
       endrow,
-      maxcol,
-      column_letters,
-      vnames
+      max_xl_colnumber,
+      column_letters
     ) |>
       list(),
-    .by = c(fname, datatype)
+    .by = fname
   )
-ptargets_nested
-ptargets_nested |> unnest(col = c(targets))
-ptargets_nested |>
-  filter(table == "tab21", datatype == "taxable") |>
-  unnest(col = c(targets))
 
-ptargets <- ptargets_nested |>
-  select(table, datatype, year, fname, targets, table_description) |>
-  unnest(col = targets) |>
-  left_join(
-    tabcols |> select(table, datatype, year, xlcolumn, vname),
-    by = join_by(table, datatype, year, vname)
-  ) |>
-  relocate(xlcolumn, xlrownum, .after = fname) |>
-  arrange(table, year, vname, incsort)
+table_data$targets
+
+ptargets_to_check <- table_data |>
+  unnest(cols=targets) |>
+  left_join(table_variable_specs, by = join_by(table, year, xlcolumn)) |>
+  select(year, vname, table, vdescription, vtype, subgroup, marstat, incsort, incrange, ptarget, everything()) |>
+  arrange(year, vname, table, vdescription, vtype, subgroup, marstat, incsort)
+
+# do some checks on the data
+
+# get a slimmed down table for saving
+ptargets <- ptargets_to_check |>
+  select(year, vname, table, vdescription, vtype, subgroup, marstat, incsort, incrange, ptarget, fname)
+
+
+
+# tabcols <- tabs |>
+#   purrr::map(\(tab) get_colmap(tab, DATADIR, targfn)) |>
+#   list_rbind() |>
+#   arrange(table, year, vtype, subgroup, marstat) |>
+#   dplyr::mutate(
+#     nvars = n(),
+#     max_xl_colnumber = max(xl_colnumber),
+#     column_letters = list(unique(xlcolumn)),
+#     .by = c(table, year)
+#   )
+
+# tabcols
+# skimr::skim_without_charts(tabcols)
+
+# tabcols_nested <- tabcols |>
+#   dplyr::group_by(table, year) |>
+#   dplyr::mutate(
+#     ncols = n(),
+#     max_xl_colnumber = max(xl_colnumber),
+#     column_letters = list(unique(xlcolumn))
+#   ) |>
+#   tidyr::nest(
+#     data = -c(table, year, ncols, max_xl_colnumber, column_letters)
+#   ) |>
+#   dplyr::ungroup()
+# tabcols_nested
+
+# define the tables to get and the maximum column
+# tabget <- tabmeta |>
+#   filter(table %in% tabs) |>
+#   select(table, year, fname, table_description) |>
+#   left_join(tabrows, by = join_by(table, year)) |>
+#   left_join(tabcols_nested, by = join_by(table, year))
+
+# test data for get_irsdata
+# fname <- "15in11si.xls"; year <- 2015
+# startrow <- 10; endrow <- 29; max_xl_colnumber <- 7; column_letters <- list(c("A", "B", "D", "G")); vnames <- list(c("incrange", "x2", "x3", "x4"))
+
+# TODO: code below expects 2015 AND 2021 files to be in the same folder but they aren't. ----
+# ptargets_nested <- tabget |>
+#   # filter(row_number() == 1) |>
+#   mutate(
+#     targets = get_irsdata(
+#       fname,
+#       year,
+#       startrow,
+#       endrow,
+#       max_xl_colnumber,
+#       column_letters # ,
+#       # vnames
+#     ) |>
+#       list(),
+#     .by = fname
+#   )
+# ptargets_nested
+# # ptargets_nested |> unnest(col = c(targets))
+# ptargets_nested |>
+#   filter(table == "tab11") |>
+#   unnest(col = c(targets))
+
+# ptargets <- ptargets_nested |>
+#   select(table, year, fname, targets, table_description) |>
+#   unnest(col = targets) |>
+#   left_join(
+#     tabcols |> select(table, datatype, year, xlcolumn, vname),
+#     by = join_by(table, datatype, year, vname)
+#   ) |>
+#   relocate(xlcolumn, xlrownum, .after = fname) |>
+#   arrange(table, year, vname, incsort)
 
 # check for identical
 # sha256sum potential_targets_original.csv potential_targets.csv

@@ -2,7 +2,7 @@
 xlcol_to_num <- function(s) {
   # convert vector of Excel column labels s such as c("BF", "AG") to column numbers
   sapply(strsplit(toupper(s), "", fixed = TRUE), \(chars) {
-    Reduce(\(a, b) a * 26 + b, match(chars, LETTERS))
+    Reduce(\(a, b) a * 26 + b, match(chars, LETTERS)) |> as.integer()
   })
 }
 
@@ -36,7 +36,6 @@ xlcols <- function(n) {
   return(xl_letters[1:n])
 }
 
-
 # get_rowmap <- function(tab, DATADIR, targfn) {
 #   # reads the target recipes xlsx file to
 #   # get start and end row for key data for each year of a particular IRS spreadsheet
@@ -63,44 +62,43 @@ xlcols <- function(n) {
 #     dplyr::arrange(table, year, datatype, desc(rowtype))
 # }
 
+# get_colmap <- function(tab, DATADIR, targfn) {
+#   # reads the target_recipes.xlsx file to
+#   # get columns of interest for each year of a particular IRS spreadsheet,
+#   # from its associated mapping tab in the recipes file
 
-get_colmap <- function(tab, DATADIR, targfn) {
-  # reads the target_recipes.xlsx file to
-  # get columns of interest for each year of a particular IRS spreadsheet,
-  # from its associated mapping tab in the recipes file
-
-  # assumes DATADIR, targfn (targets filename), and allcols are in the environment
-  sheet <- paste0(tab, "_map")
-  col_map <- readxl::read_excel(
-    path(DATADIR, targfn),
-    sheet = sheet,
-    skip = 3
-  ) |>
-    pivot_longer(
-      -c(vname, description, units, notes),
-      values_to = "xlcolumn"
-    ) |>
-    separate_wider_delim(name, delim = "_", names = c("datatype", "year")) |>
-    mutate(
-      table = tab,
-      year = as.integer(year),
-      # xl_colnumber = match(xlcolumn, allcols)
-      xl_colnumber = xlcol_to_num(xlcolumn)
-    ) |>
-    select(
-      table,
-      datatype,
-      year,
-      xl_colnumber,
-      xlcolumn,
-      vname,
-      description,
-      units,
-      notes
-    ) |>
-    filter(!is.na(xlcolumn), !is.na(vname)) |>
-    arrange(table, datatype, year, xl_colnumber)
-  col_map
-}
+#   # assumes DATADIR, targfn (targets filename), and allcols are in the environment
+#   sheet <- paste0(tab, "_map")
+#   col_map <- readxl::read_excel(
+#     path(DATADIR, targfn),
+#     sheet = sheet,
+#     skip = 3
+#   ) |>
+#     pivot_longer(
+#       -c(vname, description, units, notes),
+#       values_to = "xlcolumn"
+#     ) |>
+#     separate_wider_delim(name, delim = "_", names = c("datatype", "year")) |>
+#     mutate(
+#       table = tab,
+#       year = as.integer(year),
+#       # xl_colnumber = match(xlcolumn, allcols)
+#       xl_colnumber = xlcol_to_num(xlcolumn)
+#     ) |>
+#     select(
+#       table,
+#       datatype,
+#       year,
+#       xl_colnumber,
+#       xlcolumn,
+#       vname,
+#       description,
+#       units,
+#       notes
+#     ) |>
+#     filter(!is.na(xlcolumn), !is.na(vname)) |>
+#     arrange(table, datatype, year, xl_colnumber)
+#   col_map
+# }
 
 # allcols <- xlcols(400); get_colmap("tab11")
