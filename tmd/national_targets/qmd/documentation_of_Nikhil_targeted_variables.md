@@ -1,0 +1,210 @@
+# Positron assistant responses
+
+## **AGI-Level Targeted Variables**
+
+These 11 variables are targeted by AGI income ranges:
+
+| CSV/Source Name                   | Internal TMD Name               |
+|-----------------------------------|---------------------------------|
+| `agi`                             | `adjusted_gross_income`         |
+| `nret` (count)                    | `count`                         |
+| `wages`                           | `employment_income`             |
+| `busprofnetinc`                   | `business_net_profits`          |
+| `cggross`                         | `capital_gains_gross`           |
+| `orddiv`                          | `ordinary_dividends`            |
+| `partnerscorpinc` or `partnerinc` | `partnership_and_s_corp_income` |
+| `qualdiv`                         | `qualified_dividends`           |
+| `taxint`                          | `taxable_interest_income`       |
+| `pensions`                        | `total_pension_income`          |
+| `socsectot`                       | `total_social_security`         |
+
+## **Aggregate-Level Targeted Variables**
+
+These 13 variables are targeted at the aggregate level (all filers, not by AGI range):
+
+| CSV/Source Name                     | Internal TMD Name               |
+|-------------------------------------|---------------------------------|
+| `busprofnetloss`                    | `business_net_losses`           |
+| `cgdist`                            | `capital_gains_distributions`   |
+| `cgloss`                            | `capital_gains_losses`          |
+| `estateinc`                         | `estate_income`                 |
+| `estateloss`                        | `estate_losses`                 |
+| `exemptint`                         | `exempt_interest`               |
+| `iradist`                           | `ira_distributions`             |
+| `partnerscorploss` or `partnerloss` | `partnership_and_s_corp_losses` |
+| `rentroyinc`                        | `rent_and_royalty_net_income`   |
+| `rentroyloss`                       | `rent_and_royalty_net_losses`   |
+| `pensionstaxable`                   | `taxable_pension_income`        |
+| `socsectaxable`                     | `taxable_social_security`       |
+| `unempcomp`                         | `unemployment_compensation`     |
+
+These 24 total variables are used in the `reweight()` function in `tmd/utils/reweight.py` to optimize weights to match SOI (Statistics of Income) targets from the IRS.
+
+## Are there any targets that apply just to taxable returns rather than all tax filers?
+
+Let me look at the soi.csv file structure to see which variables have "Taxable only" marked as True:
+
+[soi.csv](vscode-file://vscode-app/c:/Users/Don-business/AppData/Local/Programs/Positron/resources/app/out/vs/code/electron-browser/workbench/workbench.html)
+
+Perfect! Now I can see the structure. The column "Taxable only" has True/False values. Let me search for which variables have "Taxable only" = True to see what's being excluded:
+
+Now I understand! The "Taxable only" column is True for targets that apply only to taxable returns. But based on the code in `reweight.py` line 124-125, these are being **excluded** from the optimization:
+
+So the answer to the user's question is **NO** - there are **no targets that apply just to taxable returns** being used in the national optimization. All taxable-only targets are explicitly excluded.
+
+Based on my thorough analysis of the Python files, **NO, there are no targets that apply just to taxable returns being used in the national targeting/optimization.**
+
+The key evidence is in `tmd/utils/reweight.py` at lines 124-125:
+
+This code explicitly **excludes** all targets marked as "Taxable only" from the optimization.
+
+## **What This Means**
+
+The SOI data provides targets for both:
+
+-   **All returns** (all tax filers, regardless of tax liability)
+
+-   **Taxable returns** (only returns with positive tax liability)
+
+However, the TMD project's national optimization **only uses the "all returns" targets** and skips over all "taxable returns" statistics.
+
+For example, in the `soi.csv` file you'll see rows like:
+
+-   `adjusted_gross_income, All, -inf, inf, False, False` ← **Used** (all returns)
+
+-   `adjusted_gross_income, All, -inf, inf, False, True` ← **Excluded** (taxable only)
+
+The same pattern applies to count variables like `nret_all` (used) vs `nret_taxac` (excluded).
+
+This design choice means the optimization matches the full population of tax filers rather than trying to separately match taxable vs non-taxable filer statistics.
+
+# Codex response edited
+
+National targeting/optimization lives in [reweight.py]{.underline} where [soi.csv]{.underline} is read and the loss matrix labels are constructed. The variables included are the ones listed in the two target lists and then filtered by AGI‑bin or full‑population rules.
+
+| **source_vname**      | **internal_tmd_variable**     |
+|:----------------------|:------------------------------|
+| agi                   | adjusted_gross_income         |
+| agi_hoh               | adjusted_gross_income         |
+| agi_mfjss             | adjusted_gross_income         |
+| agi_mfs               | adjusted_gross_income         |
+| agi_single            | adjusted_gross_income         |
+| busprofnetinc         | business_net_profits          |
+| nret_busprofnetinc    | business_net_profits          |
+| busprofnetloss        | business_net_losses           |
+| nret_busprofnetloss   | business_net_losses           |
+| cgdist                | capital_gains_distributions   |
+| nret_cgdist           | capital_gains_distributions   |
+| cggross               | capital_gains_gross           |
+| nret_cggross          | capital_gains_gross           |
+| cgloss                | capital_gains_losses          |
+| nret_cgloss           | capital_gains_losses          |
+| nret_all              | count                         |
+| nret_hoh              | count                         |
+| nret_mfjss            | count                         |
+| nret_mfs              | count                         |
+| nret_single           | count                         |
+| wages                 | employment_income             |
+| nret_wages            | employment_income             |
+| estateinc             | estate_income                 |
+| nret_estateinc        | estate_income                 |
+| estateloss            | estate_losses                 |
+| nret_estateloss       | estate_losses                 |
+| exemptint             | exempt_interest               |
+| nret_exemptint        | exempt_interest               |
+| iradist               | ira_distributions             |
+| nret_iradist          | ira_distributions             |
+| orddiv                | ordinary_dividends            |
+| nret_orddiv           | ordinary_dividends            |
+| partnerinc            | partnership_and_s_corp_income |
+| partnerscorpinc       | partnership_and_s_corp_income |
+| nret_partnerscorpinc  | partnership_and_s_corp_income |
+| partnerloss           | partnership_and_s_corp_losses |
+| partnerscorploss      | partnership_and_s_corp_losses |
+| nret_partnerloss      | partnership_and_s_corp_losses |
+| nret_partnerscorploss | partnership_and_s_corp_losses |
+| qualdiv               | qualified_dividends           |
+| nret_qualdiv          | qualified_dividends           |
+| rentroyinc            | rent_and_royalty_net_income   |
+| nret_rentroyinc       | rent_and_royalty_net_income   |
+| rentroyloss           | rent_and_royalty_net_losses   |
+| nret_rentroyloss      | rent_and_royalty_net_losses   |
+| taxint                | taxable_interest_income       |
+| nret_taxint           | taxable_interest_income       |
+| pensions_taxable      | taxable_pension_income        |
+| nret_pensions_taxable | taxable_pension_income        |
+| socsectaxable         | taxable_social_security       |
+| nret_socsectaxable    | taxable_social_security       |
+| pensions              | total_pension_income          |
+| nret_pensions         | total_pension_income          |
+| socsectot             | total_social_security         |
+| nret_socsectot        | total_social_security         |
+| unempcomp             | unemployment_compensation     |
+| nret_unempcomp        | unemployment_compensation     |
+
+**Variables included (CSV name → internal label format)**\
+Labels are built from row\["Variable"\] by replacing \_ with space, then:
+
+-   Count targets: \<variable label\>/count/AGI in \<agi_lower\>-\<agi_upper\>/\<taxable or all returns\>/\<filing status\>
+
+-   Total targets: \<variable label\>/total/AGI in \<agi_lower\>-\<agi_upper\>/\<taxable or all returns\>/\<filing status\>
+
+AGI‑bin‑targeted variables (must have non‑infinite AGI bounds):
+
+-   adjusted_gross_income → adjusted gross income/...
+
+-   count → count/...
+
+-   employment_income → employment income/...
+
+-   business_net_profits → business net profits/...
+
+-   capital_gains_gross → capital gains gross/...
+
+-   ordinary_dividends → ordinary dividends/...
+
+-   partnership_and_s_corp_income → partnership and s corp income/...
+
+-   qualified_dividends → qualified dividends/...
+
+-   taxable_interest_income → taxable interest income/...
+
+-   total_pension_income → total pension income/...
+
+-   total_social_security → total social security/...
+
+Aggregate‑level (full population only; also filtered to columns present in the DF):
+
+-   business_net_losses → business net losses/...
+
+-   capital_gains_distributions → capital gains distributions/...
+
+-   capital_gains_losses → capital gains losses/...
+
+-   estate_income → estate income/...
+
+-   estate_losses → estate losses/...
+
+-   exempt_interest → exempt interest/...
+
+-   ira_distributions → ira distributions/...
+
+-   partnership_and_s_corp_losses → partnership and s corp losses/...
+
+-   rent_and_royalty_net_income → rent and royalty net income/...
+
+-   rent_and_royalty_net_losses → rent and royalty net losses/...
+
+-   taxable_pension_income → taxable pension income/...
+
+-   taxable_social_security → taxable social security/...
+
+-   unemployment_compensation → unemployment compensation/...
+
+Notes on the label parts:
+
+-   AGI range strings come from fmt() in [reweight.py]{.underline} (e.g., -inf-1, 50k-75k, [1m-1.5m]{.underline}).
+
+-   taxable vs all returns and filing status (Single, Joint, etc.) come from each [soi.csv]{.underline} row.
+
+If you want, I can also pull actual example labels from the current [soi.csv]{.underline} to show the concrete strings.
