@@ -19,6 +19,7 @@ It then saves them as potential_targets_preliminary.rds, to be used for further 
 GITROOT <- rprojroot::find_root(rprojroot::has_file(".git/index"))
 QROOT <- fs::path(GITROOT, "tmd", "national_targets", "qmd")
 source(fs::path(QROOT, "setup.R"))
+source(fs::path(QROOT, "R", "functions_excel.R")) # drop from setup if not used elsewhere
 
 targfn <- "target_recipes_v3.xlsx"
 
@@ -172,9 +173,11 @@ get_irs_table <- function(
 
 Get and display information on IRS tables we plan to use.
 
+
 ```{r}
 #| label: define-display-tables-needed
 #| output: true
+#| column: page
 
 needed_irs_tables <- read_excel(
   fs::path(DATADIR, targfn),
@@ -184,15 +187,18 @@ needed_irs_tables <- read_excel(
 fnote <- md(
   "IRS filenames are constructed by prepending a 2-digit year to the base filename. For example, the base file name for Table 1.1 (sources of income -- si) is *in11si.xls*; therefore the Table 1.1 file name for 2022 is *22in11si.xls*."
 )
+
 needed_irs_tables |>
-  gt() |>
-  tab_header("Key IRS tables that contain potential targets") |>
-  cols_label(
+  gt::gt() |>
+  gt::tab_header("Key IRS tables that contain potential targets") |>
+  gt::cols_label(
     fname_base = "Base file name"
   ) |>
-  tab_footnote(fnote, locations = cells_column_labels(fname_base))
+  gt::tab_footnote(fnote, locations = cells_column_labels(fname_base)) |>
+  gt::tab_options(table.width = gt::pct(100))
 
 ```
+
 
 Create table metadata file with IRS file names for each year of interest (base file name prepended by 2-digit year).
 
@@ -317,22 +323,6 @@ ptargets_to_check <- table_data |>
 
 # TODO: do some checks on the data
 
-# get a slimmed down table for saving
-ptargets <- ptargets_to_check |>
-  select(
-    year,
-    vname,
-    table,
-    vdescription,
-    vtype,
-    subgroup,
-    marstat,
-    incsort,
-    incrange,
-    ptarget,
-    fname
-  )
-
 # check for identical
 # sha256sum potential_targets_original.csv potential_targets.csv
 
@@ -340,6 +330,36 @@ ptargets <- ptargets_to_check |>
 
 
 ## Save preliminary target data
+
+```{r}
+
+# get a slimmed down table for saving
+ptargets <- ptargets_to_check |>
+  arrange(year, table, vname, vtype, subgroup, marstat, incsort) |>
+  mutate(
+    targetid = row_number(),
+    # xlrownum = str_pad(xlrownum, width = 2, side = "left", pad = "0"),
+    xlcell = paste0(xlcolumn, xlrownum)
+  ) |>
+  select(
+    targetid,
+    year,
+    table,
+    vname,
+    vtype,
+    vdescription,
+    subgroup,
+    marstat,
+    incsort,
+    incrange,
+    ptarget,
+    fname,
+    xlcell,
+    xlcolumn,
+    xlrownum
+  )
+
+```
 
 ```{r}
 #| label: save-raw-irs-data
