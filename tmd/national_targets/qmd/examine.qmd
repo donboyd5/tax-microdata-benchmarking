@@ -20,23 +20,36 @@ source(fs::path(QROOT, "setup.R"))
 
 ```
 
+## Get previously prepared data
+
+```{r}
+#| label: get-data
+
+ptargets <- readRDS(fs::path(DATADIR, "potential_targets_preliminary.rds"))
+
+skimr::skim_without_charts(ptargets)
+
+```
+
+## Functions
+
 ```{r}
 #| label: showtab-function
 
-show_tab <- function(tab, year, datatype = c("filers", "taxable")) {
+show_tab <- function(tab, year, vtype = c("stub", "count", "amount")) {
   # Build wide data and show it in a datatable
   df <- ptargets |>
     dplyr::filter(
       table == tab,
       year == {{ year }},
-      datatype %in% {{ datatype }}
+      vtype %in% {{ vtype }}
     ) |>
-    dplyr::select(table, datatype, vname, ptarget, xlcolumn, xlrownum) |>
+    dplyr::select(table, vtype, vname, ptarget, xlcolumn, xlrownum) |>
     dplyr::mutate(nxlcolumn = xlcol_to_num(xlcolumn)) |>
     dplyr::arrange(nxlcolumn, xlrownum) |>
     dplyr::select(-nxlcolumn) |>
     tidyr::pivot_wider(
-      names_from = c(xlcolumn, vname, datatype),
+      names_from = c(xlcolumn, vname, vtype),
       values_from = ptarget
     )
 
@@ -132,14 +145,7 @@ show_tab <- function(tab, year, datatype = c("filers", "taxable")) {
 ```
 
 
-## Get previously prepared data
 
-```{r}
-#| label: get-data
-
-ptargets <- readRDS(fs::path(DATADIR, "potential_targets_preliminary.rds"))
-
-```
 
 ## Examine 2022 values
 
