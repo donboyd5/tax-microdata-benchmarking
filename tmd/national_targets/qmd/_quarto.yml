@@ -18,7 +18,7 @@ book:
     - index.qmd
     - prepare_potential_targets.qmd
     - examine.qmd
-    - map_puf_variable_names_to_irs_spreadsheet_locations.qmd
+    # - map_puf_variable_names_to_irs_spreadsheet_locations.qmd
 
 format:
   html:

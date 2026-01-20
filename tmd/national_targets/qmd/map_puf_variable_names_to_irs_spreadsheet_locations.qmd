@@ -24,10 +24,6 @@ pufpath <- fs::path(TMDINPUT, "puf_2015.csv")
 # note - will load the functions that help with reading excel files
 # also loads QROOT, DATADIR, and targfn
 
-# format:
-#   html:
-#     code-fold: true
-
 ```
 
 ## Get ptargets and add target type info
@@ -35,30 +31,9 @@ pufpath <- fs::path(TMDINPUT, "puf_2015.csv")
 Later, put in prepare.qmd
 
 ```{r}
+#| label: get-potential-targets
 
-# potential targets
 ptargets1 <- readRDS(fs::path(DATADIR, "potential_targets_preliminary.rds"))
-count(ptargets1, table, fname)
-count(ptargets1, table)
-
-ptargets2 <- ptargets1 |>
-  mutate(
-    subgroup = case_when(
-      table == "tab11" ~ "all",
-      table == "tab14" ~ "all",
-      table == "tab12" ~ "marstat",
-      table == "tab21" ~ "itemizers",
-      .default = "ERROR"
-    ),
-    targtype = case_when(
-      str_starts(vname, "nret") ~ # review this for other kinds of variables
-        "number",
-      .default = "amount"
-    ),
-    .after = datatype
-  ) |>
-  arrange(year, datatype, subgroup, targtype) |>
-  mutate(targetid = row_number(), .before = 1)
 
 ```
 
@@ -66,10 +41,12 @@ ptargets2 <- ptargets1 |>
 #| label: ptargets-info
 #| output: true
 
-glimpse(ptargets2)
-skimr::skim_without_charts(ptargets2)
+glimpse(ptargets1)
+skimr::skim_without_charts(ptargets1)
+count(ptargets1, table, fname)
+count(ptargets1, table)
+count(ptargets1, year, vtype, subgroup, marstat)
 
-count(ptargets2, year, datatype, subgroup, targtype)
 
 ```
 
@@ -115,10 +92,47 @@ mainvars <- readxl::read_excel(xlpath, sheet = sheet, range = range)
 
 puf <- vroom::vroom(pufpath)
 
-pufsums <- puf |>
+pufsums1 <- puf |>
   select(RECID, S006, any_of(mainvars$puf_name)) |>
-  summarise(across(-c(RECID, S006), \(x) sum(x * S006 / 100))) |>
-  pivot_longer(cols = everything(), names_to = "puf_name", values_to = "pufsum")
+  summarise(
+    across(
+      -c(RECID, S006),
+      list(
+        # weighted sums
+        sum = \(x) {
+          sum(x * S006 / 100, na.rm = TRUE)
+        },
+        sumgtz = \(x) {
+          sum((x > 0) * x * S006 / 100, na.rm = TRUE)
+        },
+        sumltz = \(x) {
+          sum((x < 0) * x * S006 / 100, na.rm = TRUE)
+        },
+        # weighted numbers of returns
+        nnz = \(x) {
+          sum((x != 0) * S006 / 100, na.rm = TRUE)
+        },
+        ngtz = \(x) {
+          sum((x > 0) * S006 / 100, na.rm = TRUE)
+        },
+        nltz = \(x) {
+          sum((x < 0) * S006 / 100, na.rm = TRUE)
+        }
+      )
+    )
+  ) |>
+  pivot_longer(cols = everything(), names_to = "name") |>
+  separate_wider_delim(
+    cols = name,
+    delim = "_",
+    names = c("puf_name", "measure")
+  ) |>
+  pivot_wider(names_from = measure) |>
+  mutate(n = nnz[puf_name == "E00100"], .before = nnz)
+
+pufsums <- mainvars |>
+  left_join(pufsums1, by = join_by(puf_name))
+
 
 ```
 
@@ -334,7 +348,7 @@ compare2 <- compdata |>
 
 
 ```{r}
-#| label: show-round1
+#| label: show-round2
 #| output: true
 
 compare2 |>
