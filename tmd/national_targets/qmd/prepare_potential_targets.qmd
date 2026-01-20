@@ -1,3 +1,4 @@
+
 ---
 output: html_document
 editor_options:
@@ -26,55 +27,10 @@ targfn <- "target_recipes_v3.xlsx"
 
 ```
 
-## Read the target_recipes tab that defines IRS tables of interest
-
-Get and display information on needed IRS tables.
+## Functions for reading the excel file
 
 ```{r}
-#| output: true
-
-needed_irs_tables <- read_excel(
-  fs::path(DATADIR, targfn),
-  sheet = "irs_downloads"
-)
-
-needed_irs_tables |>
-  gt() |>
-  tab_header("Key IRS tables that contain potential targets") |>
-  cols_label(
-    fname_base = "Base file name",
-    fname_example = "Example: Base name prepended with first 2 digits of data year"
-  )
-
-```
-
-Construct IRS file names for each year of interest (base file name prepended by 2-digit year).
-
-```{r}
-#| label: get-recipes
-#| output: false
-
-# table_meta has information about each Excel file we want to download
-table_meta <- expand_grid(
-  year = c(2015, 2021:2022) |>
-    as.integer(),
-  needed_irs_tables
-) |>
-  mutate(
-    fname = paste0(str_sub(year, 3, 4), fname_base),
-    upath = paste0(baseurl, fname)
-  )
-
-glimpse(table_meta)
-table_meta |>
-  select(1:3)
-
-```
-
-
-## Read IRS spreadsheets and save data frame of targets as csv file
-
-```{r}
+#| label: get-rowmap
 
 get_rowmap <- function(tab, DATADIR, targfn) {
   # reads the target recipes xlsx file to
@@ -85,7 +41,7 @@ get_rowmap <- function(tab, DATADIR, targfn) {
   readxl::read_excel(
     fs::path(DATADIR, targfn),
     sheet = sheet,
-    range = "F1:I3"
+    range = "E1:H3"
   ) |>
     tidyr::pivot_longer(
       -indextype,
@@ -100,6 +56,11 @@ get_rowmap <- function(tab, DATADIR, targfn) {
     dplyr::select(table, year, indextype, xlrownum) |>
     dplyr::arrange(table, year, desc(indextype))
 }
+```
+
+
+```{r}
+#| label: get-colmap
 
 get_colmap <- function(tab, DATADIR, targfn) {
   # reads the target_recipes.xlsx file to
@@ -153,14 +114,16 @@ get_colmap <- function(tab, DATADIR, targfn) {
 
 ```
 
+
 ```{r}
+#| label: get-irs-table
 
 # test data for get_irsdata
 # fname <- "15in11si.xls"; year <- 2015
 # startrow <- 10; endrow <- 29; max_xl_colnumber <- 7; column_letters <- list(c("A", "B", "D", "G"))
 #  vnames <- list(c("incrange", "x2", "x3", "x4"))
 
-get_irsdata <- function(
+get_irs_table <- function(
   fname,
   year,
   startrow,
@@ -205,11 +168,65 @@ get_irsdata <- function(
 
 ```
 
+## Read the target_recipes tab that defines IRS tables of interest
+
+Get and display information on IRS tables we plan to use.
+
+```{r}
+#| label: define-display-tables-needed
+#| output: true
+
+needed_irs_tables <- read_excel(
+  fs::path(DATADIR, targfn),
+  sheet = "irs_downloads"
+)
+
+fnote <- md(
+  "IRS filenames are constructed by prepending a 2-digit year to the base filename. For example, the base file name for Table 1.1 (sources of income -- si) is *in11si.xls*; therefore the Table 1.1 file name for 2022 is *22in11si.xls*."
+)
+needed_irs_tables |>
+  gt() |>
+  tab_header("Key IRS tables that contain potential targets") |>
+  cols_label(
+    fname_base = "Base file name"
+  ) |>
+  tab_footnote(fnote, locations = cells_column_labels(fname_base))
+
+```
+
+Create table metadata file with IRS file names for each year of interest (base file name prepended by 2-digit year).
+
+```{r}
+#| label: get-recipes
+#| output: false
+
+# table_meta has information about each Excel file we want to download
+table_meta <- expand_grid(
+  year = c(2015, 2021:2022) |>
+    as.integer(),
+  needed_irs_tables
+) |>
+  mutate(
+    fname = paste0(str_sub(year, 3, 4), fname_base),
+    upath = paste0(baseurl, fname)
+  ) |>
+  relocate(fname, .after = table)
+
+glimpse(table_meta)
+table_meta |>
+  select(1:4)
+
+```
+
+
+## Read IRS spreadsheets and save data frame of targets as csv file
+
+
 ```{r}
 #| label: read-irs-spreadsheets
 #| output: false
 
-# we want to create a csv file (tibble) with the following columns:
+# create a csv file (tibble) with the following columns:
 #   table -- tab11, tab12, tab14, tab21
 #   year (2015, 2021, 2022)
 #   fname
@@ -252,17 +269,20 @@ table_colspecs <- table_variable_specs |>
     .by = c(table, year)
   )
 skimr::skim_without_charts(table_colspecs)
+if (anyNA(table_colspecs)) {
+  stop("Found NA values in the tibble table_colspecs.")
+}
 
 table_specs <- table_meta |>
   filter(table %in% tabs) |>
   select(table, year, fname, table_description, table_type) |>
   left_join(table_rowspecs, by = join_by(year, table)) |>
-  left_join(table_colspecs, by = join_by(table, year))
+  left_join(table_colspecs, by = join_by(year, table))
 # now we have what we need to get the data from each table
 
 table_data <- table_specs |>
   mutate(
-    targets = get_irsdata(
+    targets = get_irs_table(
       fname,
       year,
       startrow,
@@ -277,88 +297,41 @@ table_data <- table_specs |>
 table_data$targets
 
 ptargets_to_check <- table_data |>
-  unnest(cols=targets) |>
+  unnest(cols = targets) |>
+  # bring in variable specs for each variable
   left_join(table_variable_specs, by = join_by(table, year, xlcolumn)) |>
-  select(year, vname, table, vdescription, vtype, subgroup, marstat, incsort, incrange, ptarget, everything()) |>
+  select(
+    year,
+    vname,
+    table,
+    vdescription,
+    vtype,
+    subgroup,
+    marstat,
+    incsort,
+    incrange,
+    ptarget,
+    everything()
+  ) |>
   arrange(year, vname, table, vdescription, vtype, subgroup, marstat, incsort)
 
-# do some checks on the data
+# TODO: do some checks on the data
 
 # get a slimmed down table for saving
 ptargets <- ptargets_to_check |>
-  select(year, vname, table, vdescription, vtype, subgroup, marstat, incsort, incrange, ptarget, fname)
-
-
-
-# tabcols <- tabs |>
-#   purrr::map(\(tab) get_colmap(tab, DATADIR, targfn)) |>
-#   list_rbind() |>
-#   arrange(table, year, vtype, subgroup, marstat) |>
-#   dplyr::mutate(
-#     nvars = n(),
-#     max_xl_colnumber = max(xl_colnumber),
-#     column_letters = list(unique(xlcolumn)),
-#     .by = c(table, year)
-#   )
-
-# tabcols
-# skimr::skim_without_charts(tabcols)
-
-# tabcols_nested <- tabcols |>
-#   dplyr::group_by(table, year) |>
-#   dplyr::mutate(
-#     ncols = n(),
-#     max_xl_colnumber = max(xl_colnumber),
-#     column_letters = list(unique(xlcolumn))
-#   ) |>
-#   tidyr::nest(
-#     data = -c(table, year, ncols, max_xl_colnumber, column_letters)
-#   ) |>
-#   dplyr::ungroup()
-# tabcols_nested
-
-# define the tables to get and the maximum column
-# tabget <- tabmeta |>
-#   filter(table %in% tabs) |>
-#   select(table, year, fname, table_description) |>
-#   left_join(tabrows, by = join_by(table, year)) |>
-#   left_join(tabcols_nested, by = join_by(table, year))
-
-# test data for get_irsdata
-# fname <- "15in11si.xls"; year <- 2015
-# startrow <- 10; endrow <- 29; max_xl_colnumber <- 7; column_letters <- list(c("A", "B", "D", "G")); vnames <- list(c("incrange", "x2", "x3", "x4"))
-
-# TODO: code below expects 2015 AND 2021 files to be in the same folder but they aren't. ----
-# ptargets_nested <- tabget |>
-#   # filter(row_number() == 1) |>
-#   mutate(
-#     targets = get_irsdata(
-#       fname,
-#       year,
-#       startrow,
-#       endrow,
-#       max_xl_colnumber,
-#       column_letters # ,
-#       # vnames
-#     ) |>
-#       list(),
-#     .by = fname
-#   )
-# ptargets_nested
-# # ptargets_nested |> unnest(col = c(targets))
-# ptargets_nested |>
-#   filter(table == "tab11") |>
-#   unnest(col = c(targets))
-
-# ptargets <- ptargets_nested |>
-#   select(table, year, fname, targets, table_description) |>
-#   unnest(col = targets) |>
-#   left_join(
-#     tabcols |> select(table, datatype, year, xlcolumn, vname),
-#     by = join_by(table, datatype, year, vname)
-#   ) |>
-#   relocate(xlcolumn, xlrownum, .after = fname) |>
-#   arrange(table, year, vname, incsort)
+  select(
+    year,
+    vname,
+    table,
+    vdescription,
+    vtype,
+    subgroup,
+    marstat,
+    incsort,
+    incrange,
+    ptarget,
+    fname
+  )
 
 # check for identical
 # sha256sum potential_targets_original.csv potential_targets.csv
