@@ -300,9 +300,10 @@ table_data <- table_specs |>
     .by = fname
   )
 
-table_data$targets
+table_data
+table_data$targets[1]
 
-ptargets_to_check <- table_data |>
+ptargets_for_checking <- table_data |>
   unnest(cols = targets) |>
   # bring in variable specs for each variable
   left_join(table_variable_specs, by = join_by(table, year, xlcolumn)) |>
@@ -334,15 +335,25 @@ ptargets_to_check <- table_data |>
 ```{r}
 
 # get a slimmed down table for saving
-ptargets <- ptargets_to_check |>
+ptargets <- ptargets_for_checking |>
   arrange(year, table, vname, vtype, subgroup, marstat, incsort) |>
   mutate(
-    targetid = row_number(),
+    rownum = row_number(),
+    idbase = paste(
+      table,
+      year,
+      vname,
+      vtype,
+      subgroup,
+      marstat,
+      sep = "-"
+    ),
     # xlrownum = str_pad(xlrownum, width = 2, side = "left", pad = "0"),
     xlcell = paste0(xlcolumn, xlrownum)
   ) |>
   select(
-    targetid,
+    rownum,
+    idbase,
     year,
     table,
     vname,
@@ -354,9 +365,9 @@ ptargets <- ptargets_to_check |>
     incrange,
     ptarget,
     fname,
-    xlcell,
-    xlcolumn,
-    xlrownum
+    xlcell #,
+    # xlcolumn,
+    # xlrownum
   )
 
 ```
