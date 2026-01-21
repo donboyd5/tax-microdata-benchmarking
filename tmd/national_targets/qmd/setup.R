@@ -2,7 +2,7 @@
 
 TMDINPUT <- fs::path(GITROOT, "tmd", "storage", "input")
 DATADIR <- fs::path(QROOT, "..", "data")
-targfn <- "target_recipes_v2.xlsx"
+targfn <- "target_recipes_v3.xlsx"
 
 source(fs::path(QROOT, "R", "libraries.R"))
 source(fs::path(QROOT, "R", "functions_helpers.R"))
