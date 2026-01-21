@@ -161,7 +161,6 @@ get_irs_table <- function(
       names_to = "xlcolumn",
       values_to = "ptarget"
     ) |>
-    mutate(ptarget = as.numeric(ptarget)) |> # every column had better be a number stored as text!
     select(incsort, xlrownum, incrange, xlcolumn, ptarget) |>
     arrange(xlcolumn, incsort)
   df2
@@ -303,10 +302,19 @@ table_data <- table_specs |>
 table_data
 table_data$targets[1]
 
+```
+
+```{r}
+#| label: preliminary-targets
+
 ptargets_for_checking <- table_data |>
   unnest(cols = targets) |>
   # bring in variable specs for each variable
   left_join(table_variable_specs, by = join_by(table, year, xlcolumn)) |>
+  mutate(
+    ptarget = as.numeric(ptarget),
+    ptarget = ifelse(vtype == "amount", ptarget * 1000, ptarget)
+  ) |> # every column had better be a number stored as text! ALSO, SCALE to dollars
   select(
     year,
     vname,
@@ -328,7 +336,6 @@ ptargets_for_checking <- table_data |>
 # sha256sum potential_targets_original.csv potential_targets.csv
 
 ```
-
 
 ## Save preliminary target data
 
