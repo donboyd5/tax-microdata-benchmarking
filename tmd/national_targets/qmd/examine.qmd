@@ -36,51 +36,78 @@ skimr::skim_without_charts(ptargets)
 ```{r}
 #| label: showtab-function
 
-show_tab <- function(tab, year, vtype = c("stub", "count", "amount")) {
-  # Build wide data and show it in a datatable
+# developed with help of chatGPT
+
+show_tab <- function(tab, year, view = interactive(), scrollx_threshold = 6) {
+  knitting <- isTRUE(getOption("knitr.in.progress"))
+
   df <- ptargets |>
     dplyr::filter(
       table == tab,
-      year == {{ year }},
-      vtype %in% {{ vtype }}
+      year == {{ year }}
     ) |>
-    dplyr::select(table, vtype, vname, ptarget, xlcolumn, xlrownum) |>
+    dplyr::select(
+      vtype,
+      vname,
+      marstat,
+      incsort,
+      incrange,
+      ptarget,
+      xlcolumn,
+      xlrownum
+    ) |>
     dplyr::mutate(nxlcolumn = xlcol_to_num(xlcolumn)) |>
     dplyr::arrange(nxlcolumn, xlrownum) |>
-    dplyr::select(-nxlcolumn) |>
+    dplyr::select(-nxlcolumn, -xlrownum) |>
     tidyr::pivot_wider(
-      names_from = c(xlcolumn, vname, vtype),
+      names_from = c(xlcolumn, vname, vtype, marstat),
       values_from = ptarget
     )
 
-  # Targets: R cols 3..last => JS zero-based 2..(n-1)
-  right_align_js_targets <- if (ncol(df) >= 3) 2:(ncol(df) - 1) else integer(0)
-  cols_to_fmt <- if (ncol(df) >= 3) 3:ncol(df) else integer(0)
+  n <- ncol(df)
+  nr <- nrow(df)
 
-  # Build DT widget (no 'nowrap'; auto width; adjust on init; collapse scroll when short)
+  # Alignment targets (DataTables 0-based)
+  # R: 1 right, 2 left, 3..n right
+  right_align_js_targets <- c(0, if (n >= 3) 2:(n - 1) else integer(0))
+  left_align_js_targets <- 1
+  cols_to_fmt <- if (n >= 3) 3:n else integer(0)
+
+  # Horizontal scroll only when table is wide
+  use_scrollx <- n > scrollx_threshold
+
+  # Show full height (no vertical scroll); your tables are <= 30 rows
+  # pageLength controls how many rows before paging
+  page_len <- min(30L, nr)
+
   tbl <- DT::datatable(
     df,
     class = "display stripe cell-border",
     rownames = FALSE,
     options = list(
-      scrollX = TRUE,
-      scrollY = "400px",
-      scrollCollapse = TRUE, # <-- collapses extra vertical whitespace
-      pageLength = 30,
+      scrollX = use_scrollx,
+      paging = FALSE, # <--- show everything (since <= 30 rows)
+      pageLength = page_len, # harmless when paging=FALSE, but fine to keep
       autoWidth = TRUE,
       deferRender = TRUE,
+
       columnDefs = list(
+        list(targets = left_align_js_targets, className = "dt-left"),
         list(targets = right_align_js_targets, className = "dt-right")
       ),
+
       initComplete = htmlwidgets::JS(
         "function(settings, json) {
            var api = this.api();
-           // Let the header stretch and wrap; then sync widths
-           $(api.table().container()).find('.dataTables_scrollHeadInner, .dataTables_scrollHead table')
-             .css({'width':'100%'});
-           // Make sure widths are recalculated after styles apply
-           setTimeout(function(){ api.columns.adjust(); }, 0);
-           $(api.table().container()).css({'font-size': '9px'});
+           var $c  = $(api.table().container());
+
+           if (settings.oScroll && settings.oScroll.sX) {
+             $c.find('.dataTables_scrollHeadInner, .dataTables_scrollHead table, .dataTables_scrollBody table')
+               .css({'width':'100%'});
+             setTimeout(function(){ api.columns.adjust().draw(false); }, 0);
+           }
+
+           $c.css({'font-size': '9px'});
          }"
       )
     ),
@@ -98,13 +125,11 @@ show_tab <- function(tab, year, vtype = c("stub", "count", "amount")) {
       )
   }
 
-  # Return TABLE + CSS together (this was missing)
-  htmltools::tagList(
+  out <- htmltools::tagList(
     tbl,
     htmltools::tags$style(
       htmltools::HTML(
         "
-        /* Header wrapping for long labels */
         .dataTables_wrapper .dataTables_scrollHead th,
         table.dataTable thead th {
           white-space: normal !important;
@@ -114,12 +139,9 @@ show_tab <- function(tab, year, vtype = c("stub", "count", "amount")) {
           vertical-align: bottom;
         }
 
-        /* Alignments */
-        th.dt-right { text-align: center !important; }
-        td.dt-right { text-align: right !important; }
-        .dataTables_filter input { text-align: right !important; }
+        th.dt-right, td.dt-right { text-align: right !important; }
+        th.dt-left,  td.dt-left  { text-align: left  !important; }
 
-        /* Reduce row height (body + header) */
         table.dataTable tbody td,
         table.dataTable thead th {
           padding-top: 2px !important;
@@ -127,7 +149,6 @@ show_tab <- function(tab, year, vtype = c("stub", "count", "amount")) {
           line-height: 1.1 !important;
         }
 
-        /* Smaller filter inputs (top filter row) */
         table.dataTable thead input {
           padding: 2px 4px !important;
           font-size: 9px !important;
@@ -139,13 +160,29 @@ show_tab <- function(tab, year, vtype = c("stub", "count", "amount")) {
       )
     )
   )
-  tbl
+
+  # ---- display logic: Quarto vs interactive ----
+  if (knitting) {
+    return(out)
+  }
+
+  if (isTRUE(view) && interactive()) {
+    vfun <- getOption("viewer")
+    if (is.function(vfun)) {
+      tf <- tempfile(fileext = ".html")
+      htmltools::save_html(htmltools::browsable(out), file = tf)
+      vfun(tf)
+      return(invisible(out))
+    } else {
+      htmltools::html_print(htmltools::browsable(out))
+      return(invisible(out))
+    }
+  }
+
+  out
 }
 
 ```
-
-
-
 
 ## Examine 2022 values
 
@@ -183,7 +220,7 @@ show_tab("tab11", 2022)
 ```{r}
 #| column: page
 
-show_tab("tab12", 2022, "filers")
+show_tab("tab12", 2022)
 
 ```
 
@@ -196,7 +233,7 @@ show_tab("tab12", 2022, "filers")
 ```{r}
 #| column: page
 
-show_tab("tab12", 2022, "taxable")
+show_tab("tab12", 2022)
 
 ```
 
@@ -213,7 +250,7 @@ Many columns of data were ingested. The IRS spreadsheet is shown by groups of co
 ```{r}
 #| column: page
 
-show_tab("tab14", 2022, "filers")
+show_tab("tab14", 2022)
 
 ```
 
@@ -248,7 +285,7 @@ show_tab("tab14", 2022, "filers")
 ```{r}
 #| column: page
 
-show_tab("tab14", 2022, "taxable")
+show_tab("tab14", 2022)
 
 ```
 
@@ -287,8 +324,7 @@ For Table 2.1 we show the data for filers followed by the data for taxable retur
 ```{r}
 #| column: page
 
-show_tab("tab21", 2022, "filers")
-show_tab("tab21", 2022, "taxable")
+show_tab("tab21", 2022)
 
 ```
 
@@ -323,20 +359,21 @@ show_tab("tab21", 2022, "taxable")
 ## Compare totals and sums of details
 
 ```{r}
+#| eval: false
 
-ptargets |>
-  mutate(inctype = ifelse(incsort == 1, "total", "detail")) |>
-  summarise(
-    n = n(),
-    ptarget = sum(ptarget),
-    .by = c(table, datatype, year, vname, inctype)
-  ) |>
-  pivot_wider(names_from = inctype, values_from = c(n, ptarget)) |>
-  mutate(
-    ptarget_diff = ptarget_total - ptarget_detail,
-    pdiff = ptarget_diff / ptarget_total
-  ) |>
-  arrange(desc(abs(pdiff)))
+# ptargets |>
+#   mutate(inctype = ifelse(incsort == 1, "total", "detail")) |>
+#   summarise(
+#     n = n(),
+#     ptarget = sum(ptarget),
+#     .by = c(table, datatype, year, vname, inctype)
+#   ) |>
+#   pivot_wider(names_from = inctype, values_from = c(n, ptarget)) |>
+#   mutate(
+#     ptarget_diff = ptarget_total - ptarget_detail,
+#     pdiff = ptarget_diff / ptarget_total
+#   ) |>
+#   arrange(desc(abs(pdiff)))
 
 ```
 
