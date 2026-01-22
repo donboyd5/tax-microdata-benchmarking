@@ -35,6 +35,7 @@ Later, put in prepare.qmd
 ```{r}
 #| label: get-potential-targets
 
+pufsums <- read_csv(fs::path(DATADIR, "pufsums.csv"))
 ptargets <- readRDS(fs::path(DATADIR, "potential_targets_preliminary.rds"))
 
 ```
