@@ -17,7 +17,8 @@ book:
   chapters:
     - index.qmd
     - prepare_potential_targets.qmd
-    - examine.qmd
+    - examine_potential_targets.qmd
+    - summarize_puf_for_irs_comparison.qmd
     # - map_puf_variable_names_to_irs_spreadsheet_locations.qmd
 
 format:
