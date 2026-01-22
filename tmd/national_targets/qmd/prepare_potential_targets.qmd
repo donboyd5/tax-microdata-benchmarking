@@ -365,9 +365,9 @@ ptargets <- ptargets_for_checking |>
     incrange,
     ptarget,
     fname,
-    xlcell #,
-    # xlcolumn,
-    # xlrownum
+    xlcell,
+    xlcolumn,
+    xlrownum
   )
 
 ```
