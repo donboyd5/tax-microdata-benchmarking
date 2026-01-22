@@ -20,7 +20,7 @@ source(fs::path(QROOT, "setup.R"))
 
 pufpath <- fs::path(TMDINPUT, "puf_2015.csv")
 
-# note - will load the functions that help with reading excel files
+# will load the functions that help with reading excel files
 
 ```
 
@@ -55,9 +55,9 @@ sheet <- "puf2015_wtdsums"
 range <- "A3:E176"
 
 mainvars1 <- readxl::read_excel(xlpath, sheet = sheet, range = range)
-
 mainvars <- mainvars1 |>
   mutate(soi2015 = 1000 * soi2015, puf2015 = puf2015 * 1000)
+
 
 ```
 
@@ -353,5 +353,50 @@ pufsums <- pufsums_to_check |>
 
 pufsums |>
   write_csv(fs::path(DATADIR, "pufsums.csv"))
+
+```
+
+## Get PUF documentation codes
+
+```{r}
+
+sheet <- "puf2015_codewtdcounts"
+range <- "A3:G10"
+codes <- readxl::read_excel(xlpath, sheet = sheet, range = range)
+
+```
+
+
+```{r}
+
+codecounts <- puf |>
+  select(RECID, S006, code = MARS) |>
+  summarise(wtdcount = sum(S006 / 100, na.rm = TRUE), .by = code) |>
+  arrange(code)
+
+puf_codecounts_to_check <- codes |>
+  left_join(codecounts, by = join_by(code)) |>
+  mutate(
+    wtdcount = replace_na(wtdcount, 0),
+    diff = wtdcount - puf2015,
+    pdiff = diff / puf2015
+  )
+
+puf_codecounts_to_check
+
+puf_codecounts <- puf_codecounts_to_check |>
+  select(
+    pufname,
+    pufdescription,
+    code,
+    code_description,
+    soi2015,
+    puf2015,
+    wtdcount,
+    form_location
+  )
+
+puf_codecounts |> # no need for adjustments
+  write_csv(fs::path(DATADIR, "puf_codecounts.csv"))
 
 ```
