@@ -1,0 +1,357 @@
+---
+execute:
+  freeze: auto
+---
+
+# Summarize PUF for comparison to IRS potential targets
+
+PUF documentation provides expected sums for universe (SOI) variables, and for PUF variables. We compare latter to computed values, and use results to correct expected SOI values.
+
+TODO:
+
+- control-total counts by marital status
+
+```{r}
+#| label: setup
+
+GITROOT <- rprojroot::find_root(rprojroot::has_file(".git/index"))
+QROOT <- fs::path(GITROOT, "tmd", "national_targets", "qmd")
+source(fs::path(QROOT, "setup.R"))
+
+pufpath <- fs::path(TMDINPUT, "puf_2015.csv")
+
+# note - will load the functions that help with reading excel files
+
+```
+
+## Get data from PUF documentation
+
+The following data is from the PUF documentation booklet. Tables were copied carefully into the Excel file used below and carefully supplemented. It is the most labor-intensive and error-prone part of the targets process.
+
+Get weighted sums of numeric variables, from PUF 2015 documentation pages 46-50. The screenshot below shows what the table looks like. It includes:
+
+-   SOI PUF 2015 variable name – e.g., first row is PUF variable E00100, Adjusted gross income
+
+-   2015 Full SOI Individual Sample amount – this is the amount in the full (non-public-use) IRS sample (we do **not** have this data file). It is also, generally, the amount found in IRS public tables and what we should consider a control total for 2015.
+
+-   2015 Public Use Sample amount - We generally can calculate this from the full 2015 PUF sample (as long as we include the four aggregate records).
+
+Our detective job is to:
+
+-   Pick an important PUF variable that we may want to target
+
+-   Verify that it is what we think it is by summarizing the 2015 PUF and comparing to this table
+
+-   Find its counterpart in 2015 published IRS tables so that we know which IRS table has detailed targeting information for that variable
+
+-   Find its counterpart in 2022 published IRS tables so that we know which 2022 IRS table has detailed targeting information for that variable
+
+![](images/paste-1.png)
+
+```{r}
+
+xlpath <- fs::path(DATADIR, targfn)
+sheet <- "puf2015_wtdsums"
+range <- "A3:E176"
+
+mainvars1 <- readxl::read_excel(xlpath, sheet = sheet, range = range)
+
+mainvars <- mainvars1 |>
+  mutate(soi2015 = 1000 * soi2015, puf2015 = puf2015 * 1000)
+
+```
+
+## Calculate PUF weighted sums, for comparison
+
+Get total, positive, and negative weighted sums and counts of all variables with values reported in the PUF 2015 documentation.
+
+```{r}
+#| label: get-puf
+
+puf <- vroom::vroom(pufpath)
+```
+
+### Amount sums
+
+```{r}
+
+pufsums_amounts <- puf |>
+  select(RECID, S006, any_of(mainvars$pufname)) |>
+  summarise(
+    across(
+      -c(RECID, S006),
+      list(
+        # weighted sums
+        sum = \(x) {
+          sum(x * S006 / 100, na.rm = TRUE)
+        },
+        sumgtz = \(x) {
+          sum((x > 0) * x * S006 / 100, na.rm = TRUE)
+        },
+        sumltz = \(x) {
+          sum((x < 0) * x * S006 / 100, na.rm = TRUE)
+        }
+      )
+    )
+  ) |>
+  pivot_longer(cols = everything(), names_to = "name") |>
+  separate_wider_delim(
+    cols = name,
+    delim = "_",
+    names = c("pufname", "measure")
+  ) |>
+  pivot_wider(names_from = measure)
+
+```
+
+### Simple weighted counts
+
+```{r}
+
+pufsums_counts <- puf |>
+  select(RECID, S006, any_of(mainvars$pufname)) |>
+  summarise(
+    across(
+      -c(RECID, S006),
+      list(
+        # weighted numbers of returns
+        nnz = \(x) {
+          sum((x != 0) * S006 / 100, na.rm = TRUE)
+        },
+        ngtz = \(x) {
+          sum((x > 0) * S006 / 100, na.rm = TRUE)
+        },
+        nltz = \(x) {
+          sum((x < 0) * S006 / 100, na.rm = TRUE)
+        }
+      )
+    )
+  ) |>
+  pivot_longer(cols = everything(), names_to = "name") |>
+  separate_wider_delim(
+    cols = name,
+    delim = "_",
+    names = c("pufname", "measure")
+  ) |>
+  pivot_wider(names_from = measure) |>
+  mutate(n = nnz[pufname == "E00100"], .before = nnz)
+
+```
+
+### Marital status weighted counts
+
+```{r}
+#| label: marital-status-counts
+
+# puf documentation:
+# MARS Marital (Filing) Status:
+# Aggregated Return ...........................................................................0
+# Single ...............................................................................................1
+# Married filing a joint return or Widow(er) with dependent child (surviving spouse) ...........................................2
+# Married filing separately  .................................................................3
+# Head of household ...........................................................................4
+# NOTE: For returns sampled above a 0.07 percent rate, returns filed with a marital status of head of household claiming no dependents have been converted to single.
+
+count(puf, MARS)
+
+pufsums_marstat_counts <- puf |>
+  select(RECID, S006, MARS, any_of(mainvars$pufname)) |>
+  summarise(
+    across(
+      -c(RECID, S006, MARS), # id variables to exclude from calculations
+      list(
+        # weighted numbers of returns by marital status
+        nnz_single = \(x) {
+          sum((MARS == 1) * (x != 0) * S006 / 100, na.rm = TRUE)
+        },
+        nnz_mfjss = \(x) {
+          sum((MARS == 2) * (x != 0) * S006 / 100, na.rm = TRUE)
+        },
+        nnz_mfs = \(x) {
+          sum((MARS == 3) * (x != 0) * S006 / 100, na.rm = TRUE)
+        },
+        nnz_hoh = \(x) {
+          sum((MARS == 4) * (x != 0) * S006 / 100, na.rm = TRUE)
+        },
+        nnz_aggrec = \(x) {
+          sum((MARS == 0) * (x != 0) * S006 / 100, na.rm = TRUE)
+        }
+      )
+    )
+  ) |>
+  pivot_longer(cols = everything(), names_to = "name") |>
+  separate_wider_delim(
+    name,
+    delim = "_",
+    names = c("pufname", "measure"),
+    too_many = "merge" # keep the remaining pieces together
+  ) |>
+  pivot_wider(names_from = measure)
+
+```
+
+### Combine the summaries
+
+```{r}
+
+pufsums_to_check <- mainvars |>
+  left_join(pufsums_amounts, by = join_by(pufname)) |>
+  left_join(pufsums_counts, by = join_by(pufname)) |>
+  left_join(pufsums_marstat_counts, by = join_by(pufname))
+
+```
+
+### Some quick checks
+
+```{r}
+
+skimr::skim(pufsums_to_check)
+
+pufsums_to_check |>
+  select(pufname, sum, sumgtz, sumltz) |>
+  mutate(
+    check = sumgtz + sumltz,
+    diff = sum - check
+  ) |>
+  arrange(desc(abs(diff))) |>
+  slice_head(n = 10) |>
+  gt() |>
+  tab_header("Top 10 records of abs(sum - (sumgtz + sumltz))") |>
+  fmt_number(decimals = 0)
+
+pufsums_to_check |>
+  select(pufname, nnz, ngtz, nltz) |>
+  mutate(
+    check = ngtz + nltz,
+    diff = nnz - check
+  ) |>
+  arrange(desc(abs(diff))) |>
+  slice_head(n = 10) |>
+  gt() |>
+  tab_header("Top 10 records of abs(nnz - sum: ngtz + nltz)") |>
+  fmt_number(decimals = 0)
+
+pufsums_to_check |>
+  select(pufname, starts_with("nnz")) |>
+  mutate(
+    check = nnz_single + nnz_mfjss + nnz_mfs + nnz_hoh + nnz_aggrec,
+    diff = nnz - check
+  ) |>
+  arrange(desc(abs(diff))) |>
+  slice_head(n = 10) |>
+  gt() |>
+  tab_header("Top 10 records of abs(nnz - sum of details)") |>
+  fmt_number(decimals = 0)
+
+```
+
+## Examine and adjust full-sample values for key PUF variables
+
+### Compare PUF weighted sums to those reported in PUF documentation
+
+```{r}
+#| output: true
+
+puf_compare <- pufsums_to_check |>
+  select(pufname, pufdescription, soi2015, puf2015, sum) |>
+  mutate(
+    diff = sum - puf2015,
+    pdiff = diff / puf2015,
+    puf_doc_ratio = sum / puf2015
+  ) |>
+  arrange(desc(abs(diff))) |>
+  mutate(pufdocrow = row_number(), .before = pufname)
+
+```
+
+```{r}
+tol <- 0.001
+tol_txt <- scales::label_percent(accuracy = 0.01)(tol)
+nvars <- nrow(puf_compare)
+```
+
+The table below compares weighted sums for variables included in puf 2015 to what the PUF documentation says to expect, where the calculated sum is different from the sum reported in the documentation by more than `{r} tol_txt`. It also shows the amount in the full SOI sample, which is the amount we would expect to find in IRS spreadsheets.
+
+Almost all `{r} nvars` PUF variables compared are within `{r} tol_txt`. Of those that differ by more, all but two differ by approximately a factor of 10. This suggests that for these variables the IRS accidentally either (1) truncated the reported amounts by one digit, making the expected amount too low, or (2) increased the amounts on the PUF by a factor of 10, making the amounts in the data too large by a factor of 10.
+
+```{r}
+
+tabdata <- puf_compare |>
+  filter(abs(pdiff) > tol)
+
+tabdata |>
+  gt() |>
+  tab_header(
+    paste0(
+      "PUF 2015 weighted sums that differ from PUF 2015 documentation by more than ",
+      tol_txt,
+      ". Amounts in $ billions"
+    ),
+    subtitle = paste0("Out of ", nvars, " variables.")
+  ) |>
+  tab_spanner(
+    "PUF 2015 documentation",
+    columns = c(soi2015, puf2015)
+  ) |>
+  cols_label(
+    soi2015 = "2015 Full SOI sample (What we should expect to find in IRS spreadsheets)",
+    puf2015 = "2015 Public Use sample (What we should expect for calculated sum)",
+    sum = "Calculated PUF weighted sum",
+    diff = "Calculated PUF sum minus documentation-reported sum",
+    pdiff = "% difference from expected",
+    puf_doc_ratio = "Ratio of calculated PUF sum to documentation PUF sum"
+  ) |>
+  fmt_number(
+    columns = c(soi2015, puf2015, sum, diff),
+    decimals = 3,
+    scale = 1e-9
+  ) |>
+  fmt_number(columns = puf_doc_ratio, decimals = 3) |>
+  fmt_percent(columns = pdiff, decimals = 1)
+
+```
+
+Note that the reported full sample amounts are also off by a factor of 10. The next two tables show values in IRS tables for state and local tax deductions and for deductible interest. This makes clear that the reported full sample amounts for these variables in the PUF documentation are wrong.
+
+Thus, we adjust the full sample amounts for these variables by a factor of 10 so that we can compare them to amounts found in IRS tables.
+
+![](images/paste-4.png)
+
+![](images/paste-3.png)
+
+### Correct the adjusted full-sample amounts taken from the PUF documentation
+
+```{r}
+
+correction_ratios <- puf_compare |>
+  mutate(correction_ratio = ifelse(puf_doc_ratio > 2, puf_doc_ratio, 1)) |>
+  select(pufname, correction_ratio)
+
+pufsums <- pufsums_to_check |>
+  left_join(correction_ratios, by = join_by(pufname)) |>
+  mutate(across(
+    c(soi2015, puf2015),
+    list(adj = \(x) x * correction_ratio)
+  )) |>
+  select(
+    pufname,
+    pufdescription,
+    soi2015,
+    puf2015,
+    soi2015_adj,
+    puf2015_adj,
+    everything()
+  ) |>
+  relocate(form_location, .after = correction_ratio) |>
+  select(-c(nnz_aggrec, correction_ratio))
+
+```
+
+## Save the adjusted file
+
+```{r}
+
+pufsums |>
+  write_csv(fs::path(DATADIR, "pufsums.csv"))
+
+```

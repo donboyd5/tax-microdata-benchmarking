@@ -28,16 +28,3 @@ format:
 
 editor_options:
   chunk_output_type: console
-
-
-# possibly use this at start of each doc
-# ---
-# format: html
-# editor_options:
-#   chunk_output_type: console
-# ---
-
-# use qstop shortcut for this
-# ```{r stop_here, echo=FALSE}
-# knitr::knit_exit()
-# ```
