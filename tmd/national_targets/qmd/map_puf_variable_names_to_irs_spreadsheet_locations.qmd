@@ -48,6 +48,45 @@ count(ptargets, year, vtype, subgroup, marstat)
 
 ```
 
+### Construct a streamlined puf-matching file
+
+```{r}
+
+sumsbase <- pufsums |>
+  select(pufname, pufdescription, soi = soi2015_adj) |>
+  mutate(
+    vtype = "amount",
+    subgroup = "filers",
+    marstat = "all",
+    src = "pufsums",
+    .after = pufname
+  )
+
+mstat_lookup <- c(
+  `1` = "single",
+  `2` = "mfjss",
+  `3` = "mfs",
+  `4` = "hoh"
+)
+codebase <- puf_codecounts |>
+  filter(code %in% 1:4) |>
+  mutate(
+    pufname = "E00100",
+    pufdescription = code_description,
+    vtype = "count",
+    subgroup = "filers",
+    marstat = unname(mstat_lookup[as.character(code)]),
+    src = "pufcodes"
+  ) |>
+  select(pufname, vtype, subgroup, marstat, pufdescription, soi = soi2015, src)
+codebase
+
+soi_base <- bind_rows(sumsbase, codebase) |>
+  mutate(year = 2015, incsort = 1, pufdocrow = row_number())
+
+
+```
+
 ## Begin mapping PUF variables to IRS totals
 
 Compare full-sample totals for PUF variables to IRS totals
@@ -60,10 +99,13 @@ count(ptargets, vtype)
 count(ptargets, subgroup)
 count(ptargets, marstat)
 
-comptargets <- ptargets |>
+check <- ptargets |>
+  filter(incsort == 1, marstat != "all", year == 2015, vtype == "count")
+
+ptargets_base <- ptargets |>
   filter(
     year == 2015,
-    vtype == "amount",
+    # vtype == "amount",
     subgroup %in% c("filers"),
     marstat == "all",
     incsort == 1
@@ -73,37 +115,49 @@ comptargets <- ptargets |>
 
 ### Round 1: EXACT MATCH
 
-Start by finding exact matches between expected IRS totals (soi2015_adj) and actual IRS totals pulled from spreadsheets.
+Start by finding exact matches between expected IRS totals (soi2015) and actual IRS totals pulled from spreadsheets.
 
 ```{r}
 #| label: round1-explore
 
-comma_vars <- c("soifull2015_adj", "ptarget", "diff", "pufsumk")
-pct_vars <- c("pdiff")
-
-# dtol <- 0.0
 ptol <- 0.0
-compare1 <- puf_compare2 |>
+
+compare1 <- soi_base |>
   mutate(
-    lb = soifull2015_adj * (1 - ptol),
-    ub = soifull2015_adj * (1 + ptol)
+    lb = soi * (1 - ptol),
+    ub = soi * (1 + ptol)
   ) |>
-  left_join(comptargets, join_by(lb <= ptarget, ub >= ptarget)) |>
+  left_join(
+    ptargets_base,
+    join_by(
+      year,
+      vtype,
+      subgroup,
+      marstat,
+      incsort,
+      lb <= ptarget,
+      ub >= ptarget
+    )
+  ) |>
   filter(!is.na(ptarget)) |>
-  mutate(diff = ptarget - soifull2015_adj, pdiff = diff / soifull2015_adj) |>
+  mutate(diff = ptarget - soi, pdiff = diff / soi) |>
   select(
     pufdocrow,
-    puf_name,
-    description,
-    vname,
+    pufname,
+    pufdescription,
     vdescription,
-    soifull2015_adj,
+    vname,
+    vtype,
+    subgroup,
+    marstat,
+    vdescription,
+    soi,
     ptarget,
     diff,
     pdiff,
     everything()
   ) |>
-  arrange(desc(soifull2015_adj), desc(abs(diff)))
+  arrange(pufdocrow)
 
 # inspection shows duplicates:
 #    tab12-2015-exemption-amount-filers-all
@@ -113,25 +167,36 @@ compare1 <- puf_compare2 |>
 ```
 
 ```{r}
+comma_vars <- c("soi", "ptarget", "diff")
+pct_vars <- c("pdiff")
+```
+
+```{r}
 #| label: show-round1
 #| output: true
 
-# compare1 |>
-#   select(
-#     idbase,
-#     puf_name:pufsumk,
-#     table,
-#     datatype,
-#     subgroup,
-#     targtype,
-#     fname,
-#     xlcolumn,
-#     xlrownum
-#   ) |>
-#   gt() |>
-#   tab_header("Round 1 exact match results") |>
-#   fmt_number(columns = comma_vars, decimals = 0) |>
-#   fmt_percent(columns = pct_vars, decimals = 2)
+compare1 |>
+  select(
+    idbase,
+    pufname,
+    vname,
+    soi,
+    ptarget,
+    diff,
+    pdiff,
+    pufdescription,
+    vdescription,
+    table,
+    vtype,
+    subgroup,
+    marstat,
+    fname,
+    xlcell
+  ) |>
+  gt() |>
+  tab_header("Round 1 exact match results") |>
+  fmt_number(columns = comma_vars, decimals = 0) |>
+  fmt_percent(columns = pct_vars, decimals = 2)
 
 ```
 
@@ -142,17 +207,23 @@ Duplicate matches
 
 compare1 |>
   select(
-    targetid,
-    puf_name:pufsumk,
+    idbase,
+    pufname,
+    vname,
+    soi,
+    ptarget,
+    diff,
+    pdiff,
+    pufdescription,
+    vdescription,
     table,
-    datatype,
+    vtype,
     subgroup,
-    targtype,
+    marstat,
     fname,
-    xlcolumn,
-    xlrownum
+    xlcell
   ) |>
-  mutate(n = n(), .by = puf_name) |>
+  mutate(n = n(), .by = pufname) |>
   filter(n > 1) |>
   gt() |>
   tab_header(
@@ -163,12 +234,16 @@ compare1 |>
 
 ```
 
-Get unique round1 results
+#### Get round1 results. Should we keep unique only?
 
 ```{r}
 
-round1 <- compare1 |> filter(!targetid == 1)
+round1 <- compare1
 
+
+# ptargets |> filter(idbase == "tab12-2015-agi-amount-filers-all")
+# ptargets |> filter(idbase == "tab12-2015-agi-amount-filers-mfjss")
+# ptargets |> filter(idbase == "tab12-2015-agi-count-filers-mfjss")
 
 ```
 
@@ -177,8 +252,8 @@ round1 <- compare1 |> filter(!targetid == 1)
 ```{r}
 
 ptol <- 0.001
+
 compare2 <- compdata |>
-  filter(!puf_name %in% round1$puf_name) |>
   mutate(lb = soi2015_adj * (1 - ptol), ub = soi2015_adj * (1 + ptol)) |>
   left_join(comptargets, join_by(lb <= ptarget, ub >= ptarget)) |>
   filter(!is.na(ptarget)) |>
@@ -186,6 +261,47 @@ compare2 <- compdata |>
   relocate(vname, .after = description) |>
   relocate(c(ptarget, diff, pdiff), .after = soi2015_adj) |>
   arrange(desc(soi2015_adj), desc(abs(diff)))
+
+ptol <- 0.0
+
+compare2 <- soi_base |>
+  filter(!pufdocrow %in% round1$pufdocrow) |>
+  mutate(
+    lb = soi * (1 - ptol),
+    ub = soi * (1 + ptol)
+  ) |>
+  left_join(
+    ptargets_base,
+    join_by(
+      year,
+      vtype,
+      subgroup,
+      marstat,
+      incsort,
+      lb <= ptarget,
+      ub >= ptarget
+    )
+  ) |>
+  filter(!is.na(ptarget)) |>
+  mutate(diff = ptarget - soi, pdiff = diff / soi) |>
+  select(
+    pufdocrow,
+    pufname,
+    pufdescription,
+    vdescription,
+    vname,
+    vtype,
+    subgroup,
+    marstat,
+    vdescription,
+    soi,
+    ptarget,
+    diff,
+    pdiff,
+    everything()
+  ) |>
+  arrange(pufdocrow)
+
 
 ```
 
