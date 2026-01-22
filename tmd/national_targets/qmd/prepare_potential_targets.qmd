@@ -1,10 +1,3 @@
-
----
-output: html_document
-editor_options:
- chunk_output_type: console
----
-
 # Read "recipes", read IRS files, and save preliminary version of target data
 
 This chapter reads the manually created "target recipes" xlsx file and reads the IRS xls* files identifed within.

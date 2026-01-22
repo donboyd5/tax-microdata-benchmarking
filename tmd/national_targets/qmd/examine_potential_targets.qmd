@@ -1,9 +1,3 @@
----
-output: html_document
-editor_options:
- chunk_output_type: console
----
-
 # Examine preliminary IRS targets to verify technical correctness
 
 This chapter reads and examines previously created data.
