@@ -19,24 +19,19 @@ GITROOT <- rprojroot::find_root(rprojroot::has_file(".git/index"))
 QROOT <- fs::path(GITROOT, "tmd", "national_targets", "qmd")
 source(fs::path(QROOT, "setup.R"))
 
-pufpath <- fs::path(TMDINPUT, "puf_2015.csv")
-
 # note - will load the functions that help with reading excel files
-# also loads QROOT, DATADIR, and targfn
+# loads DATADIR, and targfn
 
 ```
 
-
-
-## Get ptargets and add target type info
-
-Later, put in prepare.qmd
+## Get puf sums, puf code counts, and IRS potential targets
 
 ```{r}
 #| label: get-potential-targets
 
 pufsums <- read_csv(fs::path(DATADIR, "pufsums.csv"))
-ptargets <- readRDS(fs::path(DATADIR, "potential_targets_preliminary.rds"))
+puf_codecounts <- read_csv(fs::path(DATADIR, "puf_codecounts.csv"))
+ptargets <- read_csv(fs::path(DATADIR, "potential_targets_preliminary.csv"))
 
 ```
 
@@ -46,12 +41,10 @@ ptargets <- readRDS(fs::path(DATADIR, "potential_targets_preliminary.rds"))
 
 glimpse(ptargets)
 
-
 skimr::skim_without_charts(ptargets)
 count(ptargets, table, fname)
 count(ptargets, table)
 count(ptargets, year, vtype, subgroup, marstat)
-
 
 ```
 
