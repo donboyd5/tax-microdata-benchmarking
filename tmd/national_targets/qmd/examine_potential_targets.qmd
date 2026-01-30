@@ -184,8 +184,8 @@ Because selecting values from several different IRS spreadsheets, from multiple 
 
 The sections below show:
 
--   A filterable datatable showing the data that was read from IRS spreadsheets, followed by
--   One or more screenshots of intended values, from IRS spreadsheets
+- A filterable datatable showing the data that was read from IRS spreadsheets, followed by
+- One or more screenshots of intended values, from IRS spreadsheets
 
 Visually spot-check datatable vs. screenshots of totals.
 
@@ -374,7 +374,6 @@ show_tab("tab21", 2022)
 ## Show potential targets {#sec-show-targets}
 
 TODO: Datatable here
-
 
 ```{r stop_here, echo=FALSE}
 knitr::knit_exit()
