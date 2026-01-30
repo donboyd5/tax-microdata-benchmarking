@@ -6,7 +6,7 @@ execute:
   eval: true
   echo: true
   output: false
-  freeze: false  # auto: during global project renders, re-render only when source changes
+  freeze: auto  # auto: during global project renders, re-render only when source changes
 
 book:
   title: "Get IRS data for possible use as PUF targets"
@@ -20,6 +20,8 @@ book:
     - examine_potential_targets.qmd
     - summarize_puf_for_irs_comparison.qmd
     # - map_puf_variable_names_to_irs_spreadsheet_locations.qmd
+    - documentation_of_tmd2025_targeted_variables.qmd
+    - puf_irs_crosswalk_tmd2025.qmd
 
 format:
   html:
