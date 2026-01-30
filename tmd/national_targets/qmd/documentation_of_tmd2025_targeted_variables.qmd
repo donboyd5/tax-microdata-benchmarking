@@ -1,6 +1,10 @@
-# Positron assistant responses
+# Variables targeted nationally when IRS 2021 data were used as targets
 
-## **AGI-Level Targeted Variables**
+## Positron assistant prepared the first group of responses below
+
+I have edited them slightly.
+
+### **AGI-Level Targeted Variables**
 
 These 11 variables are targeted by AGI income ranges:
 
@@ -18,7 +22,7 @@ These 11 variables are targeted by AGI income ranges:
 | `pensions`                        | `total_pension_income`          |
 | `socsectot`                       | `total_social_security`         |
 
-## **Aggregate-Level Targeted Variables**
+### **Aggregate-Level Targeted Variables**
 
 These 13 variables are targeted at the aggregate level (all filers, not by AGI range):
 
@@ -40,7 +44,7 @@ These 13 variables are targeted at the aggregate level (all filers, not by AGI r
 
 These 24 total variables are used in the `reweight()` function in `tmd/utils/reweight.py` to optimize weights to match SOI (Statistics of Income) targets from the IRS.
 
-## Are there any targets that apply just to taxable returns rather than all tax filers?
+### Are there any targets that apply just to taxable returns rather than all tax filers?
 
 Let me look at the soi.csv file structure to see which variables have "Taxable only" marked as True:
 
@@ -58,7 +62,7 @@ The key evidence is in `tmd/utils/reweight.py` at lines 124-125:
 
 This code explicitly **excludes** all targets marked as "Taxable only" from the optimization.
 
-## **What This Means**
+### **What This Means**
 
 The SOI data provides targets for both:
 
@@ -78,7 +82,7 @@ The same pattern applies to count variables like `nret_all` (used) vs `nret_taxa
 
 This design choice means the optimization matches the full population of tax filers rather than trying to separately match taxable vs non-taxable filer statistics.
 
-# Codex response edited
+## Codex response edited
 
 National targeting/optimization lives in [reweight.py]{.underline} where [soi.csv]{.underline} is read and the loss matrix labels are constructed. The variables included are the ones listed in the two target lists and then filtered by AGI‑bin or full‑population rules.
 
