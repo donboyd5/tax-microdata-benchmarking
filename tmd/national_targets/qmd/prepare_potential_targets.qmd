@@ -14,7 +14,7 @@ QROOT <- fs::path(GITROOT, "tmd", "national_targets", "qmd")
 source(fs::path(QROOT, "setup.R"))
 source(fs::path(QROOT, "R", "functions_excel.R")) # drop from setup if not used elsewhere
 
-targfn <- "target_recipes_v3.xlsx"
+targfn <- "target_recipes_v4.xlsx"
 
 # note - will load the functions that help with reading excel files
 # also loads QROOT, DATADIR, and targfn
@@ -35,7 +35,7 @@ get_rowmap <- function(tab, DATADIR, targfn) {
   readxl::read_excel(
     fs::path(DATADIR, targfn),
     sheet = sheet,
-    range = "E1:H3"
+    range = "F1:I3"
   ) |>
     tidyr::pivot_longer(
       -indextype,
@@ -63,25 +63,25 @@ get_colmap <- function(tab, DATADIR, targfn) {
 
   # assumes DATADIR and targfn (targets filename) are in the environment
   sheet <- paste0(tab, "_map")
+  stub_vars <- c(
+    "var_name",
+    "var_type",
+    "value_filter",
+    "subgroup",
+    "marstat",
+    "var_description"
+  )
+  year_vars <- c("2015", "2021", "2022")
   col_map <- readxl::read_excel(
     path(DATADIR, targfn),
     sheet = sheet,
     skip = 3,
     col_types = "text"
   ) |>
-    filter(!is.na(vname)) |>
-    select(
-      vname,
-      vtype,
-      subgroup,
-      marstat,
-      vdescription,
-      `2015`,
-      `2021`,
-      `2022`
-    ) |>
+    filter(!is.na(var_name)) |>
+    select(all_of(c(stub_vars, year_vars))) |>
     pivot_longer(
-      -c(vname, vtype, subgroup, marstat, vdescription),
+      -all_of(stub_vars),
       names_to = "year",
       values_to = "xlcolumn"
     ) |>
@@ -91,18 +91,8 @@ get_colmap <- function(tab, DATADIR, targfn) {
       year = as.integer(year),
       xl_colnumber = xlcol_to_num(xlcolumn)
     ) |>
-    select(
-      table,
-      year,
-      vname,
-      vtype,
-      subgroup,
-      marstat,
-      xl_colnumber,
-      xlcolumn,
-      vdescription
-    ) |>
-    arrange(table, vtype, year, vname, subgroup, marstat, xl_colnumber)
+    select(table, year, all_of(stub_vars), xl_colnumber, xlcolumn) |>
+    arrange(table, year, xl_colnumber)
   col_map
 }
 
@@ -243,7 +233,8 @@ table_meta |>
 # combine table metadata, row specs, and column specs to get the specs needed to read the data files and get the data
 # after getting data merge back against variable specs (used to create column specs) to get variable names and other variable info
 tabs <- c("tab11", "tab12", "tab14", "tab21")
-
+# tabs <- "tab11"
+# tabs <- "tab12"
 table_meta
 
 # get start and end rows for each file of interest
@@ -306,22 +297,27 @@ ptargets_for_checking <- table_data |>
   left_join(table_variable_specs, by = join_by(table, year, xlcolumn)) |>
   mutate(
     ptarget = as.numeric(ptarget),
-    ptarget = ifelse(vtype == "amount", ptarget * 1000, ptarget)
+    ptarget = ifelse(var_type == "amount", ptarget * 1000, ptarget)
   ) |> # every column had better be a number stored as text! ALSO, SCALE to dollars
   select(
     year,
-    vname,
+    all_of(stub_vars),
     table,
-    vdescription,
-    vtype,
-    subgroup,
-    marstat,
     incsort,
     incrange,
     ptarget,
     everything()
   ) |>
-  arrange(year, vname, table, vdescription, vtype, subgroup, marstat, incsort)
+  arrange(
+    year,
+    var_name,
+    table,
+    var_type,
+    value_filter,
+    subgroup,
+    marstat,
+    incsort
+  )
 
 # TODO: do some checks on the data
 
@@ -336,14 +332,13 @@ ptargets_for_checking <- table_data |>
 
 # get a slimmed down table for saving
 ptargets <- ptargets_for_checking |>
-  arrange(year, table, vname, vtype, subgroup, marstat, incsort) |>
   mutate(
     rownum = row_number(),
     idbase = paste(
       table,
       year,
-      vname,
-      vtype,
+      var_name,
+      value_filter,
       subgroup,
       marstat,
       sep = "-"
@@ -356,9 +351,10 @@ ptargets <- ptargets_for_checking |>
     idbase,
     year,
     table,
-    vname,
-    vtype,
-    vdescription,
+    var_name,
+    var_type,
+    var_description,
+    value_filter,
     subgroup,
     marstat,
     incsort,
@@ -366,6 +362,7 @@ ptargets <- ptargets_for_checking |>
     ptarget,
     fname,
     xlcell,
+    xl_colnumber,
     xlcolumn,
     xlrownum
   )
