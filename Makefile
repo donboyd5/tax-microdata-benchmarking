@@ -4,7 +4,9 @@ install:
 
 .PHONY=clean
 clean:
-	rm -f tmd/storage/output/tmd* tmd/storage/output/cached_files
+	rm -f tmd/storage/output/tmd*
+	rm -f tmd/storage/output/cached_files
+	rm -f tmd/storage/output/preimpute_tmd.csv.gz
 
 tmd/storage/output/tmd.csv.gz: \
   setup.py \
@@ -43,11 +45,21 @@ tmd/storage/output/cached_files: \
   tmd/create_taxcalc_cached_files.py
 	python tmd/create_taxcalc_cached_files.py
 
+tmd/storage/output/preimpute_tmd.csv.gz: \
+  setup.py \
+  tmd/storage/output/tmd.csv.gz \
+  tmd/storage/output/tmd_weights.csv.gz \
+  tmd/storage/output/tmd_growfactors.csv \
+  tmd/utils/mice.py \
+  tmd/create_taxcalc_imputed_variables.py
+	python tmd/create_taxcalc_imputed_variables.py
+
 .PHONY=tmd_files
 tmd_files: tmd/storage/output/tmd.csv.gz \
   tmd/storage/output/tmd_weights.csv.gz \
   tmd/storage/output/tmd_growfactors.csv \
-  tmd/storage/output/cached_files
+  tmd/storage/output/cached_files \
+  tmd/storage/output/preimpute_tmd.csv.gz
 
 .PHONY=test
 test: tmd_files
