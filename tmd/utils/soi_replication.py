@@ -3,7 +3,6 @@ import numpy as np
 from tqdm import tqdm
 from tmd.storage import STORAGE_FOLDER
 
-
 soi = pd.read_csv(STORAGE_FOLDER / "input" / "soi.csv")
 
 

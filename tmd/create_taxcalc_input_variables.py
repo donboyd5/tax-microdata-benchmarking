@@ -14,7 +14,6 @@ from tmd.imputation_assumptions import (
 )
 from tmd.storage import STORAGE_FOLDER
 
-
 TAXYEAR = 2021
 DUMP_ALL_UNROUNDED_VARIABLES = False
 

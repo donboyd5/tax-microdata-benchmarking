@@ -7,7 +7,6 @@ import numpy as np
 import taxcalc as tc
 from tmd.storage import STORAGE_FOLDER
 
-
 FIRST_CYR = 2023
 LAST_CYR = 2033
 

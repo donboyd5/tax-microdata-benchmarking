@@ -7,7 +7,6 @@ import pandas as pd
 import numpy as np
 from tmd.storage import STORAGE_FOLDER
 
-
 FIRST_YEAR = 2021
 LAST_YEAR = 2074
 

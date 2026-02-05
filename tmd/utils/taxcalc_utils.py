@@ -9,7 +9,6 @@ import pandas as pd
 import taxcalc as tc
 from tmd.storage import STORAGE_FOLDER
 
-
 with open(STORAGE_FOLDER / "input" / "tc_variable_metadata.yaml") as f:
     taxcalc_variable_metadata = yaml.safe_load(f)
 

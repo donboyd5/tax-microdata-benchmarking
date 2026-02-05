@@ -14,7 +14,6 @@ from microdf import MicroDataFrame
 from policyengine_core.data import Dataset
 from policyengine_us.system import system
 
-
 FILER_AGE_RNG = np.random.default_rng(seed=64963751)
 SPOUSE_GENDER_RNG = np.random.default_rng(seed=83746519)
 DEP_AGE_RNG = np.random.default_rng(seed=24354657)

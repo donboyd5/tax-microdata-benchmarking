@@ -14,7 +14,6 @@ from tmd.imputation_assumptions import (
     REWEIGHT_DEVIATION_PENALTY,
 )
 
-
 INCOME_RANGES = [
     -np.inf,
     1,
