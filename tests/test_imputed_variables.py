@@ -17,7 +17,6 @@ def test_obbba_deduction_tax_benefits(
     Estimate percent of tax-units affected by each new tax deduction and
     average size of the 2026 dollar effect among those affected.
     """
-    # pylint: disable=too-many-locals
 
     def actual_results(rdf, bdf):
         """

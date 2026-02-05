@@ -47,7 +47,6 @@ def read_sipp_for_imputation() -> pd.DataFrame:
         monthly variables for each job held by the individual
         during the month with the jobs numbered from 1 thru 7.
     """
-    # pylint: disable=too-many-statements,too-many-locals
 
     def cols_to_read(
         header_columns: List[str],  # SIPP file header contents
@@ -496,7 +495,6 @@ def create_sipp_imputed_tmd(
     from SIPP individual data to TMD individual data, returning a TMD
     tax-unit dataframe containing imputed variable values.
     """
-    # pylint: disable=too-many-locals
 
     def augmented_taxunit_tmd_imputed_dataframe(
         aug_tmd_idf: pd.DataFrame,
@@ -621,8 +619,6 @@ def create_augmented_file(
     auto_loan_interest variables, which do exist in the unaugmented file
     but are zero for each tax unit.
     """
-    # pylint: disable=too-many-statements,too-many-locals
-
     print("Preparing data for imputation ...")
 
     # create SIPP dataframe for imputing missing TMD

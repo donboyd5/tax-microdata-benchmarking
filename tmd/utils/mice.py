@@ -45,12 +45,7 @@ class MICE:
     MICE class constructor.
     """
 
-    # pylint: disable=too-many-instance-attributes
-
     def __init__(
-        # pylint: disable=too-many-arguments,too-many-positional-arguments
-        # pylint: disable=too-many-statements,too-many-locals
-        # pylint: disable=too-many-branches
         self,
         # the MICE.impute method has an X data sample argument that is
         # a np.ndarray with shape (x_obs, x_var) where np.nan denotes
@@ -310,7 +305,6 @@ class MICE:
         self.ival_min = np.zeros((x_var, iters + 1))
         self.ival_max = np.zeros((x_var, iters + 1))
 
-    # pylint: disable=invalid-name
     def impute(
         self, X  # np.ndarray shape (x_obs, x_var) where np.nan denotes missing
     ):
@@ -318,7 +312,6 @@ class MICE:
         Returns np.ndarray with imputed values replacing missing (np.nan)
         values in X and with non-missing values in X being unchanged.
         """
-        # pylint: disable=too-many-statements,too-many-locals,too-many-branches
         time0 = time.time()
         if self.verbose:
             print(
