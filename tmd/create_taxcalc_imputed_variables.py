@@ -7,6 +7,7 @@ augmented data to the tmda.csv.gz file in the tmd/storage/output folder.
 """
 
 import sys
+import shutil
 import sqlite3
 from typing import Tuple, List, Dict
 import numpy as np
@@ -756,12 +757,15 @@ def create_augmented_file(
     )
 
     # write TMD tax-unit data file including imputed variable values
-    # leaving pre-impute TMD data file as preimpute.tmd.csv.gz
+    # leaving pre-impute TMD data file as preimpute_tmd.csv.gz
     if write_file:
-        print("Writing TMD file augmented with imputed variables ...")
-        pre_path = STORAGE_FOLDER / "output" / "preimpute_tmd.csv.gz"
-        TMD_PATH.replace(pre_path)
+        preimpute_path = STORAGE_FOLDER / "output" / "preimpute_tmd.csv.gz"
+        print(f"Writing preimpute TMD file ... [{preimpute_path}]")
+        shutil.move(TMD_PATH, preimpute_path)
+        print(f"Writing augmented TMD file ... [{TMD_PATH}]")
         all_udf.to_csv(TMD_PATH, index=False, float_format="%.5f")
+        shutil.copystat(preimpute_path, TMD_PATH)
+        preimpute_path.touch(exist_ok=True)
 
     return 0
 
