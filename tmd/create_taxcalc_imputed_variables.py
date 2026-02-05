@@ -610,8 +610,8 @@ def create_cex_imputed_tmd(
 
 
 def create_augmented_file(
-        write_file: bool = True,
-        verbose: bool = False,
+    write_file: bool = True,
+    verbose: bool = False,
 ) -> None:
     """
     Create Tax-Calculator-style input variable file for TMD_YEAR augmented
