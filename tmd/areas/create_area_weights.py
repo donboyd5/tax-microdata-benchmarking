@@ -21,9 +21,10 @@ import jax
 import jax.numpy as jnp
 from jax.experimental.sparse import BCOO
 from tmd.storage import STORAGE_FOLDER
+from tmd.create_taxcalc_input_variables import TAXYEAR
 from tmd.areas import AREAS_FOLDER
 
-FIRST_YEAR = 2021
+FIRST_YEAR = TAXYEAR
 LAST_YEAR = 2034
 INFILE_PATH = STORAGE_FOLDER / "output" / "tmd.csv.gz"
 POPFILE_PATH = STORAGE_FOLDER / "input" / "cbo_population_forecast.yaml"
