@@ -36,7 +36,11 @@ def test_tax_exp_diffs(
     # define relative diff tolerance
     actval = actdf.iloc[:, 3].to_numpy(dtype=np.float64)
     expval = expdf.iloc[:, 3].to_numpy(dtype=np.float64)
-    reltol = 0.011
+    smaller_tolerance = True
+    if smaller_tolerance:
+        reltol = 0.002
+    else:
+        reltol = 0.011
     if not np.allclose(actval, expval, atol=0.0, rtol=reltol):
         same = False
     if same:
