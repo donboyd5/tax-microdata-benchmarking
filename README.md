@@ -6,7 +6,7 @@ general-purpose validated microdata file for use in
 [Tax-Calculator](https://github.com/PSLmodels/Tax-Calculator).  The
 development will proceed in several phases.
 
-The current version is 1.0.0, which was released on 2025-03-11.
+The current version is 1.1.0, which was released in February 2026.
 
 ## Usage instructions
 
@@ -18,7 +18,10 @@ CSV-formatted files from IRS/SOI: `puf_2015.csv` and
 To generate the TMD files from the PUF files, do this:
 
 1. Copy the two 2015 PUF files to the `tmd/storage/input` folder
-2. Run `make data` in the repository's top-level folder
+2. Install the SIPP files described in `tmd/storage/input/SIPP24/README.md`
+3. Install the CEX files described in `tmd/storage/input/CEX23/README.md`
+4. Run `make clean` in the repository's top-level folder
+5. Run `make data` in the repository's top-level folder
 
 The `make data` command creates and tests the three `tmd*csv*` data
 files, which are located in the `tmd/storage/output` folder.  Read

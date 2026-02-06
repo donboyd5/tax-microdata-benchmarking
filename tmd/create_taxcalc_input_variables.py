@@ -1,5 +1,5 @@
 """
-Construct tmd.csv, a Tax-Calculator-style input variable file for 2021.
+Construct tmd.csv, a Tax-Calculator-style input variable file for TAXYEAR.
 """
 
 import taxcalc as tc

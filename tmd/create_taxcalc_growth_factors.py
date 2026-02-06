@@ -6,8 +6,9 @@ covers the years from FIRST_YEAR through LAST_YEAR.
 import pandas as pd
 import numpy as np
 from tmd.storage import STORAGE_FOLDER
+from tmd.create_taxcalc_input_variables import TAXYEAR
 
-FIRST_YEAR = 2021
+FIRST_YEAR = TAXYEAR
 LAST_YEAR = 2074
 
 AWAGE_INDEX = 6

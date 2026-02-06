@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="tmd",
-    version="1.0.0",
+    version="1.1.0",
     packages=find_packages(),
     python_requires=">=3.10,<3.13",
     install_requires=[
@@ -15,7 +15,7 @@ setup(
         "tensorboard",
         "scipy",
         "jax",
-        "black>=24.4.2",
+        "black>=26.1.0",
         "pytest",
         "pytest-xdist",
         "jupyter-book",

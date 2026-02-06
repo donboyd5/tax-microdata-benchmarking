@@ -35,11 +35,11 @@ def test_obbba_deduction_tax_benefits(
         return res
 
     # begin main logic of test function
-    taxyear = 2026
+    simyear = 2026
     # specify aspects of each new OBBBA tax deduction
     deductions = {
         "OTM": {  # new OBBBA overtime income deduction
-            "reform_dict": {"OvertimeIncomeDed_c": {taxyear: [0, 0, 0, 0, 0]}},
+            "reform_dict": {"OvertimeIncomeDed_c": {simyear: [0, 0, 0, 0, 0]}},
             "exp_totben": 23.93,
             "exp_affpct": 8.85,
             "exp_affben": 1407,
@@ -53,7 +53,7 @@ def test_obbba_deduction_tax_benefits(
             #         tips-are-popular-few-will-benefit
         },
         "TIP": {  # new OBBBA tip income deduction
-            "reform_dict": {"TipIncomeDed_c": {taxyear: 0}},
+            "reform_dict": {"TipIncomeDed_c": {simyear: 0}},
             "exp_totben": 7.05,
             "exp_affpct": 2.59,
             "exp_affben": 1416,
@@ -67,7 +67,7 @@ def test_obbba_deduction_tax_benefits(
             #         tips-are-popular-few-will-benefit
         },
         "ALI": {  # new OBBBA auto loan interest deduction
-            "reform_dict": {"AutoLoanInterestDed_c": {taxyear: 0}},
+            "reform_dict": {"AutoLoanInterestDed_c": {simyear: 0}},
             "exp_totben": 1.52,
             "exp_affpct": 8.25,
             "exp_affben": 96,
@@ -80,10 +80,10 @@ def test_obbba_deduction_tax_benefits(
         },
         "ALL": {  # above three deductions plus new OBBBA senior deduction
             "reform_dict": {
-                "OvertimeIncomeDed_c": {taxyear: [0, 0, 0, 0, 0]},
-                "TipIncomeDed_c": {taxyear: 0},
-                "AutoLoanInterestDed_c": {taxyear: 0},
-                "SeniorDed_c": {taxyear: 0},
+                "OvertimeIncomeDed_c": {simyear: [0, 0, 0, 0, 0]},
+                "TipIncomeDed_c": {simyear: 0},
+                "AutoLoanInterestDed_c": {simyear: 0},
+                "SeniorDed_c": {simyear: 0},
             },
             "exp_totben": 54.94,
             "exp_affpct": 26.33,
@@ -107,19 +107,19 @@ def test_obbba_deduction_tax_benefits(
         tmd_growfactors_path,
         exact_calculations=True,
     )
-    # create baseline_sim Calculator object for taxyear and get its output
+    # create baseline_sim Calculator object for simyear and get its output
     baseline_sim = tc.Calculator(policy=tc.Policy(), records=recs)
-    baseline_sim.advance_to_year(taxyear)
+    baseline_sim.advance_to_year(simyear)
     baseline_sim.calc_all()
     bdf = baseline_sim.dataframe(output_variables)
     # estimate effects of each new OBBBA deduction
     diffs = []  # list of act-vs-exp differences
     for ded, info in deductions.items():
-        # create reform Calculator object for taxyear
+        # create reform Calculator object for simyear
         reform_policy = tc.Policy()
         reform_policy.implement_reform(info["reform_dict"])
         reform_sim = tc.Calculator(policy=reform_policy, records=recs)
-        reform_sim.advance_to_year(taxyear)
+        reform_sim.advance_to_year(simyear)
         # get reform Calculator object's output
         reform_sim.calc_all()
         rdf = reform_sim.dataframe(output_variables)

@@ -1,5 +1,5 @@
 """
-Augment tmd.csv, a Tax-Calculator-style input variable file for 2021, that
+Augment tmd.csv, a Tax-Calculator-style input variable file for TAXYEAR, that
 is created in the create_taxcalc_input_variables.py module, with imputed
 values of overtime_income and tip_income (derived from SIPP data) and
 imputed values of auto_loan_interest (derived from CEX data), writing the
@@ -12,11 +12,12 @@ import sqlite3
 from typing import Tuple, List, Dict
 import numpy as np
 import pandas as pd
+from tmd.create_taxcalc_input_variables import TAXYEAR
 from tmd.storage import STORAGE_FOLDER
 from tmd.utils.mice import MICE
 
 TMD_PATH = STORAGE_FOLDER / "output" / "tmd.csv.gz"
-TMD_YEAR = 2021  # TMD data currently contain calandar year 2021 information
+TMD_YEAR = TAXYEAR
 SIPP_PATH = STORAGE_FOLDER / "input" / "SIPP24" / "pu2024.csv.gz"
 SIPP_YEAR = 2023  # 2024 SIPP data contain calandar year 2023 information
 CEX_FOLDER = STORAGE_FOLDER / "input" / "CEX23"
