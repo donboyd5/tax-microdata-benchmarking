@@ -6,6 +6,7 @@ import yaml
 import numpy as np
 import taxcalc as tc
 from tmd.storage import STORAGE_FOLDER
+from tmd.create_taxcalc_input_variables import TAXYEAR
 
 FIRST_CYR = 2023
 LAST_CYR = 2033
@@ -47,7 +48,7 @@ def test_tax_revenue(
     growf = tc.GrowFactors(growfactors_filename=str(tmd_growfactors_path))
     input_data = tc.Records(
         data=tmd_variables,
-        start_year=2021,
+        start_year=TAXYEAR,
         weights=wghts,
         gfactors=growf,
         adjust_ratios=None,

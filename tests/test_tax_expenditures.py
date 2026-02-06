@@ -7,8 +7,9 @@ import difflib
 import pytest
 import numpy as np
 import pandas as pd
-from tmd.utils.taxcalc_utils import get_tax_expenditure_results
 from tmd.storage import STORAGE_FOLDER
+from tmd.create_taxcalc_input_variables import TAXYEAR
+from tmd.utils.taxcalc_utils import get_tax_expenditure_results
 
 
 @pytest.mark.taxexpdiffs
@@ -20,7 +21,7 @@ def test_tax_exp_diffs(
 ):
     _ = get_tax_expenditure_results(
         tmd_variables,
-        2021,  # input variables data year
+        TAXYEAR,  # input variables data year
         2023,  # simulation year for tax expenditure estimates
         tmd_weights_path,
         tmd_growfactors_path,

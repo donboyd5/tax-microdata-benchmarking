@@ -5,6 +5,7 @@ Miscellaneous tests of tmd.csv variable weighted totals.
 import pytest
 import taxcalc as tc
 from tmd.storage import STORAGE_FOLDER
+from tmd.create_taxcalc_input_variables import TAXYEAR
 
 
 def test_no_negative_weights(tmd_variables):
@@ -36,7 +37,7 @@ def test_income_tax():
             abs(act / exp - 1) < tol
         ), f"{name}:act,exp,tol= {act} {exp} {tol}"
 
-    # use national tmd files to compute various 2021 income tax statistics
+    # use national tmd files to compute various TAXYEAR income tax statistics
     pol = tc.Policy()
     rec = tc.Records.tmd_constructor(
         data_path=(STORAGE_FOLDER / "output" / "tmd.csv.gz"),
@@ -45,7 +46,7 @@ def test_income_tax():
         exact_calculations=True,
     )
     sim = tc.Calculator(policy=pol, records=rec)
-    sim.advance_to_year(2021)
+    sim.advance_to_year(TAXYEAR)
     sim.calc_all()
     wght = sim.array("s006")
     agi = sim.array("c00100")

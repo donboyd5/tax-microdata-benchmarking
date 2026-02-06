@@ -1,7 +1,7 @@
 """
 This module adds basic tests for several tmd file variables,
 checking that the variable total is within the ballpark of
-the taxdata 2021 PUF's totals.
+the taxdata TAXYEAR PUF's totals.
 """
 
 import yaml

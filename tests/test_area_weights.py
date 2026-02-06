@@ -6,10 +6,11 @@ import yaml
 import pandas as pd
 import taxcalc as tc
 from tmd.storage import STORAGE_FOLDER
+from tmd.create_taxcalc_input_variables import TAXYEAR
 from tmd.areas import AREAS_FOLDER
 from tmd.areas.create_area_weights import create_area_weights_file
 
-YEAR = 2021
+YEAR = TAXYEAR
 
 
 def test_area_xx(tests_folder):
