@@ -553,10 +553,10 @@ def create_sipp_imputed_tmd(
         mdf.shape[1],
         idx_order,
         ignore_vars,
-        seed=192837465,
         monotone=True,
         iters=1,  # MICE M (number of iterations) is 1 because monotone=True
         verbose=verbose,  # if True, write impute progress to stdout
+        seed=192837465,
         # post-MICE imputation adjustment parameters:
         convert_zero_prob=[0.073, 0.012],  # convert zero to nonzero with prob
         scale=[2.6, 1.1],  # multiplicative scaling done after convert
@@ -597,10 +597,10 @@ def create_cex_imputed_tmd(
         mdf.shape[1],
         idx_order,
         ignore_vars,
-        seed=192837465,
         monotone=True,
         iters=1,  # MICE M (number of iterations) is 1 because monotone=True
         verbose=verbose,  # if True, write impute progress to stdout
+        seed=192837465,
         # post-MICE imputation adjustment parameters:
         convert_zero_prob=[0.000],  # convert zero to nonzero with prob
         scale=[1.0],  # multiplicative scaling done after convert
