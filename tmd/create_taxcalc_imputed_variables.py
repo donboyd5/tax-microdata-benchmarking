@@ -423,7 +423,7 @@ def read_tmd_for_cex_imputation(column_order: list[str]) -> pd.DataFrame:
     udf["income"] = np.round(np.clip(income, 0.0, np.inf)).astype("int64")
     udf.drop(columns=income_components, inplace=True)
     # specify auto_loan_interest as missing
-    udf["auto_load_interest"] = np.nan
+    udf["auto_loan_interest"] = np.nan
     # return udf dataframe using specified column_order
     return udf[column_order]
 
@@ -587,7 +587,6 @@ def create_cex_imputed_tmd(
     from CEX unit data to TMD unit data, returning a TMD
     tax-unit dataframe containing imputed variable values.
     """
-    tmd_udf["auto_loan_interest"] = np.nan
     mdf = pd.concat([cex_udf, tmd_udf], axis=0).copy()
     colnames = mdf.columns.tolist()
     idx_order = [colnames.index("auto_loan_interest")]
@@ -607,7 +606,10 @@ def create_cex_imputed_tmd(
     )
     iarray = mice.impute(mdf.to_numpy())
     idf = pd.DataFrame(iarray, columns=mdf.columns)
-    return idf[idf["RECID"] > 0]  # removes CEX data & returns imputed TMD data
+    tdf = idf[idf["RECID"] > 0]  # removes CEX data leaving imputed TMD data
+    assert not tdf["auto_loan_interest"].isna().any(), \
+        "Some imputed auto_loan_interest values are NaN"
+    return tdf
 
 
 def create_augmented_file(
@@ -731,10 +733,7 @@ def create_augmented_file(
     # use MICE class to impute missing TMD auto_loan_interest variable
     print("Imputing auto loan interest data from CEX to TMD ...")
     assert cex_udf.columns.tolist() == tmd_udf.columns.tolist()
-    pre_obs = len(tmd_udf)
     tmd_udf = create_cex_imputed_tmd(tmd_udf.copy(), cex_udf.copy(), verbose)
-    pst_obs = len(tmd_udf)
-    assert pst_obs == pre_obs
     if verbose:
         print("tmd_udf:I.shape=", tmd_udf.shape)
         ali = tmd_udf["auto_loan_interest"].to_numpy()
@@ -749,9 +748,9 @@ def create_augmented_file(
     # apply tmd_udf imputed values to whole TMD dataframe, all_udf
     all_udf.sort_values(by="RECID", inplace=True)
     tmd_udf.sort_values(by="RECID", inplace=True)
-    all_udf["auto_loan_interest"] = (
-        tmd_udf["auto_loan_interest"].round(0).astype("int32")
-    )
+    all_udf["auto_loan_interest"] = np.round(
+        tmd_udf["auto_loan_interest"].to_numpy(), 0
+    ).astype("int32")
 
     # write TMD tax-unit data file including imputed variable values
     # leaving pre-impute TMD data file as preimpute_tmd.csv.gz

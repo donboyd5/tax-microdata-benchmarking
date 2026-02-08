@@ -69,9 +69,9 @@ def test_obbba_deduction_tax_benefits(
         },
         "ALI": {  # new OBBBA auto loan interest deduction
             "reform_dict": {"AutoLoanInterestDed_c": {simyear: 0}},
-            "exp_totben": 1.52,
-            "exp_affpct": 8.25,
-            "exp_affben": 96,
+            "exp_totben": 1.72,
+            "exp_affpct": 10.27,
+            "exp_affben": 87,
             # The ALI imputation calibration parameters used in the
             # create_taxcalc_imputed_variables.py module do not
             # adjust the MICE-imputed values of auto_loan_interest
@@ -86,11 +86,11 @@ def test_obbba_deduction_tax_benefits(
                 "AutoLoanInterestDed_c": {simyear: 0},
                 "SeniorDed_c": {simyear: 0},
             },
-            "exp_totben": 54.94,
-            "exp_affpct": 26.33,
-            "exp_affben": 1086,
-            # The affpct statistic of 26.33% and the affben statistic
-            # of $1086 are reasonably close to the Tax Policy Center
+            "exp_totben": 55.14,
+            "exp_affpct": 28.08,
+            "exp_affben": 1022,
+            # The affpct statistic of 28.08% and the affben statistic
+            # of $1022 are reasonably close to the Tax Policy Center
             # estimates of 29.6% and $1081, respectively, as reported at
             # https://taxpolicycenter.org/model-estimates/T25-0257
             # Note that the $1081 TPC estimate is derived by dividing
@@ -147,10 +147,10 @@ def test_obbba_deduction_tax_benefits(
         del reform_policy
         del reform_sim
     if diffs:
-        print("IMPUTED VARIABLE ACT-vs-EXP DIFFS:")
-        for diff in diffs:
-            print(diff)
-        raise ValueError("There are act-vs-exp differences")
+        emsg = "\nIMPUTED VARIABLE DEDUCTION BENEFIT ACT-vs-EXP DIFFS:"
+        for line in diffs:
+            emsg += "\n" + line
+        raise ValueError(emsg)
 
 
 @pytest.mark.imputed_distribution
@@ -162,7 +162,7 @@ def test_imputed_variable_distribution(tmd_variables):
     expect = {
         "overtime_income": {"mean": 10_843, "sdev": 258_993},
         "tip_income": {"mean": 1_909, "sdev": 104_687},
-        "auto_loan_interest": {"mean": 0, "sdev": 0},
+        "auto_loan_interest": {"mean": 116, "sdev": 352},
     }
     tolerance = {"mean": 0.001, "sdev": 0.001}
     diffs = []
@@ -184,7 +184,7 @@ def test_imputed_variable_distribution(tmd_variables):
                 )
                 diffs.append(diff)
     if diffs:
-        print("IMPUTED VARIABLE ACT-vs-EXP DIFFS:")
-        for diff in diffs:
-            print(diff)
-        raise ValueError("There are act-vs-exp differences")
+        emsg = "\nIMPUTED VARIABLE DISTRIBUTION ACT-vs-EXP DIFFS:"
+        for line in diffs:
+            emsg += "\n" + line
+        raise ValueError(emsg)

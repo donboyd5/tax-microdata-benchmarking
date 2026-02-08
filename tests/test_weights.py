@@ -28,7 +28,7 @@ def test_weights(tmd_variables):
             )
             diffs.append(diff)
     if diffs:
-        print("WEIGHT VARIABLE ACT-vs-EXP DIFFS:")
-        for diff in diffs:
-            print(diff)
-        raise ValueError("There are act-vs-exp differences")
+        emsg = "\nWEIGHT VARIABLE ACT-vs-EXP DIFFS:"
+        for line in diffs:
+            emsg += "\n" + line
+        raise ValueError(emsg)

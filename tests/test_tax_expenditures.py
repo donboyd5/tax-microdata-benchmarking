@@ -49,7 +49,7 @@ def test_tax_exp_diffs(
         difflib.context_diff(act, exp, fromfile="actual", tofile="expect", n=0)
     )
     if len(diffs) > 0:
-        emsg = "\nThere are actual vs expect tax expenditure differences:\n"
+        emsg = "\nACT-vs-EXP TAX EXPENDITURE DIFFERENCES:\n"
         for line in diffs:
             emsg += line
         raise ValueError(emsg)
