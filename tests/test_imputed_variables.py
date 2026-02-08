@@ -5,6 +5,7 @@ auto_loan_interest.
 """
 
 import numpy as np
+import pytest
 import taxcalc as tc
 
 
@@ -145,6 +146,43 @@ def test_obbba_deduction_tax_benefits(
         # delete reform Policy and Calculator objects
         del reform_policy
         del reform_sim
+    if diffs:
+        print("IMPUTED VARIABLE ACT-vs-EXP DIFFS:")
+        for diff in diffs:
+            print(diff)
+        raise ValueError("There are act-vs-exp differences")
+
+
+@pytest.mark.imputed_distribution
+def test_imputed_variable_distribution(tmd_variables):
+    """
+    Calculate distribution of TMD imputed variables.
+    """
+    imputed_var_names = ["overtime_income", "tip_income", "auto_loan_interest"]
+    expect = {
+        "overtime_income": {"mean": 10_843, "sdev": 258_993},
+        "tip_income": {"mean": 1_909, "sdev": 104_687},
+        "auto_loan_interest": {"mean": 0, "sdev": 0},
+    }
+    tolerance = {"mean": 0.001, "sdev": 0.001}
+    diffs = []
+    for ivname in imputed_var_names:
+        assert (
+            ivname in tmd_variables.columns
+        ), f"Column {ivname} missing from tmd.csv.gz"
+        varray = tmd_variables[ivname].to_numpy()
+        actual = {"mean": varray.mean(), "sdev": varray.std()}
+        for stat in ["mean", "sdev"]:
+            act = actual[stat]
+            exp = expect[ivname][stat]
+            abstol = 0.0
+            reltol = tolerance[stat]
+            if not np.allclose([act], [exp], atol=abstol, rtol=reltol):
+                diff = (
+                    f"IMPUTED_VAR_DIFF:{ivname},{stat},act,exp,atol,rtol= "
+                    f"{act} {exp} {abstol} {reltol}"
+                )
+                diffs.append(diff)
     if diffs:
         print("IMPUTED VARIABLE ACT-vs-EXP DIFFS:")
         for diff in diffs:
