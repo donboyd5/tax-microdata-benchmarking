@@ -127,16 +127,20 @@ def test_obbba_deduction_tax_benefits(
         act_res = actual_results(rdf, bdf)
         # compare act results with exp results for each statistic
         tolerance = {
-            "totben": 1.01e-2,
-            "affpct": 1.01e-2,
-            "affben": 1.01e-0,
+            "totben": {"abs": 0.01, "rel": 0.0},
+            "affpct": {"abs": 0.01, "rel": 0.0},
+            "affben": {"abs": 1.00, "rel": 0.0},
         }
         for stat in ["totben", "affpct", "affben"]:
             act = act_res[stat]
             exp = info[f"exp_{stat}"]
-            tol = tolerance[stat]
-            if not np.allclose([act], [exp], rtol=0.0, atol=tol):
-                diff = f"DIFF:{ded},{stat},act,exp,tol= {act} {exp} {tol}"
+            a_tol = tolerance[stat]["abs"]
+            r_tol = tolerance[stat]["rel"]
+            if not np.allclose([act], [exp], atol=a_tol, rtol=r_tol):
+                diff = (
+                    f"DIFF:{ded},{stat},act,exp,atol,rtol= "
+                    f"{act} {exp} {a_tol} {r_tol}"
+                )
                 diffs.append(diff)
         # delete reform Policy and Calculator objects
         del reform_policy
