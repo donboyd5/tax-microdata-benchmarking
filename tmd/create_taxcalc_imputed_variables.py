@@ -607,8 +607,9 @@ def create_cex_imputed_tmd(
     iarray = mice.impute(mdf.to_numpy())
     idf = pd.DataFrame(iarray, columns=mdf.columns)
     tdf = idf[idf["RECID"] > 0]  # removes CEX data leaving imputed TMD data
-    assert not tdf["auto_loan_interest"].isna().any(), \
-        "Some imputed auto_loan_interest values are NaN"
+    assert (
+        not tdf["auto_loan_interest"].isna().any()
+    ), "Some imputed auto_loan_interest values are NaN"
     return tdf
 
 
