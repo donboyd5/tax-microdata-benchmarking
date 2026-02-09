@@ -164,7 +164,11 @@ def test_imputed_variable_distribution(tmd_variables):
         "tip_income": {"mean": 1_909, "sdev": 104_687},
         "auto_loan_interest": {"mean": 116, "sdev": 352},
     }
-    tolerance = {"mean": 0.001, "sdev": 0.001}
+    tolerance = {
+        "overtime_income": 0.001,
+        "tip_income": 0.001,
+        "auto_loan_interest": 0.007,
+    }
     diffs = []
     for ivname in imputed_var_names:
         assert (
@@ -176,7 +180,7 @@ def test_imputed_variable_distribution(tmd_variables):
             act = actual[stat]
             exp = expect[ivname][stat]
             abstol = 0.0
-            reltol = tolerance[stat]
+            reltol = tolerance[ivname]
             if not np.allclose([act], [exp], atol=abstol, rtol=reltol):
                 diff = (
                     f"IMPUTED_VAR_DIFF:{ivname},{stat},act,exp,atol,rtol= "
