@@ -21,7 +21,12 @@ TMD_YEAR = TAXYEAR
 SIPP_PATH = STORAGE_FOLDER / "input" / "SIPP24" / "pu2024.csv.gz"
 SIPP_YEAR = 2023  # 2024 SIPP data contain calandar year 2023 information
 CEX_FOLDER = STORAGE_FOLDER / "input" / "CEX23"
-CEX_FILES = "fmli*.csv.gz"
+CEX_FILES = [
+    "fmli232.csv.gz",
+    "fmli233.csv.gz",
+    "fmli234.csv.gz",
+    "fmli241.csv.gz",
+]
 CEX_YEAR = 2023
 TMD_GROWFACTORS_PATH = STORAGE_FOLDER / "output" / "tmd_growfactors.csv"
 
@@ -310,15 +315,11 @@ def read_cex_for_imputation() -> pd.DataFrame:
     The income and auto loan interest variables are scaled from CEX_YEAR
     to TMD_YEAR values.
     """
-    # contruct list of CEX quarterly data file paths
-    qpaths = list(CEX_FOLDER.glob(CEX_FILES))
-    assert len(qpaths) == 4, "Not four quarterly CEX files"
-
-    # construct list of quarterly dataframes
+    # read quarterly files into list of quarterly dataframes
     qframes = []
-    for qpath in qpaths:
+    for fname in CEX_FILES:
         qdf = pd.read_csv(
-            qpath,
+            CEX_FOLDER / fname,
             usecols=[
                 "FINLWT21",  # sampling weight of unit in quarterly survey
                 "AGE_REF",  # age of reference person in unit

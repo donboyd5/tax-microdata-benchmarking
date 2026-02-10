@@ -57,7 +57,7 @@ def test_obbba_deduction_tax_benefits(
             "reform_dict": {"TipIncomeDed_c": {simyear: 0}},
             "exp_totben": 7.05,
             "exp_affpct": 2.59,
-            "exp_affben": 1416,
+            "exp_affben": 1414,
             # The TIP imputation calibration parameters used in the
             # create_taxcalc_imputed_variables.py module were
             # specified so that the affpct statistic is close to 2.6%
@@ -70,7 +70,7 @@ def test_obbba_deduction_tax_benefits(
         "ALI": {  # new OBBBA auto loan interest deduction
             "reform_dict": {"AutoLoanInterestDed_c": {simyear: 0}},
             "exp_totben": 1.72,
-            "exp_affpct": 10.27,
+            "exp_affpct": 10.29,
             "exp_affben": 87,
             # The ALI imputation calibration parameters used in the
             # create_taxcalc_imputed_variables.py module do not
