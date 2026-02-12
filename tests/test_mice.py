@@ -188,7 +188,9 @@ class TestConstructorValidation:
         assert mice.monotone is True
 
     def test_adjustment_parameters_require_monotone(self):
-        """Test that adjustment parameters can only be used with monotone=True."""
+        """
+        Test that adjustment parameters can only be used with monotone=True.
+        """
         # shift requires monotone
         with pytest.raises(
             AssertionError, match="shift must be None if monotone is False"
@@ -381,6 +383,7 @@ class TestBasicImputation:
             x_obs=10, x_var=4, x_idx=[1, 2], x_ign=[], seed=123, iters=n_iters
         )
         X_imputed = mice.impute(X)
+        assert isinstance(X_imputed, np.ndarray)
 
         mean, sdev, vmin, vmax = mice.get_ival_stats()
 
@@ -497,9 +500,10 @@ class TestMonotoneMode:
             seed=123,
         )
         X_imputed = mice.impute(X)
+        assert isinstance(X_imputed, np.ndarray)
 
         # Check that iteration 0 (initialization) has statistics
-        mean, sdev, vmin, vmax = mice.get_ival_stats()
+        mean, sdev, _, _ = mice.get_ival_stats()
         assert mean[1, 0] != 0  # Iteration 0 should have non-zero mean
         assert sdev[1, 0] >= 0  # Should have non-negative std dev
 
@@ -519,9 +523,10 @@ class TestMonotoneMode:
             seed=123,
         )
         X_imputed = mice.impute(X)
+        assert isinstance(X_imputed, np.ndarray)
 
         # Check that iteration 0 (initialization) has zero statistics
-        mean, sdev, vmin, vmax = mice.get_ival_stats()
+        mean, sdev, _, _ = mice.get_ival_stats()
         assert mean[1, 0] == 0  # Iteration 0 should be zero (skipped)
         assert sdev[1, 0] == 0
 
@@ -547,6 +552,7 @@ class TestMonotoneMode:
 
         # Imputed values should be shifted
         mean, _, _, _ = mice.get_ival_stats()
+        assert isinstance(mean, np.ndarray)
         # Mean of imputed values should reflect the shift
         # (though exact value depends on tree predictions)
         assert not np.isnan(X_imputed).any()
@@ -673,6 +679,7 @@ class TestReproducibility:
             x_obs=20, x_var=4, x_idx=[1, 2], x_ign=[], seed=100, iters=3
         )
         X_imputed = mice.impute(X)
+        assert isinstance(X_imputed, np.ndarray)
 
         mean, sdev, _, _ = mice.get_ival_stats()
 
