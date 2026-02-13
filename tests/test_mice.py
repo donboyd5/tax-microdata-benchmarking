@@ -523,7 +523,7 @@ class TestMonotoneMode:
             seed=123,
         )
         X_imputed = mice.impute(X)
-        assert isinstance(X_imputed, np.ndarray)
+        assert not np.isnan(X_imputed).any()
 
         # Check that iteration 0 (initialization) has zero statistics
         mean, sdev, _, _ = mice.get_ival_stats()
@@ -534,50 +534,83 @@ class TestMonotoneMode:
         """Test monotone mode with shift adjustment parameter."""
         np.random.seed(42)
         X = np.random.randn(15, 3) * 10 + 50  # Mean around 50
-        X[0:5, 1] = np.nan
+        missing_idx = 1
+        X[0:5, missing_idx] = np.nan
 
-        # Apply shift adjustment
-        shift_amount = 5.0
-        mice = MICE(
+        # Apply two different shift adjustments
+        mice5 = MICE(
             x_obs=15,
             x_var=3,
-            x_idx=[1],
+            x_idx=[missing_idx],
             x_ign=[],
             monotone=True,
             iters=1,
             seed=123,
-            shift=[shift_amount],
+            shift=[5.0],
         )
-        X_imputed = mice.impute(X)
+        X_imputed_shift5 = mice5.impute(X.copy())
+        assert not np.isnan(X_imputed_shift5).any()
+        mean5, _, _, _ = mice5.get_ival_stats()
+        assert isinstance(mean5, np.ndarray)
+
+        mice7 = MICE(
+            x_obs=15,
+            x_var=3,
+            x_idx=[missing_idx],
+            x_ign=[],
+            monotone=True,
+            iters=1,
+            seed=123,
+            shift=[7.0],
+        )
+        X_imputed_shift7 = mice7.impute(X.copy())
+        assert not np.isnan(X_imputed_shift7).any()
+        mean7, _, _, _ = mice7.get_ival_stats()
+        assert isinstance(mean7, np.ndarray)
 
         # Imputed values should be shifted
-        mean, _, _, _ = mice.get_ival_stats()
-        assert isinstance(mean, np.ndarray)
-        # Mean of imputed values should reflect the shift
-        # (though exact value depends on tree predictions)
-        assert not np.isnan(X_imputed).any()
+        assert mean7[missing_idx, 1] > mean5[missing_idx, 1]
 
     def test_monotone_mode_with_scale_adjustment(self):
         """Test monotone mode with scale adjustment parameter."""
         np.random.seed(42)
-        X = np.random.randn(15, 3) * 10 + 50
-        X[0:5, 1] = np.nan
+        X = np.random.randn(15, 3) * 10 + 50  # Mean around 50
+        missing_idx = 1
+        X[0:5, missing_idx] = np.nan
 
-        scale_factor = 1.5
-        mice = MICE(
+        # Apply two different scale adjustments
+        mice2 = MICE(
             x_obs=15,
             x_var=3,
-            x_idx=[1],
+            x_idx=[missing_idx],
             x_ign=[],
             monotone=True,
             iters=1,
             seed=123,
-            scale=[scale_factor],
+            scale=[2.0],
         )
-        X_imputed = mice.impute(X)
+        X_imputed_scale2 = mice2.impute(X.copy())
+        assert not np.isnan(X_imputed_scale2).any()
+        mean2, _, _, _ = mice2.get_ival_stats()
+        assert isinstance(mean2, np.ndarray)
 
-        # All values should be imputed
-        assert not np.isnan(X_imputed).any()
+        mice3 = MICE(
+            x_obs=15,
+            x_var=3,
+            x_idx=[missing_idx],
+            x_ign=[],
+            monotone=True,
+            iters=1,
+            seed=123,
+            scale=[3.0],
+        )
+        X_imputed_scale3 = mice3.impute(X.copy())
+        assert not np.isnan(X_imputed_scale3).any()
+        mean3, _, _, _ = mice3.get_ival_stats()
+        assert isinstance(mean3, np.ndarray)
+
+        # Imputed values should be scaled
+        assert mean3[missing_idx, 1] > mean2[missing_idx, 1]
 
 
 # =============================================================================
