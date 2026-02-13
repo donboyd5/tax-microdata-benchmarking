@@ -612,6 +612,89 @@ class TestMonotoneMode:
         # Imputed values should be scaled
         assert mean3[missing_idx, 1] > mean2[missing_idx, 1]
 
+    def test_monotone_mode_with_more_zeros_adjustment(self):
+        """Test monotone mode with zero_below_abs adjustment parameter."""
+        np.random.seed(42)
+        X = np.random.randn(15, 3) * 10  # Mean around zero
+        missing_idx = 1
+        X[0:5, missing_idx] = np.nan
+
+        # Apply two different zero_below_abs adjustments
+        mice_no = MICE(
+            x_obs=15,
+            x_var=3,
+            x_idx=[missing_idx],
+            x_ign=[],
+            monotone=True,
+            iters=1,
+            seed=123,
+            zero_below_abs=[0.0],
+        )
+        X_imputed_no = mice_no.impute(X.copy())
+        assert not np.isnan(X_imputed_no).any()
+        imputed_no = X_imputed_no[:, missing_idx]
+        num_zeros_no = np.count_nonzero(imputed_no == 0)
+
+        mice_yes = MICE(
+            x_obs=15,
+            x_var=3,
+            x_idx=[missing_idx],
+            x_ign=[],
+            monotone=True,
+            iters=1,
+            seed=123,
+            zero_below_abs=[7.0],
+        )
+        X_imputed_yes = mice_yes.impute(X.copy())
+        assert not np.isnan(X_imputed_yes).any()
+        imputed_yes = X_imputed_yes[:, missing_idx]
+        num_zeros_yes = np.count_nonzero(imputed_yes == 0)
+
+        # Should be more imputed zeros in X_imputed_yes than in X_imputed_no
+        assert num_zeros_yes > num_zeros_no
+
+    def test_monotone_mode_with_fewer_zeros_adjustment(self):
+        """Test monotone mode with convert_zero_prob adjustment parameter."""
+        np.random.seed(42)
+        X = np.random.randn(15, 3) * 10  # Mean around zero
+        missing_idx = 1
+        X[10:15, missing_idx] = 0.0  # mass point at zero
+        X[0:5, missing_idx] = np.nan
+
+        # Apply two different convert_zero_prob adjustments
+        mice_no = MICE(
+            x_obs=15,
+            x_var=3,
+            x_idx=[missing_idx],
+            x_ign=[],
+            monotone=True,
+            iters=1,
+            seed=123,
+            convert_zero_prob=[0.0],
+        )
+        X_imputed_no = mice_no.impute(X.copy())
+        assert not np.isnan(X_imputed_no).any()
+        imputed_no = X_imputed_no[:, missing_idx]
+        num_zeros_no = np.count_nonzero(imputed_no == 0)
+
+        mice_yes = MICE(
+            x_obs=15,
+            x_var=3,
+            x_idx=[missing_idx],
+            x_ign=[],
+            monotone=True,
+            iters=1,
+            seed=123,
+            convert_zero_prob=[0.5],
+        )
+        X_imputed_yes = mice_yes.impute(X.copy())
+        assert not np.isnan(X_imputed_yes).any()
+        imputed_yes = X_imputed_yes[:, missing_idx]
+        num_zeros_yes = np.count_nonzero(imputed_yes == 0)
+
+        # Should be fewer imputed zeros in X_imputed_yes than in X_imputed_no
+        assert num_zeros_yes < num_zeros_no
+
 
 # =============================================================================
 # 4. REPRODUCIBILITY TESTS
