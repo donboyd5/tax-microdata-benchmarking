@@ -560,7 +560,7 @@ def create_sipp_imputed_tmd(
         seed=192837465,
         # post-MICE imputation adjustment parameters:
         convert_zero_prob=[0.073, 0.012],  # convert zero to nonzero with prob
-        scale=[2.6, 1.1],  # multiplicative scaling done after convert
+        scale=[2.5, 1.0],  # multiplicative scaling done after convert
     )
     iarray = mice.impute(mdf.to_numpy())
     idf = pd.DataFrame(iarray, columns=mdf.columns)
