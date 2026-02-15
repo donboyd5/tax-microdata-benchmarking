@@ -624,7 +624,7 @@ def create_augmented_file(
     auto_loan_interest variables, which do exist in the unaugmented file
     but are zero for each tax unit.
     """
-    print("Preparing data for imputation ...")
+    print("Preparing data for imputation...")
 
     # create SIPP dataframe for imputing missing TMD
     # overtime_income and tip_income variables
@@ -664,7 +664,7 @@ def create_augmented_file(
         )
 
     # use MICE class to impute missing TMD overtime/tip variables
-    print("Imputing overtime and tip data from SIPP to TMD ...")
+    print("Imputing overtime and tip data from SIPP to TMD...")
     assert sipp_idf.columns.tolist() == tmd_idf.columns.tolist()
     tmd_udf = create_sipp_imputed_tmd(tmd_idf.copy(), sipp_idf.copy(), verbose)
 
@@ -733,7 +733,7 @@ def create_augmented_file(
         print(f"wt[INC>500e3](%)= {(100 * wt_hi_inc / wt_total): .2f}")
 
     # use MICE class to impute missing TMD auto_loan_interest variable
-    print("Imputing auto loan interest data from CEX to TMD ...")
+    print("Imputing auto loan interest data from CEX to TMD...")
     assert cex_udf.columns.tolist() == tmd_udf.columns.tolist()
     tmd_udf = create_cex_imputed_tmd(tmd_udf.copy(), cex_udf.copy(), verbose)
     if verbose:
@@ -758,9 +758,9 @@ def create_augmented_file(
     # leaving pre-impute TMD data file as preimpute_tmd.csv.gz
     if write_file:
         preimpute_path = STORAGE_FOLDER / "output" / "preimpute_tmd.csv.gz"
-        print(f"Writing preimpute TMD file ... [{preimpute_path}]")
+        print(f"Writing preimpute TMD file... [{preimpute_path}]")
         shutil.move(TMD_PATH, preimpute_path)
-        print(f"Writing augmented TMD file ... [{TMD_PATH}]")
+        print(f"Writing augmented TMD file... [{TMD_PATH}]")
         all_udf.to_csv(TMD_PATH, index=False, float_format="%.5f")
         shutil.copystat(preimpute_path, TMD_PATH)
         preimpute_path.touch(exist_ok=True)

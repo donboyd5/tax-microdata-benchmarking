@@ -102,8 +102,12 @@ class MICE:
         # ... The zero_ovar_below_abs parameter specifies the absolute
         # ... value of the other variable below which the imputed value
         # ... is converted to zero.  The convert_zero_prob parameter
-        # ... specifies the probabily that a zero value for a variable
-        # ... is converted to a randomly-selected nonzero value.
+        # ... specifies the probability that a zero value for a variable
+        # ... (regardless of origin: naturally imputed, or created by
+        # ... adjustment steps) is converted to a randomly-selected
+        # ... nonzero value from the same tree leaf (or from all nonzero
+        # ... values if the leaf contains no nonzero values).  If there
+        # ... are no nonzero values at all, the conversion is skipped.
         # ... The scale parameter specifies the size of a multiplicative
         # ... adjustment factor whose value must be greater than zero.
         # ... Note that the shift, zero adjustments, and scale are done
@@ -488,19 +492,65 @@ class MICE:
                         )
                     if self.convert_zero_prob[iii] > 0.0:
                         zero_indices = np.where(predicted == 0.0)[0]
-                        nonzero_values = predicted[predicted != 0.0]
-                        rng = np.random.default_rng(rng_seed)
-                        replace_mask = (
-                            rng.random(len(zero_indices))
-                            < self.convert_zero_prob[iii]
-                        )
-                        indices_to_replace = zero_indices[replace_mask]
-                        predicted[indices_to_replace] = rng.choice(
-                            nonzero_values,
-                            size=len(indices_to_replace),
-                            replace=True,
-                        )
-                        del rng
+                        nonzero_mask = predicted != 0.0
+                        # proceed with this adjustment only
+                        # if there are zeros to convert and
+                        # nonzeros to sample from
+                        if len(zero_indices) > 0 and np.any(nonzero_mask):
+                            rng = np.random.default_rng(rng_seed)
+                            # determine which zeros to convert
+                            replace_mask = (
+                                rng.random(len(zero_indices))
+                                < self.convert_zero_prob[iii]
+                            )
+                            indices_to_replace = zero_indices[replace_mask]
+                            if len(indices_to_replace) > 0:
+                                # group indices by their leaf assignments
+                                for leaf in set(
+                                    LZmis[indices_to_replace].tolist()
+                                ):
+                                    # find zeros in this leaf that
+                                    # need to be converted to nonzeros
+                                    leaf_zero_mask = (
+                                        LZmis[indices_to_replace] == leaf
+                                    )
+                                    leaf_indices_to_replace = (
+                                        indices_to_replace[leaf_zero_mask]
+                                    )
+                                    # get nonzero values from the same leaf
+                                    same_leaf_nonzero_mask = (
+                                        LZmis == leaf
+                                    ) & nonzero_mask
+                                    leaf_nonzero_values = predicted[
+                                        same_leaf_nonzero_mask
+                                    ]
+                                    if len(leaf_nonzero_values) > 0:
+                                        # sample from same leaf
+                                        predicted[leaf_indices_to_replace] = (
+                                            rng.choice(
+                                                leaf_nonzero_values,
+                                                size=len(
+                                                    leaf_indices_to_replace
+                                                ),
+                                                replace=True,
+                                            )
+                                        )
+                                    else:
+                                        # fall back to all nonzero values
+                                        # if leaf has no nonzeros
+                                        all_nonzero_values = predicted[
+                                            nonzero_mask
+                                        ]
+                                        predicted[leaf_indices_to_replace] = (
+                                            rng.choice(
+                                                all_nonzero_values,
+                                                size=len(
+                                                    leaf_indices_to_replace
+                                                ),
+                                                replace=True,
+                                            )
+                                        )
+                            del rng
                     predicted *= self.scale[iii]
                     if self.verbose:
                         if not np.allclose(predicted, pre_adj_predicted):
