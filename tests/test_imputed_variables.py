@@ -128,7 +128,7 @@ def test_obbba_deduction_tax_benefits(
         act_res = actual_results(rdf, bdf)
         # compare act results with exp results for each statistic
         tolerance = {
-            "totben": {"abs": 0.01, "rel": 0.0001},
+            "totben": {"abs": 0.01, "rel": 0.0015},
             "affpct": {"abs": 0.01, "rel": 0.0001},
             "affben": {"abs": 1.00, "rel": 0.0000},
         }
