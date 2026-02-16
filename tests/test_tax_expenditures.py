@@ -7,8 +7,9 @@ import difflib
 import pytest
 import numpy as np
 import pandas as pd
-from tmd.utils.taxcalc_utils import get_tax_expenditure_results
 from tmd.storage import STORAGE_FOLDER
+from tmd.create_taxcalc_input_variables import TAXYEAR
+from tmd.utils.taxcalc_utils import get_tax_expenditure_results
 
 
 @pytest.mark.taxexpdiffs
@@ -20,7 +21,7 @@ def test_tax_exp_diffs(
 ):
     _ = get_tax_expenditure_results(
         tmd_variables,
-        2021,  # input variables data year
+        TAXYEAR,  # input variables data year
         2023,  # simulation year for tax expenditure estimates
         tmd_weights_path,
         tmd_growfactors_path,
@@ -35,8 +36,7 @@ def test_tax_exp_diffs(
     # define relative diff tolerance
     actval = actdf.iloc[:, 3].to_numpy(dtype=np.float64)
     expval = expdf.iloc[:, 3].to_numpy(dtype=np.float64)
-    reltol = 0.011
-    if not np.allclose(actval, expval, atol=0.0, rtol=reltol):
+    if not np.allclose(actval, expval, atol=0.0, rtol=0.002):
         same = False
     if same:
         return
@@ -49,7 +49,7 @@ def test_tax_exp_diffs(
         difflib.context_diff(act, exp, fromfile="actual", tofile="expect", n=0)
     )
     if len(diffs) > 0:
-        emsg = "\nThere are actual vs expect tax expenditure differences:\n"
+        emsg = "\nACT-vs-EXP TAX EXPENDITURE DIFFERENCES:\n"
         for line in diffs:
             emsg += line
         raise ValueError(emsg)

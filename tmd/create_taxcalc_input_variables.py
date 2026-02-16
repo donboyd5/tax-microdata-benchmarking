@@ -1,5 +1,5 @@
 """
-Construct tmd.csv, a Tax-Calculator-style input variable file for 2021.
+Construct tmd.csv, a Tax-Calculator-style input variable file for TAXYEAR.
 """
 
 import taxcalc as tc
@@ -13,7 +13,6 @@ from tmd.imputation_assumptions import (
     REWEIGHT_DEVIATION_PENALTY,
 )
 from tmd.storage import STORAGE_FOLDER
-
 
 TAXYEAR = 2021
 DUMP_ALL_UNROUNDED_VARIABLES = False

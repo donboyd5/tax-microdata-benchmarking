@@ -5,8 +5,9 @@ Generate tmd/storage/output/cached_*.npy files for TAX_YEAR.
 import numpy as np
 import taxcalc as tc
 from tmd.storage import STORAGE_FOLDER, CACHED_TAXCALC_VARIABLES
+from tmd.create_taxcalc_input_variables import TAXYEAR
 
-TAX_YEAR = 2021
+TAX_YEAR = TAXYEAR
 
 INFILE_PATH = STORAGE_FOLDER / "output" / "tmd.csv.gz"
 WTFILE_PATH = STORAGE_FOLDER / "output" / "tmd_weights.csv.gz"

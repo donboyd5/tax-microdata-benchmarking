@@ -36,10 +36,11 @@ import pandas as pd
 from scipy.stats import chi2_contingency
 from tmd.areas import AREAS_FOLDER
 from tmd.storage import STORAGE_FOLDER
+from tmd.create_taxcalc_input_variables import TAXYEAR
 
 USAGE = "USAGE: python chisquare_test.py WGHT1 WGHT2 [numbins] [dump]"
 CACHED_ITAX_PATH = STORAGE_FOLDER / "output" / "cached_iitax.npy"
-TAX_YEAR = 2021
+TAX_YEAR = TAXYEAR
 MINIMUM_NUM_BINS = 50
 DEFAULT_NUM_BINS = 200
 ITXBINS_DEFINED_USING_AREA_WEIGHTS = False  # default is using national weights

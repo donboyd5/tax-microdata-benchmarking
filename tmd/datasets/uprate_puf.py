@@ -3,7 +3,6 @@ import numpy as np
 from tmd.imputation_assumptions import ITMDED_GROW_RATE
 from tmd.storage import STORAGE_FOLDER
 
-
 USE_VARIABLE_SPECIFIC_POPULATION_GROWTH_DIVISORS = False
 
 SOI_TO_PUF_STRAIGHT_RENAMES = {

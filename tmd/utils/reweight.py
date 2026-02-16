@@ -14,6 +14,7 @@ from tmd.imputation_assumptions import (
     REWEIGHT_DEVIATION_PENALTY,
 )
 
+TAX_YEAR = 2021  # set equal to TAXYEAR in create_taxcalc_input_variables.py
 
 INCOME_RANGES = [
     -np.inf,
@@ -55,7 +56,7 @@ def fmt(x):
 
 def reweight(
     flat_file: pd.DataFrame,
-    time_period: int = 2021,
+    time_period: int = TAX_YEAR,
     weight_multiplier_min: float = REWEIGHT_MULTIPLIER_MIN,
     weight_multiplier_max: float = REWEIGHT_MULTIPLIER_MAX,
     weight_deviation_penalty: float = REWEIGHT_DEVIATION_PENALTY,

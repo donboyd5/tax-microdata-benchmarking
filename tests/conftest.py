@@ -1,3 +1,7 @@
+"""
+Configure pytest unit tests.
+"""
+
 from pathlib import Path
 import pytest
 import numpy as np
@@ -16,6 +20,11 @@ def tests_folder():
 @pytest.fixture(scope="session")
 def tmd_variables():
     return pd.read_csv(STORAGE_FOLDER / "output" / "tmd.csv.gz")
+
+
+@pytest.fixture(scope="session")
+def tmd_variables_path():
+    return STORAGE_FOLDER / "output" / "tmd.csv.gz"
 
 
 @pytest.fixture(scope="session")

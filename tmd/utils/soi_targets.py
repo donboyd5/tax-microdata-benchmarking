@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from tmd.storage import STORAGE_FOLDER
 
-
 soi = pd.read_csv(STORAGE_FOLDER / "input" / "agi_targets.csv")
 
 
