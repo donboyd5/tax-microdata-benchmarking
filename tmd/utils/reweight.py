@@ -3,7 +3,6 @@ This module provides utilities for reweighting a flat file
 to match AGI targets.
 """
 
-from pathlib import Path
 import pandas as pd
 import numpy as np
 import torch
@@ -149,8 +148,10 @@ def reweight(
             if row["Count"]:
                 values = (values > 0).astype(float)
 
+            lob = row["AGI lower bound"]
+            hib = row["AGI upper bound"]
             agi_range_label = (
-                f"{fmt(row['AGI lower bound'])}-{fmt(row['AGI upper bound'])}"
+                f"{fmt(lob)}-{fmt(hib)}"
             )
             taxable_label = (
                 "taxable" if row["Taxable only"] else "all" + " returns"

@@ -75,9 +75,15 @@ data: install tmd_files test
 format:
 	black . -l 79
 
+PYLINT_DISABLE = duplicate-code,invalid-name,too-many-instance-attributes,too-many-locals,too-many-arguments,too-many-positional-arguments,too-many-statements,too-many-branches,too-many-nested-blocks,missing-module-docstring,missing-function-docstring
+
+PYLINT_OPTIONS = --disable=$(PYLINT_DISABLE) --score=no --jobs=4 \
+                 --check-quote-consistency=yes
+
 .PHONY=style
 style:
-	pycodestyle --ignore=E731,E712,W503 .
+	@pycodestyle --ignore=E731,E712,W503 .
+	@pylint $(PYLINT_OPTIONS) .
 
 .PHONY=reweighting-visualisation
 reweighting-visualisation:
