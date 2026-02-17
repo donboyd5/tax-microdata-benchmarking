@@ -238,10 +238,10 @@ def reweight(
 
     # First, check for NaN columns and print out the labels
 
-    for i in range(len(target_array)):
+    for i, target in enumerate(target_array):
         if torch.isnan(outputs[i]).any():
             print(f"Column {output_matrix.columns[i]} has NaN values")
-        if target_array[i] == 0:
+        if target == 0:
             pass  # print(f"Column {output_matrix.columns[i]} has target 0")
 
     optimizer = torch.optim.Adam([weight_multiplier], lr=1e-1)
@@ -279,16 +279,14 @@ def reweight(
         optimizer.step()
         if i % 100 == 0:
             writer.add_scalar("Summary/Loss", loss_value, i)
-            for j in range(len(target_array)):
+            for j, target in enumerate(target_array):
                 metric_name = output_matrix.columns[j]
                 total_projection = outputs[j]
-                rel_error = (
-                    total_projection - target_array[j]
-                ) / target_array[j]
+                rel_error = (total_projection - target) / target
                 writer.add_scalar(
                     f"Estimate/{metric_name}", total_projection, i
                 )
-                writer.add_scalar(f"Target/{metric_name}", target_array[j], i)
+                writer.add_scalar(f"Target/{metric_name}", target, i)
                 writer.add_scalar(
                     f"Absolute relative error/{metric_name}", abs(rel_error), i
                 )
