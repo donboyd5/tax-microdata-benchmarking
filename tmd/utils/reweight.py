@@ -150,9 +150,7 @@ def reweight(
 
             lob = row["AGI lower bound"]
             hib = row["AGI upper bound"]
-            agi_range_label = (
-                f"{fmt(lob)}-{fmt(hib)}"
-            )
+            agi_range_label = f"{fmt(lob)}-{fmt(hib)}"
             taxable_label = (
                 "taxable" if row["Taxable only"] else "all" + " returns"
             )
