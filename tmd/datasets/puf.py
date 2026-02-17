@@ -1,7 +1,9 @@
-import yaml
-from tqdm import tqdm
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
+from microdf import MicroDataFrame
+from policyengine_core.data import Dataset
+from policyengine_us.system import system
 from tmd.storage import STORAGE_FOLDER
 from tmd.datasets.uprate_puf import uprate_puf
 from tmd.utils.imputation import Imputation
@@ -10,9 +12,6 @@ from tmd.imputation_assumptions import (
     IMPUTATION_BETA_RNG_SEED,
     W2_WAGES_SCALE,
 )
-from microdf import MicroDataFrame
-from policyengine_core.data import Dataset
-from policyengine_us.system import system
 
 FILER_AGE_RNG = np.random.default_rng(seed=64963751)
 SPOUSE_GENDER_RNG = np.random.default_rng(seed=83746519)
@@ -281,7 +280,7 @@ class PUF(Dataset):
             IDVARS = ["E17500", "E18400", "E18500", "E19200", "E19800"]
             wght = puf.S006 / 100.0
             for var in IDVARS:
-                print(f"%%15:{var}= {(puf[var]*wght).sum()*1e-9:.3f}")
+                print(f"%%15:{var}= {(puf[var] * wght).sum() * 1e-9:.3f}")
 
         if self.time_period > 2015:
             puf = uprate_puf(puf, 2015, self.time_period)
@@ -289,7 +288,7 @@ class PUF(Dataset):
         if itmded_dump:
             wght = puf.S006 / 100.0
             for var in IDVARS:
-                print(f"%%21:{var}= {(puf[var]*wght).sum()*1e-9:.3f}")
+                print(f"%%21:{var}= {(puf[var] * wght).sum() * 1e-9:.3f}")
 
         puf = puf[puf.MARS != 0]
 

@@ -1,4 +1,3 @@
-import numpy as np
 from policyengine_us import Microsimulation
 from tmd.datasets.cps import CPS_2021
 from tmd.utils.imputation import Imputation

@@ -9,8 +9,12 @@ import pandas as pd
 import taxcalc as tc
 from tmd.storage import STORAGE_FOLDER
 
-with open(STORAGE_FOLDER / "input" / "tc_variable_metadata.yaml") as f:
-    taxcalc_variable_metadata = yaml.safe_load(f)
+with open(
+    STORAGE_FOLDER / "input" / "tc_variable_metadata.yaml",
+    "r",
+    encoding="utf-8",
+) as yfile:
+    taxcalc_variable_metadata = yaml.safe_load(yfile)
 
 
 def get_tc_variable_description(variable: str) -> str:
@@ -145,7 +149,7 @@ def get_tax_expenditure_results(
     else:
         open_mode = "a"
     year = simulation_year
-    with open(taxexp_path, open_mode) as tefile:
+    with open(taxexp_path, open_mode, encoding="utf-8") as tefile:
         res = f"YR,KIND,EST= {year} paytax {ptax_baseline:.1f}\n"
         tefile.write(res)
         omb_itax_revenue = itax_baseline + itax_baseline_refcredits

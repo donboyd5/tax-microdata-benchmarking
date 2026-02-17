@@ -16,6 +16,8 @@ setup(
         "scipy",
         "jax",
         "black>=26.1.0",
+        "pycodestyle>=2.14.0",
+        "pylint>=3.3.8",
         "pytest",
         "pytest-xdist",
         "jupyter-book",

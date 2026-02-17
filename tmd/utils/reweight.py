@@ -1,11 +1,15 @@
 """
-This module provides utilities for reweighting a flat file to match AGI targets.
+This module provides utilities for reweighting a flat file
+to match AGI targets.
 """
 
-from pathlib import Path
-import pandas as pd
+import time
+from datetime import datetime
 import numpy as np
+import pandas as pd
 import torch
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 from tmd.storage import STORAGE_FOLDER
 from tmd.utils.soi_replication import tc_to_soi
 from tmd.imputation_assumptions import (
@@ -48,10 +52,10 @@ def fmt(x):
     if x < 1e3:
         return f"{x:.0f}"
     if x < 1e6:
-        return f"{x/1e3:.0f}k"
+        return f"{x / 1e3:.0f}k"
     if x < 1e9:
-        return f"{x/1e6:.0f}m"
-    return f"{x/1e9:.1f}bn"
+        return f"{x / 1e6:.0f}m"
+    return f"{x / 1e9:.1f}bn"
 
 
 def reweight(
@@ -148,9 +152,9 @@ def reweight(
             if row["Count"]:
                 values = (values > 0).astype(float)
 
-            agi_range_label = (
-                f"{fmt(row['AGI lower bound'])}-{fmt(row['AGI upper bound'])}"
-            )
+            lob = row["AGI lower bound"]
+            hib = row["AGI upper bound"]
+            agi_range_label = f"{fmt(lob)}-{fmt(hib)}"
             taxable_label = (
                 "taxable" if row["Taxable only"] else "all" + " returns"
             )
@@ -201,7 +205,8 @@ def reweight(
     torch.manual_seed(rng_seed)  # set the random number seed for CPU
     torch.cuda.manual_seed_all(rng_seed)  # set the seed for all GPUs
 
-    # Create tensors directly on the selected device to avoid non-leaf tensor issues
+    # Create tensors directly on the selected device
+    # to avoid non-leaf tensor issues
     weights = torch.tensor(
         flat_file.s006.values, dtype=torch.float32, device=device
     )
@@ -233,18 +238,13 @@ def reweight(
 
     # First, check for NaN columns and print out the labels
 
-    for i in range(len(target_array)):
+    for i, target in enumerate(target_array):
         if torch.isnan(outputs[i]).any():
             print(f"Column {output_matrix.columns[i]} has NaN values")
-        if target_array[i] == 0:
+        if target == 0:
             pass  # print(f"Column {output_matrix.columns[i]} has target 0")
 
     optimizer = torch.optim.Adam([weight_multiplier], lr=1e-1)
-
-    from torch.utils.tensorboard import SummaryWriter
-    from tqdm import tqdm
-    from datetime import datetime
-    import time
 
     writer = SummaryWriter(
         log_dir=STORAGE_FOLDER
@@ -279,16 +279,14 @@ def reweight(
         optimizer.step()
         if i % 100 == 0:
             writer.add_scalar("Summary/Loss", loss_value, i)
-            for j in range(len(target_array)):
+            for j, target in enumerate(target_array):
                 metric_name = output_matrix.columns[j]
                 total_projection = outputs[j]
-                rel_error = (
-                    total_projection - target_array[j]
-                ) / target_array[j]
+                rel_error = (total_projection - target) / target
                 writer.add_scalar(
                     f"Estimate/{metric_name}", total_projection, i
                 )
-                writer.add_scalar(f"Target/{metric_name}", target_array[j], i)
+                writer.add_scalar(f"Target/{metric_name}", target, i)
                 writer.add_scalar(
                     f"Absolute relative error/{metric_name}", abs(rel_error), i
                 )

@@ -1,3 +1,6 @@
+from policyengine_us.system import system
+
+
 def is_tax_filer(
     irs_gross_income: float,
     filing_status: str,
@@ -16,9 +19,11 @@ def is_tax_filer(
         filing_status: Filing status of the tax unit.
         earned_income: Total earned income.
         total_income_tax: Total income tax liability.
-        aged_blind_count: Number of aged or blind individuals in the tax unit.
+        aged_blind_count: Number of aged or blind individuals
+                          in the tax unit.
         standard_deduction: Standard deduction for the tax unit.
-        aged_blind_standard_deduction: Additional standard deduction for aged or blind individuals.
+        aged_blind_standard_deduction: Additional standard deduction
+                                       for aged or blind individuals.
         exemption_amount: Exemption amount for the tax unit.
 
     Returns:
@@ -54,8 +59,6 @@ def is_tax_filer(
 
     return required_to_file or not_required_but_likely_filer
 
-
-from policyengine_us.system import system
 
 parameters = system.parameters.gov.irs
 

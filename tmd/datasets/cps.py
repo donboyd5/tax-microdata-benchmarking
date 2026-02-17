@@ -1,8 +1,8 @@
 import os
-import yaml
 from io import BytesIO
 from typing import Type
 from zipfile import ZipFile
+import yaml
 import requests
 import numpy as np
 import pandas as pd
@@ -152,11 +152,26 @@ class RawCPS(Dataset):
         file_year_code = str(file_year)[-2:]
 
         CPS_URL_BY_YEAR = {
-            2018: "https://www2.census.gov/programs-surveys/cps/datasets/2019/march/asecpub19csv.zip",
-            2019: "https://www2.census.gov/programs-surveys/cps/datasets/2020/march/asecpub20csv.zip",
-            2020: "https://www2.census.gov/programs-surveys/cps/datasets/2021/march/asecpub21csv.zip",
-            2021: "https://www2.census.gov/programs-surveys/cps/datasets/2022/march/asecpub22csv.zip",
-            2022: "https://www2.census.gov/programs-surveys/cps/datasets/2023/march/asecpub23csv.zip",
+            2018: (
+                "https://www2.census.gov/programs-surveys/cps/datasets/"
+                "2019/march/asecpub19csv.zip"
+            ),
+            2019: (
+                "https://www2.census.gov/programs-surveys/cps/datasets/"
+                "2020/march/asecpub20csv.zip"
+            ),
+            2020: (
+                "https://www2.census.gov/programs-surveys/cps/datasets/"
+                "2021/march/asecpub21csv.zip"
+            ),
+            2021: (
+                "https://www2.census.gov/programs-surveys/cps/datasets/"
+                "2022/march/asecpub22csv.zip"
+            ),
+            2022: (
+                "https://www2.census.gov/programs-surveys/cps/datasets/"
+                "2023/march/asecpub23csv.zip"
+            ),
         }
 
         if self.time_period not in CPS_URL_BY_YEAR:
@@ -239,7 +254,9 @@ class RawCPS(Dataset):
                 )
         except Exception as e:
             raise ValueError(
-                f"Attempted to extract and save the CSV files, but encountered an error: {e} (removed the intermediate dataset)."
+                "Attempted to extract and save the CSV files, "
+                f"but encountered an error: {e} "
+                "(removed the intermediate dataset)."
             )
 
     @staticmethod
@@ -366,7 +383,9 @@ def add_id_variables(
 
     marital_unit_id = Series(marital_unit_id).rank(
         method="dense"
-    )  # Simplify to a natural number sequence with repetitions [0, 1, 1, 2, 3, ...]
+        # simplifies to a natural number sequence
+        # with repetitions [0, 1, 1, 2, 3, ...]
+    )
 
     cps["person_marital_unit_id"] = marital_unit_id.values
     cps["marital_unit_id"] = marital_unit_id.drop_duplicates().values
@@ -563,10 +582,11 @@ def add_personal_income_variables(
     # 2) If they report any wage and salary income, allocate in this order:
     #    a) Traditional 401(k) contributions up to to limit
     #    b) Roth 401(k) contributions up to the limit
-    #    c) IRA contributions up to the limit, split according to administrative fractions
+    #    c) IRA contributions up to the limit, split according
+    #       to administrative fractions
     #    d) Other retirement contributions
-    # Disregard reported pension contributions from people who report neither wage and salary
-    # nor self-employment income.
+    # Disregard reported pension contributions from people
+    #    who report neither wage and salary nor self-employment income.
     # Assume no 403(b) or 457 contributions for now.
     LIMIT_401K_2022 = 20_500
     LIMIT_401K_CATCH_UP_2022 = 6_500
@@ -620,7 +640,8 @@ def add_personal_income_variables(
         np.minimum(remaining_retirement_contributions, roth_ira_limit),
         0,
     )
-    # Allocate capital gains into long-term and short-term based on aggregate split.
+    # Allocate capital gains into long-term and short-term
+    # based on aggregate split.
     cps["long_term_capital_gains"] = person.CAP_VAL * (
         p["long_term_capgain_fraction"]
     )

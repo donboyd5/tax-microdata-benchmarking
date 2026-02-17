@@ -3,7 +3,6 @@ Tests of tmd/areas/create_area_weights.py script.
 """
 
 import yaml
-import pandas as pd
 import taxcalc as tc
 from tmd.storage import STORAGE_FOLDER
 from tmd.create_taxcalc_input_variables import TAXYEAR
