@@ -10,9 +10,10 @@ soi = pd.read_csv(STORAGE_FOLDER / "input" / "soi.csv")
 def pe_to_soi(pe_dataset):
     pe_sim = Microsimulation(dataset=pe_dataset)
     df = pd.DataFrame()
-    pe = lambda variable: np.array(
-        pe_sim.calculate(variable, map_to="tax_unit")
-    )
+
+    def pe(variable):
+        return np.array(pe_sim.calculate(variable, map_to="tax_unit"))
+
     df["adjusted_gross_income"] = pe("adjusted_gross_income")
     df["exemption"] = pe("exemptions")
     df["itemded"] = pe("itemized_taxable_income_deductions")
