@@ -280,7 +280,7 @@ class ManyToOneImputation:
             pd.Series: The predicted distribution of values for each input row.
         """
         if isinstance(X, pd.DataFrame) and any(
-                X[column].dtype == "O" for column in X.columns
+            X[column].dtype == "O" for column in X.columns
         ):
             X = self.encode_categories(X)
         X = to_array(X)
