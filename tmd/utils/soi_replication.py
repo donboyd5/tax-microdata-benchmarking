@@ -7,15 +7,12 @@ from tmd.storage import STORAGE_FOLDER
 soi = pd.read_csv(STORAGE_FOLDER / "input" / "soi.csv")
 
 
-def pe_to_soi(pe_dataset, year):
-
+def pe_to_soi(pe_dataset):
     pe_sim = Microsimulation(dataset=pe_dataset)
     df = pd.DataFrame()
-
     pe = lambda variable: np.array(
         pe_sim.calculate(variable, map_to="tax_unit")
     )
-
     df["adjusted_gross_income"] = pe("adjusted_gross_income")
     df["exemption"] = pe("exemptions")
     df["itemded"] = pe("itemized_taxable_income_deductions")
@@ -81,11 +78,10 @@ def pe_to_soi(pe_dataset, year):
     df["filing_status"] = pe("filing_status")
     df["weight"] = pe("household_weight")
     df["household_id"] = pe("household_id")
-
     return df
 
 
-def puf_to_soi(puf, year):
+def puf_to_soi(puf):
     df = pd.DataFrame()
     df["adjusted_gross_income"] = puf.E00100
     df["total_income_tax"] = puf.E06500
@@ -221,7 +217,7 @@ def compare_soi_replication_to_soi(df, year):
     values = []
     soi_values = []
 
-    for i, row in soi.iterrows():
+    for _, row in soi.iterrows():
         if row.Year != year:
             continue
 

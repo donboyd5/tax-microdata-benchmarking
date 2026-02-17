@@ -159,12 +159,12 @@ class Imputation:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
             # Store the models only in a dictionary.
-            data = dict(
-                models=self.models,
-                X_columns=self.X_columns,
-                X_category_mappings=self.X_category_mappings,
-                Y_columns=self.Y_columns,
-            )
+            data = {
+                "models": self.models,
+                "X_columns": self.X_columns,
+                "X_category_mappings": self.X_category_mappings,
+                "Y_columns": self.Y_columns,
+            }
             pickle.dump(data, f)
 
     @staticmethod
@@ -229,6 +229,7 @@ class ManyToOneImputation:
     """Random number generator seed used by RandomForestRegressor."""
     beta_rng_seed: int = None
     """Random number generator seed used to generate Beta variates."""
+    encode_categories: pd.DataFrame = None
 
     def train(
         self,
@@ -259,7 +260,7 @@ class ManyToOneImputation:
             self.is_integer_coded = (
                 isinstance(y[0], str) or (y - y.round()).mean() < 1e-3
             )
-        except Exception as e:
+        except Exception:
             pass
         self.model.fit(X, y, sample_weight=sample_weight)
 
@@ -279,7 +280,7 @@ class ManyToOneImputation:
             pd.Series: The predicted distribution of values for each input row.
         """
         if isinstance(X, pd.DataFrame) and any(
-            [X[column].dtype == "O" for column in X.columns]
+                X[column].dtype == "O" for column in X.columns
         ):
             X = self.encode_categories(X)
         X = to_array(X)
@@ -359,8 +360,7 @@ class ManyToOneImputation:
                     f"(loss: {loss_value:.4f})"
                 )
                 print(msg)
-            if loss_value < best_loss:
-                best_loss = loss_value
+            best_loss = min(loss_value, best_loss)
             if pred_agg < target:
                 min_quantile = mean_quantile
             else:
