@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import List, Dict
+import pickle
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
@@ -154,9 +155,6 @@ class Imputation:
         Args:
             path (str): The path to save the model to.
         """
-
-        import pickle
-
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
@@ -180,9 +178,6 @@ class Imputation:
         Returns:
             Imputation: The imputation model.
         """
-
-        import pickle
-
         imputation = Imputation()
         with open(path, "rb") as f:
             data = pickle.load(f)

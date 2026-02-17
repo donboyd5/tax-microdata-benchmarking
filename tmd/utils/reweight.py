@@ -3,9 +3,13 @@ This module provides utilities for reweighting a flat file
 to match AGI targets.
 """
 
-import pandas as pd
+import time
+from datetime import datetime
 import numpy as np
+import pandas as pd
 import torch
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 from tmd.storage import STORAGE_FOLDER
 from tmd.utils.soi_replication import tc_to_soi
 from tmd.imputation_assumptions import (
@@ -241,11 +245,6 @@ def reweight(
             pass  # print(f"Column {output_matrix.columns[i]} has target 0")
 
     optimizer = torch.optim.Adam([weight_multiplier], lr=1e-1)
-
-    from torch.utils.tensorboard import SummaryWriter
-    from tqdm import tqdm
-    from datetime import datetime
-    import time
 
     writer = SummaryWriter(
         log_dir=STORAGE_FOLDER

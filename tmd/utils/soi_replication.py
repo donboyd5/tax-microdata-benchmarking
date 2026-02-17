@@ -1,12 +1,13 @@
 import numpy as np
 import pandas as pd
+import taxcalc as tc
+from policyengine_us import Microsimulation
 from tmd.storage import STORAGE_FOLDER
 
 soi = pd.read_csv(STORAGE_FOLDER / "input" / "soi.csv")
 
 
 def pe_to_soi(pe_dataset, year):
-    from policyengine_us import Microsimulation
 
     pe_sim = Microsimulation(dataset=pe_dataset)
     df = pd.DataFrame()
@@ -86,7 +87,6 @@ def pe_to_soi(pe_dataset, year):
 
 def puf_to_soi(puf, year):
     df = pd.DataFrame()
-
     df["adjusted_gross_income"] = puf.E00100
     df["total_income_tax"] = puf.E06500
     df["employment_income"] = puf.E00200
@@ -140,10 +140,6 @@ def puf_to_soi(puf, year):
 
 
 def tc_to_soi(puf, year):
-    df = pd.DataFrame()
-
-    import taxcalc as tc
-
     policy = tc.Policy()
     data = tc.Records(
         data=puf,
@@ -159,6 +155,7 @@ def tc_to_soi(puf, year):
 
     puf.columns = puf.columns.str.upper()
 
+    df = pd.DataFrame()
     df["adjusted_gross_income"] = puf.C00100
     df["total_income_tax"] = puf.C09200 - puf.REFUND
     df["employment_income"] = puf.E00200
