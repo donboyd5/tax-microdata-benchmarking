@@ -355,7 +355,7 @@ def target_rmse(wght, target_matrix, target_array, out, delta=None):
             continue
         line = (
             f">={interval.left:13.6f}, <{interval.right:13.6f}:"
-            f"  {num:6d}   {cum:6d}   {num/tot:7.2%}   {cum/tot:7.2%}\n"
+            f"  {num:6d}   {cum:6d}   {num / tot:7.2%}   {cum / tot:7.2%}\n"
         )
         out.write(line)
         if cum == tot:
@@ -429,7 +429,7 @@ def weight_ratio_distribution(ratio, delta, out):
             continue
         line = (
             f">={interval.left:13.6f}, <{interval.right:13.6f}:"
-            f"  {num:6d}   {cum:6d}   {num/tot:7.2%}   {cum/tot:7.2%}\n"
+            f"  {num:6d}   {cum:6d}   {num / tot:7.2%}   {cum / tot:7.2%}\n"
         )
         out.write(line)
         if cum == tot:
@@ -620,7 +620,7 @@ def create_area_weights_file(
         )
     else:
         res_summary = (
-            f">>> final delta loop exectime= {(time1-time0):.1f} secs"
+            f">>> final delta loop exectime= {(time1 - time0):.1f} secs"
             f"  iterations={res.nit}  success={res.success}\n"
             f">>> message: {res.message}\n"
             f">>> L-BFGS-B optimized objective function value: {res.fun:.9e}\n"

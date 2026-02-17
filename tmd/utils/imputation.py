@@ -344,8 +344,8 @@ class ManyToOneImputation:
             pred_values = self.predict(input_df, mean_quantile)
             pred_aggregate = (pred_values * weights).sum()
             msg = (
-                f"PREDICTED: {pred_aggregate/1e9:.1f} "
-                f"(target: {target/1e9:.1f})"
+                f"PREDICTED: {pred_aggregate / 1e9:.1f} "
+                f"(target: {target / 1e9:.1f})"
             )
             print(msg)
             return (pred_aggregate - target) ** 2, pred_aggregate

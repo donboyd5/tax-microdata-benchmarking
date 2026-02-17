@@ -1,5 +1,6 @@
 """
-This module provides utilities for reweighting a flat file to match AGI targets.
+This module provides utilities for reweighting a flat file
+to match AGI targets.
 """
 
 from pathlib import Path
@@ -48,10 +49,10 @@ def fmt(x):
     if x < 1e3:
         return f"{x:.0f}"
     if x < 1e6:
-        return f"{x/1e3:.0f}k"
+        return f"{x / 1e3:.0f}k"
     if x < 1e9:
-        return f"{x/1e6:.0f}m"
-    return f"{x/1e9:.1f}bn"
+        return f"{x / 1e6:.0f}m"
+    return f"{x / 1e9:.1f}bn"
 
 
 def reweight(
@@ -201,7 +202,8 @@ def reweight(
     torch.manual_seed(rng_seed)  # set the random number seed for CPU
     torch.cuda.manual_seed_all(rng_seed)  # set the seed for all GPUs
 
-    # Create tensors directly on the selected device to avoid non-leaf tensor issues
+    # Create tensors directly on the selected device
+    # to avoid non-leaf tensor issues
     weights = torch.tensor(
         flat_file.s006.values, dtype=torch.float32, device=device
     )

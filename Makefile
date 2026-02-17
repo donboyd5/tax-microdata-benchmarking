@@ -75,6 +75,10 @@ data: install tmd_files test
 format:
 	black . -l 79
 
+.PHONY=style
+style:
+	pycodestyle --ignore=E731,E712,W503 .
+
 .PHONY=reweighting-visualisation
 reweighting-visualisation:
 	tensorboard --logdir=tmd/storage/output/reweighting
