@@ -1,8 +1,8 @@
 import os
-import yaml
 from io import BytesIO
 from typing import Type
 from zipfile import ZipFile
+import yaml
 import requests
 import numpy as np
 import pandas as pd

@@ -8,7 +8,6 @@ from tmd.datasets.taxcalc_dataset import create_tc_dataset
 from tmd.utils.trace import trace1
 from tmd.utils.taxcalc_utils import add_taxcalc_outputs
 from tmd.utils.reweight import reweight
-from tmd.storage import STORAGE_FOLDER
 
 
 def create_tmd_2021():

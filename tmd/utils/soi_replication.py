@@ -1,6 +1,5 @@
-import pandas as pd
 import numpy as np
-from tqdm import tqdm
+import pandas as pd
 from tmd.storage import STORAGE_FOLDER
 
 soi = pd.read_csv(STORAGE_FOLDER / "input" / "soi.csv")
