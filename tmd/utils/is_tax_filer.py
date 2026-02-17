@@ -1,4 +1,6 @@
-from policyengine_us.system import system
+"""
+The is_tax_filer function is not currently called anywhere in the TMD code.
+"""
 
 
 def is_tax_filer(
@@ -58,10 +60,3 @@ def is_tax_filer(
     # (a)(1)(D) is just definitions
 
     return required_to_file or not_required_but_likely_filer
-
-
-parameters = system.parameters.gov.irs
-
-aged_blind_standard_deduction = (
-    parameters.deductions.standard.aged_or_blind.amount
-)
