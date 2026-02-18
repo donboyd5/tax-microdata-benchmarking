@@ -75,7 +75,7 @@ data: install tmd_files test
 format:
 	black . -l 79
 
-PYLINT_DISABLE = duplicate-code,invalid-name,too-many-instance-attributes,too-many-locals,too-many-arguments,too-many-positional-arguments,too-many-statements,too-many-branches,too-many-nested-blocks,broad-exception-caught,missing-function-docstring,missing-module-docstring
+PYLINT_DISABLE = duplicate-code,invalid-name,too-many-instance-attributes,too-many-locals,too-many-arguments,too-many-positional-arguments,too-many-statements,too-many-branches,too-many-nested-blocks,broad-exception-caught,missing-function-docstring,missing-module-docstring,missing-class-docstring
 
 PYLINT_OPTIONS = --disable=$(PYLINT_DISABLE) --score=no --jobs=4 \
                  --check-quote-consistency=yes

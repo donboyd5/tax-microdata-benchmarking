@@ -187,7 +187,12 @@ class RawCPS(Dataset):
                 col for col in spm_unit_columns if col != "SPM_BBSUBVAL"
             ]
 
-        response = requests.get(url, stream=True, verify=False)
+        response = requests.get(
+            url,
+            stream=True,
+            verify=False,
+            timeout=(20, 600),
+        )
         total_size_in_bytes = int(
             response.headers.get("content-length", 200e6)
         )
@@ -257,7 +262,7 @@ class RawCPS(Dataset):
                 "Attempted to extract and save the CSV files, "
                 f"but encountered an error: {e} "
                 "(removed the intermediate dataset)."
-            )
+            ) from e
 
     @staticmethod
     def _create_tax_unit_table(person: pd.DataFrame) -> pd.DataFrame:
@@ -309,7 +314,7 @@ class CPS(Dataset):
 
         add_id_variables(cps, person, tax_unit, family, spm_unit, household)
         add_personal_variables(cps, person)
-        add_personal_income_variables(cps, person, self.raw_cps.time_period)
+        add_personal_income_variables(cps, person)
         add_previous_year_income(self, cps)
         add_spm_variables(cps, spm_unit)
         add_household_variables(cps, household)
@@ -461,15 +466,13 @@ def add_personal_variables(cps: h5py.File, person: DataFrame) -> None:
     cps["is_full_time_college_student"] = person.A_HSCOL == 2
 
 
-def add_personal_income_variables(
-    cps: h5py.File, person: DataFrame, year: int
-):
-    """Add income variables.
+def add_personal_income_variables(cps: h5py.File, person: DataFrame):
+    """
+    Add income variables.
 
     Args:
         cps (h5py.File): The CPS dataset file.
         person (DataFrame): The CPS person table.
-        year (int): The CPS year
     """
     # Get income imputation parameters.
     yamlfilename = os.path.join(
@@ -670,29 +673,27 @@ def add_personal_income_variables(
 
 
 def add_spm_variables(cps: h5py.File, spm_unit: DataFrame) -> None:
-    SPM_RENAMES = dict(
-        spm_unit_total_income_reported="SPM_TOTVAL",
-        snap_reported="SPM_SNAPSUB",
-        spm_unit_capped_housing_subsidy_reported="SPM_CAPHOUSESUB",
-        free_school_meals_reported="SPM_SCHLUNCH",
-        spm_unit_energy_subsidy_reported="SPM_ENGVAL",
-        spm_unit_wic_reported="SPM_WICVAL",
-        spm_unit_broadband_subsidy_reported="SPM_BBSUBVAL",
-        spm_unit_payroll_tax_reported="SPM_FICA",
-        spm_unit_federal_tax_reported="SPM_FEDTAX",
-        # State tax includes refundable credits.
-        spm_unit_state_tax_reported="SPM_STTAX",
-        spm_unit_capped_work_childcare_expenses="SPM_CAPWKCCXPNS",
-        spm_unit_medical_expenses="SPM_MEDXPNS",
-        spm_unit_spm_threshold="SPM_POVTHRESHOLD",
-        spm_unit_net_income_reported="SPM_RESOURCES",
-        spm_unit_pre_subsidy_childcare_expenses="SPM_CHILDCAREXPNS",
-    )
-
+    SPM_RENAMES = {
+        "spm_unit_total_income_reported": "SPM_TOTVAL",
+        "snap_reported": "SPM_SNAPSUB",
+        "spm_unit_capped_housing_subsidy_reported": "SPM_CAPHOUSESUB",
+        "free_school_meals_reported": "SPM_SCHLUNCH",
+        "spm_unit_energy_subsidy_reported": "SPM_ENGVAL",
+        "spm_unit_wic_reported": "SPM_WICVAL",
+        "spm_unit_broadband_subsidy_reported": "SPM_BBSUBVAL",
+        "spm_unit_payroll_tax_reported": "SPM_FICA",
+        "spm_unit_federal_tax_reported": "SPM_FEDTAX",
+        # state tax includes refundable credits
+        "spm_unit_state_tax_reported": "SPM_STTAX",
+        "spm_unit_capped_work_childcare_expenses": "SPM_CAPWKCCXPNS",
+        "spm_unit_medical_expenses": "SPM_MEDXPNS",
+        "spm_unit_spm_threshold": "SPM_POVTHRESHOLD",
+        "spm_unit_net_income_reported": "SPM_RESOURCES",
+        "spm_unit_pre_subsidy_childcare_expenses": "SPM_CHILDCAREXPNS",
+    }
     for openfisca_variable, asec_variable in SPM_RENAMES.items():
         if asec_variable in spm_unit.columns:
             cps[openfisca_variable] = spm_unit[asec_variable]
-
     cps["reduced_price_school_meals_reported"] = (
         cps["free_school_meals_reported"][...] * 0
     )

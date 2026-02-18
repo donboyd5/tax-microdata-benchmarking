@@ -1,14 +1,13 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 from tmd.storage import STORAGE_FOLDER
-
-soi = pd.read_csv(STORAGE_FOLDER / "input" / "agi_targets.csv")
 
 
 def clean_agi_bounds(
     soi: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Adds cleaned AGI bounds to Don's scraped SOI statistics file.
+    """
+    Adds cleaned AGI bounds to the scraped SOI statistics file.
 
     Args:
         soi (pd.DataFrame): DataFrame with AGI targets.
@@ -16,9 +15,7 @@ def clean_agi_bounds(
     Returns:
         pd.DataFrame: DataFrame with cleaned AGI bounds.
     """
-
     soi = soi.copy()
-
     agi_bound_map = {
         "All returns": (-np.inf, np.inf),
         "No adjusted gross income": (-np.inf, 0),
@@ -53,17 +50,16 @@ def clean_agi_bounds(
         "$55,000 under $60,000": (55_000, 60_000),
         "$60,000 under $75,000": (60_000, 75_000),
     }
-
     soi["agi_lower"] = soi["incrange"].map(lambda x: agi_bound_map[x][0])
     soi["agi_upper"] = soi["incrange"].map(lambda x: agi_bound_map[x][1])
-
     return soi
 
 
 def clean_filing_status(
     soi: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Adds cleaned filing status values to Don's scraped SOI statistics file.
+    """
+    Adds cleaned filing status values to the scraped SOI statistics file.
 
     Args:
         soi (pd.DataFrame): DataFrame with AGI targets.
@@ -78,29 +74,24 @@ def clean_filing_status(
     def get_filing_status(name):
         if "single" in name:
             return "Single"
-        elif "mfs" in name:
+        if "mfs" in name:
             return "Married Filing Separately"
-        elif "mfjss" in name:
+        if "mfjss" in name:
             return "Married Filing Jointly/Surviving Spouse"
-        elif "hoh" in name:
+        if "hoh" in name:
             return "Head of Household"
-        else:
-            return "All"
+        return "All"
 
     soi["filing_status"] = soi.vname.apply(get_filing_status)
-
     return soi
 
 
 def clean_vname(vname):
     REMOVED = ["nret", "single", "mfs", "mfjss", "hoh", "_"]
-
     for r in REMOVED:
         vname = vname.replace(r, "")
-
-    if vname == "" or vname == "all":
+    if vname in ["", "all"]:
         return "count"
-
     VARIABLE_RENAMES = {
         "agi": "adjusted gross income",
         "exemption": "exemptions",
@@ -151,17 +142,15 @@ def clean_vname(vname):
         "idsalt": "state and local tax deductions",
         "idtaxpaid": "itemized taxes paid deductions",  # federal tax payments
     }
-
     if vname in VARIABLE_RENAMES:
         return VARIABLE_RENAMES[vname]
-
     return vname
 
 
 def clean_soi_file(soi):
     soi.vname = soi.vname.replace(
         "nret_partnerpinc", "nret_partnerinc"
-    )  # Typo
+    )  # fix typo
 
     soi["Count"] = soi.vname.apply(lambda x: "nret" in x)
     soi["Taxable only"] = soi.datatype == "taxable"
@@ -256,6 +245,6 @@ def clean_soi_file(soi):
     return soi[columns]
 
 
-soi = clean_soi_file(soi)
-
-soi.to_csv(STORAGE_FOLDER / "input" / "soi.csv", index=False)
+soi_raw = pd.read_csv(STORAGE_FOLDER / "input" / "agi_targets.csv")
+soi_clean = clean_soi_file(soi_raw)
+soi_clean.to_csv(STORAGE_FOLDER / "input" / "soi.csv", index=False)
