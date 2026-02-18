@@ -188,7 +188,10 @@ class RawCPS(Dataset):
             ]
 
         response = requests.get(
-            url, stream=True, verify=False, timeout=(20, 600),
+            url,
+            stream=True,
+            verify=False,
+            timeout=(20, 600),
         )
         total_size_in_bytes = int(
             response.headers.get("content-length", 200e6)
