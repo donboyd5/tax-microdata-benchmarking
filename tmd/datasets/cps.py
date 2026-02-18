@@ -218,7 +218,7 @@ class RawCPS(Dataset):
                 progress_bar.set_description("Downloaded ASEC")
                 progress_bar.total = content_length_actual
                 progress_bar.close()
-                zipfile = ZipFile(file)
+                zipfile = ZipFile(file)  # pylint: disable=consider-using-with
                 if file_year_code == "19":
                     # In the 2018 CPS, the file is within prod/data/2019
                     # instead of at the top level.
@@ -303,8 +303,9 @@ class CPS(Dataset):
         Technical documentation and codebook at this URL:
           https://www2.census.gov/programs-surveys/cps/techdocs/cpsmar21.pdf
         """
-
-        raw_data = self.raw_cps(require=True).load()
+        raw_data = self.raw_cps(  # pylint: disable=not-callable
+            require=True
+        ).load()
         cps = h5py.File(self.file_path, mode="w")
 
         ENTITIES = ("person", "tax_unit", "family", "spm_unit", "household")
