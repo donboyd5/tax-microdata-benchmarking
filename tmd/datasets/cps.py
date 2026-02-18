@@ -304,7 +304,7 @@ class CPS(Dataset):
           https://www2.census.gov/programs-surveys/cps/techdocs/cpsmar21.pdf
         """
 
-        raw_data = self.raw_cps(require=True).load()  # TODO: bug?
+        raw_data = self.raw_cps(require=True).load()
         cps = h5py.File(self.file_path, mode="w")
 
         ENTITIES = ("person", "tax_unit", "family", "spm_unit", "household")
