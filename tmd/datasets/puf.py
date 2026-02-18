@@ -302,8 +302,8 @@ class PUF(Dataset):
         puf = puf.set_index("RECID").loc[original_recid].reset_index()
         puf = puf.fillna(0)
         self.variable_to_entity = {
-            variable: system.variables[variable].entity.key
-            for variable in system.variables
+            variable: var.entity.key
+            for variable, var in system.variables.items()
         }
 
         VARIABLES = [

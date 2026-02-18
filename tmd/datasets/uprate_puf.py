@@ -100,7 +100,7 @@ def get_soi_aggregate(variable, year, is_count):
     agi_lower = soi["AGI lower bound"] == -np.inf
     agi_upper = soi["AGI upper bound"] == np.inf
     count_status = soi["Count"] == is_count
-    non_taxable_only = soi["Taxable only"] == False
+    non_taxable_only = ~soi["Taxable only"]
 
     return (
         soi[
@@ -137,7 +137,7 @@ def get_growth(variable, from_year, to_year):
 def uprate_puf(puf, from_year, to_year):
     print(f"Uprating PUF from {from_year} to {to_year}...")
     puf = puf.copy()
-    for variable in SOI_TO_PUF_STRAIGHT_RENAMES:
+    for variable, puf_variable in SOI_TO_PUF_STRAIGHT_RENAMES.items():
         growth = get_growth(variable, from_year, to_year)
         if variable in [
             "medical_expense_deductions_uncapped",
@@ -150,17 +150,15 @@ def uprate_puf(puf, from_year, to_year):
             nyears = to_year - from_year
             growth = (1.0 + ITMDED_GROW_RATE) ** nyears
             # print("%% NEW_VAR_GROWTH:", variable, growth)
-        puf[SOI_TO_PUF_STRAIGHT_RENAMES[variable]] *= growth
+        puf[puf_variable] *= growth
 
     # Positive and negative split variables
-    for variable in SOI_TO_PUF_POS_ONLY_RENAMES:
+    for variable, puf_variable in SOI_TO_PUF_POS_ONLY_RENAMES.items():
         growth = get_growth(variable, from_year, to_year)
-        puf_variable = SOI_TO_PUF_POS_ONLY_RENAMES[variable]
         puf.loc[puf[puf_variable] > 0, puf_variable] *= growth
 
-    for variable in SOI_TO_PUF_NEG_ONLY_RENAMES:
+    for variable, puf_variable in SOI_TO_PUF_NEG_ONLY_RENAMES.items():
         growth = get_growth(variable, from_year, to_year)
-        puf_variable = SOI_TO_PUF_NEG_ONLY_RENAMES[variable]
         puf.loc[puf[puf_variable] < 0, puf_variable] *= growth
 
     # Remaining variables, uprate purely by AGI growth
