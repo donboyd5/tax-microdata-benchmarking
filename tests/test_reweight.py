@@ -9,7 +9,7 @@ from tmd.utils.reweight import _drop_impossible_targets
 
 
 def test_drop_impossible_targets_removes_all_zero_column():
-    """All-zero columns are impossible targets and must be dropped."""
+    """All-zero columns are impossible targets: dropped with a UserWarning."""
     loss_matrix = pd.DataFrame(
         {
             "good_a": [1.0, 2.0, 0.0],
@@ -18,9 +18,10 @@ def test_drop_impossible_targets_removes_all_zero_column():
         }
     )
     targets_arr = np.array([100.0, 50.0, 200.0])
-    result_matrix, result_targets = _drop_impossible_targets(
-        loss_matrix, targets_arr
-    )
+    with pytest.warns(UserWarning, match="bad_zero"):
+        result_matrix, result_targets = _drop_impossible_targets(
+            loss_matrix, targets_arr
+        )
     assert "bad_zero" not in result_matrix.columns
     assert list(result_matrix.columns) == ["good_a", "good_b"]
     np.testing.assert_array_equal(result_targets, [100.0, 200.0])

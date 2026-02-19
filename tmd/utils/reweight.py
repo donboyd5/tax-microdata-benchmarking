@@ -4,6 +4,7 @@ to match AGI targets.
 """
 
 import time
+import warnings
 import numpy as np
 import pandas as pd
 import torch
@@ -187,12 +188,13 @@ def _drop_impossible_targets(loss_matrix, targets_arr):
     all_zero_mask = (loss_matrix.values == 0).all(axis=0)
     if all_zero_mask.any():
         impossible_labels = loss_matrix.columns[all_zero_mask].tolist()
-        print(
-            f"WARNING: Dropping {len(impossible_labels)} impossible "
-            f"targets (all-zero data columns):"
+        label_list = "\n  - ".join(impossible_labels)
+        warnings.warn(
+            f"Dropping {len(impossible_labels)} impossible targets "
+            f"(all data values are zero):\n  - {label_list}",
+            UserWarning,
+            stacklevel=2,
         )
-        for label in impossible_labels:
-            print(f"  - {label}")
         loss_matrix = loss_matrix.loc[:, ~all_zero_mask]
         targets_arr = targets_arr[~all_zero_mask]
     return loss_matrix.copy(), targets_arr
