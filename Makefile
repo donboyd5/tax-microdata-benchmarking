@@ -80,8 +80,8 @@ PYLINT_DISABLE = duplicate-code,invalid-name,too-many-instance-attributes,too-ma
 PYLINT_OPTIONS = --disable=$(PYLINT_DISABLE) --score=no --jobs=4 \
                  --check-quote-consistency=yes
 
-.PHONY=style
-style:
+.PHONY=lint
+lint:
 	@pycodestyle --ignore=E731,E712,W503 .
 	@pylint $(PYLINT_OPTIONS) .
 
