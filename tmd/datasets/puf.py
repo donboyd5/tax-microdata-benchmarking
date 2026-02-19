@@ -186,7 +186,7 @@ def preprocess_puf(puf: pd.DataFrame) -> pd.DataFrame:
         "non_sch_d_capital_gains": puf.E01100,
         "american_opportunity_credit": puf.E87521,
         "energy_efficient_home_improvement_credit": puf.E07260,
-        "retirement_plan_penalty_tax": puf.E09900,
+        "qualified_retirement_penalty": puf.E09900,
         # "qualified_tuition_expenses": puf.E87530,
         # PE uses the same variable for qualified tuition (general)
         # and qualified tuition (Lifetime Learning Credit). Revisit this.
@@ -263,7 +263,7 @@ FINANCIAL_SUBSET = [
     "other_credits",
     "savers_credit",
     "recapture_of_investment_credit",
-    "retirement_plan_penalty_tax",
+    "qualified_retirement_penalty",
     "unreported_payroll_tax",
     "w2_wages_from_qualified_business",
 ]
