@@ -84,7 +84,7 @@ def create_tc_dataset(pe_dataset: Type, year: int) -> pd.DataFrame:
         "e01100": "non_sch_d_capital_gains",
         "e87521": "american_opportunity_credit",
         "e07260": "energy_efficient_home_improvement_credit",
-        "e09900": "early_withdrawal_penalty",
+        "e09900": "qualified_retirement_penalty",
         "p08000": "other_credits",
         "e07240": "savers_credit",
         "e09700": "recapture_of_investment_credit",
