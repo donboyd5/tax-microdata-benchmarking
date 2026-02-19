@@ -212,6 +212,7 @@ def prepared_data(area: str, vardf: pd.DataFrame):
     tm_tuple = ()
     ta_list = []
     row_num = 1
+    initial_weights_scale = None
     for row in tdf.itertuples(index=False):
         row_num += 1
         line = f"{area}:L{row_num}"
@@ -248,7 +249,7 @@ def prepared_data(area: str, vardf: pd.DataFrame):
             unmasked_varray = (vardf[row.varname] != 0).astype(float)
         elif row.count == 3:  # count only units with positive variable amount
             unmasked_varray = (vardf[row.varname] > 0).astype(float)
-        elif row.count == 4:  # count only units with negative variable amount
+        else:  # count only units with negative variable amount (row.count==4)
             unmasked_varray = (vardf[row.varname] < 0).astype(float)
         mask = np.ones(numobs, dtype=int)
         assert (
@@ -462,7 +463,11 @@ def create_area_weights_file(
 
     # specify log output device
     if write_log:
-        out = open(logpath, "w", encoding="utf-8")
+        out = open(  # pylint: disable=consider-using-with
+            logpath,
+            "w",
+            encoding="utf-8",
+        )
     else:
         out = sys.stdout
     if write_file:
@@ -475,7 +480,7 @@ def create_area_weights_file(
     jax.config.update("jax_enable_x64", True)  # use double precision floats
 
     # read optional parameters file
-    global PARAMS
+    global PARAMS  # pylint: disable=global-statement
     PARAMS = {}
     pfile = f"{area}_params.yaml"
     params_file = AREAS_FOLDER / "targets" / pfile

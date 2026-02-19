@@ -75,13 +75,13 @@ data: install tmd_files test
 format:
 	black . -l 79
 
-PYLINT_DISABLE = duplicate-code,invalid-name,too-many-instance-attributes,too-many-locals,too-many-arguments,too-many-positional-arguments,too-many-statements,too-many-branches,too-many-nested-blocks,broad-exception-caught,missing-function-docstring,missing-module-docstring,missing-class-docstring
+PYLINT_DISABLE = duplicate-code,invalid-name,too-many-instance-attributes,too-many-locals,too-many-arguments,too-many-positional-arguments,too-many-statements,too-many-branches,too-many-nested-blocks,too-many-return-statements,broad-exception-caught,missing-function-docstring,missing-module-docstring,missing-class-docstring
 
 PYLINT_OPTIONS = --disable=$(PYLINT_DISABLE) --score=no --jobs=4 \
                  --check-quote-consistency=yes
 
-.PHONY=style
-style:
+.PHONY=lint
+lint:
 	@pycodestyle --ignore=E731,E712,W503 .
 	@pylint $(PYLINT_OPTIONS) .
 

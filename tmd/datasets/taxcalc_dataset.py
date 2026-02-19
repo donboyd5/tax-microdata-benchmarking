@@ -1,5 +1,7 @@
-# Create a Tax-Calculator-compatible dataset from
-# any PolicyEngine-US hierarchical dataset.
+"""
+Create a Tax-Calculator-compatible dataset from
+any PolicyEngine-US hierarchical dataset.
+"""
 
 from typing import Type
 import yaml
@@ -44,7 +46,6 @@ def create_tc_dataset(pe_dataset: Type, year: int) -> pd.DataFrame:
         "E03220": "educator_expense",
         "E00200": "employment_income",
         "E02100": "farm_income",
-        "E27200": "farm_rent_income",
         "E03290": "health_savings_account_ald",
         "E19200": "interest_deduction",
         "P23250": "long_term_capital_gains",
@@ -63,7 +64,6 @@ def create_tc_dataset(pe_dataset: Type, year: int) -> pd.DataFrame:
         "E18400": "state_and_local_sales_or_income_tax",
         "E03210": "student_loan_interest",
         "E00300": "taxable_interest_income",
-        "E01700": "taxable_pension_income",
         "E02300": "taxable_unemployment_compensation",
         "E01400": "taxable_ira_distributions",
         "E00400": "tax_exempt_interest_income",
@@ -204,13 +204,12 @@ def create_tc_dataset(pe_dataset: Type, year: int) -> pd.DataFrame:
     df["elderly_dependents"] = map_to_tax_unit((age >= 65) * dependent)
 
     # correct case of df variable names for Tax-Calculator
-    tc_variable_metadata = yaml.safe_load(
-        open(
-            STORAGE_FOLDER / "input" / "tc_variable_metadata.yaml",
-            "r",
-            encoding="utf-8",
-        )
-    )
+    with open(
+        STORAGE_FOLDER / "input" / "tc_variable_metadata.yaml",
+        "r",
+        encoding="utf-8",
+    ) as yfile:
+        tc_variable_metadata = yaml.safe_load(yfile)
     renames = {}
     for variable in df.columns:
         if variable.upper() in tc_variable_metadata["read"]:

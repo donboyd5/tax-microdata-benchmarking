@@ -272,7 +272,12 @@ class PUF(Dataset):
     time_period = None
     data_format = Dataset.ARRAYS
 
-    def generate(self, puf: pd.DataFrame, demographics: pd.DataFrame):
+    def generate(
+        self,
+        puf: pd.DataFrame,
+        demographics: pd.DataFrame,
+    ):  # pylint: disable=arguments-differ
+
         print("Importing PolicyEngine-US variable metadata...")
 
         itmded_dump = False
@@ -302,8 +307,8 @@ class PUF(Dataset):
         puf = puf.set_index("RECID").loc[original_recid].reset_index()
         puf = puf.fillna(0)
         self.variable_to_entity = {
-            variable: system.variables[variable].entity.key
-            for variable in system.variables
+            variable: var.entity.key
+            for variable, var in system.variables.items()
         }
 
         VARIABLES = [
@@ -478,7 +483,6 @@ def create_pe_puf_2015():
     demographics = pd.read_csv(
         STORAGE_FOLDER / "input" / "demographics_2015.csv"
     )
-
     pe_puf = PUF_2015()
     pe_puf.generate(puf, demographics)
 
@@ -488,7 +492,6 @@ def create_pe_puf_2021():
     demographics = pd.read_csv(
         STORAGE_FOLDER / "input" / "demographics_2015.csv"
     )
-
     pe_puf = PUF_2021()
     pe_puf.generate(puf, demographics)
 
