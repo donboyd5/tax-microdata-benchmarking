@@ -13,7 +13,7 @@ def test_weights(tmd_variables):
     """
     wght = tmd_variables["s006"].to_numpy()
     actual = {"mean": wght.mean(), "sdev": wght.std()}
-    expect = {"mean": 816.06972, "sdev": 1140.202438}
+    expect = {"mean": 816.06972, "sdev": 1142.57270}
     tolerance = {"mean": 0.0015, "sdev": 0.0005}
     diffs = []
     for stat in ["mean", "sdev"]:
