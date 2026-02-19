@@ -172,29 +172,29 @@ def build_loss_matrix(df, targets, time_period):
             targets_array.append(row["Value"])
 
     loss_matrix = pd.DataFrame(columns)
-
-    # Drop impossible targets: columns where all data values are
-    # zero (no reweighting can produce nonzero estimates from
-    # all-zero data)
-    loss_matrix_arr = loss_matrix.values
     targets_arr = np.array(targets_array)
-    all_zero_mask = (loss_matrix_arr == 0).all(axis=0)
+    return _drop_impossible_targets(loss_matrix, targets_arr)
+
+
+def _drop_impossible_targets(loss_matrix, targets_arr):
+    """Drop targets where all data values are zero.
+
+    No reweighting can produce nonzero estimates from all-zero data,
+    so these targets must be excluded before optimization.
+
+    Returns (filtered_loss_matrix, filtered_targets_arr).
+    """
+    all_zero_mask = (loss_matrix.values == 0).all(axis=0)
     if all_zero_mask.any():
-        impossible_labels = [
-            loss_matrix.columns[i]
-            for i in range(len(all_zero_mask))
-            if all_zero_mask[i]
-        ]
+        impossible_labels = loss_matrix.columns[all_zero_mask].tolist()
         print(
             f"WARNING: Dropping {len(impossible_labels)} impossible "
             f"targets (all-zero data columns):"
         )
         for label in impossible_labels:
             print(f"  - {label}")
-        keep_mask = ~all_zero_mask
-        loss_matrix = loss_matrix.loc[:, keep_mask]
-        targets_arr = targets_arr[keep_mask]
-
+        loss_matrix = loss_matrix.loc[:, ~all_zero_mask]
+        targets_arr = targets_arr[~all_zero_mask]
     return loss_matrix.copy(), targets_arr
 
 
@@ -230,7 +230,7 @@ def reweight(
         gpu_name = torch.cuda.get_device_name(0)
         gpu_mem = torch.cuda.get_device_properties(0).total_memory / 1024**3
         print(
-            f"...GPU acceleration enabled: " f"{gpu_name} ({gpu_mem:.1f} GB)"
+            f"...GPU acceleration enabled: {gpu_name} ({gpu_mem:.1f} GB)"
         )
     elif use_gpu and not gpu_available:
         print("...GPU requested but not available, using CPU")
@@ -328,16 +328,11 @@ def reweight(
     original_loss_value = (((outputs + 1) / (target_array + 1) - 1) ** 2).sum()
     print(f"...initial loss: {original_loss_value.item():.10f}")
 
-    # Check for NaN columns
-    for i in range(len(target_array)):
-        if torch.isnan(outputs[i]).any():
-            print(f"Column {output_matrix.columns[i]} has NaN values")
-
     # L-BFGS optimizer: quasi-Newton method with line search.
     # Converges much faster than Adam for this smooth problem.
     # The closure function is called multiple times per step
     # (line search).
-    max_lbfgs_iter = 200
+    max_lbfgs_iter = 800
     optimizer = torch.optim.LBFGS(
         [weight_multiplier],
         max_iter=20,  # max line-search iterations per step
@@ -370,23 +365,32 @@ def reweight(
         return loss_value
 
     print(
-        f"...starting L-BFGS optimization " f"(up to {max_lbfgs_iter} steps)"
+        f"...starting L-BFGS optimization (up to {max_lbfgs_iter} steps)"
     )
     optimization_start_time = time.time()
 
-    prev_loss = float("inf")
     for step_count in range(1, max_lbfgs_iter + 1):
         optimizer.step(closure)
         current_loss = loss_value.item()
+        grad_norm = (
+            weight_multiplier.grad.norm().item()
+            if weight_multiplier.grad is not None
+            else float("inf")
+        )
         if step_count % 10 == 0 or step_count <= 5:
-            print(f"    step {step_count:>4d}: " f"loss={current_loss:.10f}")
-        # Convergence check
-        if abs(prev_loss - current_loss) < 1e-12:
             print(
-                f"    converged at step {step_count} " f"(loss change < 1e-12)"
+                f"    step {step_count:>4d}: loss={current_loss:.10f}, "
+                f"grad={grad_norm:.2e}"
+            )
+        # Convergence check: gradient norm is the proper first-order
+        # optimality condition (vs loss-change which can falsely trigger
+        # when the Hessian approximation is poor and steps are tiny)
+        if grad_norm < 1e-5:
+            print(
+                f"    converged at step {step_count} "
+                f"(grad norm {grad_norm:.2e} < 1e-5)"
             )
             break
-        prev_loss = current_loss
 
     # Recompute final weights and outputs after optimization
     new_weights = weights * torch.clamp(
