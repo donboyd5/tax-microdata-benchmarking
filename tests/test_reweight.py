@@ -2,6 +2,7 @@
 Unit tests for tmd/utils/reweight.py helper functions.
 """
 
+import warnings
 import numpy as np
 import pandas as pd
 import pytest
@@ -67,7 +68,6 @@ def test_no_all_zero_columns_in_real_loss_matrix(tmd_variables):
     silently filtered out at optimization time.
     """
     targets = pd.read_csv(STORAGE_FOLDER / "input" / "soi.csv")
-    import warnings
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
