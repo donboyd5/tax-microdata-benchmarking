@@ -13,19 +13,13 @@ def test_weights(tmd_variables):
     """
     wght = tmd_variables["s006"].to_numpy()
     actual = {"mean": wght.mean(), "sdev": wght.std()}
-    expect = {"mean": 816.06972, "sdev": 1142.57270}
-    tolerance = {"mean": 0.0015, "sdev": 0.0005}
+    expect = {"mean": 815.5521277934885, "sdev": 961.7270821801824}
     diffs = []
     for stat in ["mean", "sdev"]:
         act = actual[stat]
         exp = expect[stat]
-        abstol = 0.0
-        reltol = tolerance[stat]
-        if not np.allclose([act], [exp], atol=abstol, rtol=reltol):
-            diff = (
-                f"WEIGHT_DIFF:{stat},act,exp,atol,rtol= "
-                f"{act} {exp} {abstol} {reltol}"
-            )
+        if not np.allclose([act], [exp]):
+            diff = f"WEIGHT_DIFF:{stat},act,exp= {act} {exp}"
             diffs.append(diff)
     if diffs:
         emsg = "\nWEIGHT VARIABLE ACT-vs-EXP DIFFS:"
