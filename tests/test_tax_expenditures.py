@@ -3,10 +3,8 @@ Test 2023 tax expenditures calculated using tmd files
 against expected tax expenditure values in the tests folder.
 """
 
-import difflib
 import pytest
 import numpy as np
-import pandas as pd
 from tmd.storage import STORAGE_FOLDER
 from tmd.create_taxcalc_input_variables import TAXYEAR
 from tmd.utils.taxcalc_utils import get_tax_expenditure_results
@@ -27,26 +25,28 @@ def test_tax_exp_diffs(
         tmd_growfactors_path,
     )
     act_path = STORAGE_FOLDER / "output" / "tax_expenditures"
-    exp_path = tests_folder / "expected_tax_expenditures"
-    actdf = pd.read_csv(act_path, sep=" ", header=None)
-    expdf = pd.read_csv(exp_path, sep=" ", header=None)
-    assert actdf.shape == expdf.shape, "actdf and expdf are not the same shape"
-    # compare actdf and expdf rows
-    same = True
-    actval = actdf.iloc[:, 3].to_numpy(dtype=np.float64)
-    expval = expdf.iloc[:, 3].to_numpy(dtype=np.float64)
-    if not np.allclose(actval, expval):
-        same = False
-    if same:
-        return
-    # if same is False
     with open(act_path, "r", encoding="utf-8") as actfile:
         act = actfile.readlines()
+    exp_path = tests_folder / "expected_tax_expenditures"
     with open(exp_path, "r", encoding="utf-8") as expfile:
         exp = expfile.readlines()
-    diffs = list(
-        difflib.context_diff(act, exp, fromfile="actual", tofile="expect", n=0)
-    )
+    assert len(act) == len(exp), "number of act and exp rows differ"
+    a_tol = 0.1  # handles :.1f rounding of tax expenditures
+    r_tol = 5e-5  # larger than the np.allclose default value of 1e-5
+    diffs = []
+    for rowidx, act_row in enumerate(act):
+        atok = act_row.split()
+        etok = exp[rowidx].split()
+        for tokidx in range(3):
+            assert atok[tokidx] == etok[tokidx], "act vs exp tokens differ"
+        act_val = float(atok[3])
+        exp_val = float(etok[3])
+        if not np.allclose([act_val], [exp_val], atol=a_tol, rtol=r_tol):
+            msg = (
+                f"{atok[2]},act,exp,atol,rtol= "
+                f"{act_val} {exp_val} {a_tol} {r_tol}\n"
+            )
+            diffs.append(msg)
     if len(diffs) > 0:
         emsg = "\nACT-vs-EXP TAX EXPENDITURE DIFFERENCES:\n" + "".join(diffs)
         raise ValueError(emsg)

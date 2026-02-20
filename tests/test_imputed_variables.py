@@ -130,8 +130,12 @@ def test_obbba_deduction_tax_benefits(
         for stat in ["totben", "affpct", "affben"]:
             act = act_res[stat]
             exp = info[f"exp_{stat}"]
-            if not np.allclose([act], [exp]):
-                diff = f"DIFF:{ded},{stat},act,exp= {act} {exp}"
+            if stat == "totben":
+                a_tol = 0.01  # to handle :.2f rounding of totben
+            else:
+                a_tol = 1e-8  # the default np.allclose value for atol
+            if not np.allclose([act], [exp], atol=a_tol):
+                diff = f"DIFF:{ded},{stat},act,exp,atol= {act} {exp} {a_tol}"
                 diffs.append(diff)
         # delete reform Policy and Calculator objects
         del reform_policy
