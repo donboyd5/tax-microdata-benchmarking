@@ -5,7 +5,8 @@ Unit tests for tmd/utils/reweight.py helper functions.
 import numpy as np
 import pandas as pd
 import pytest
-from tmd.utils.reweight import _drop_impossible_targets
+from tmd.storage import STORAGE_FOLDER
+from tmd.utils.reweight import _drop_impossible_targets, build_loss_matrix
 
 
 def test_drop_impossible_targets_removes_all_zero_column():
@@ -56,3 +57,21 @@ def test_drop_impossible_targets_column_with_single_nonzero_is_kept():
     )
     assert "almost_zero" in result_matrix.columns
     assert len(result_targets) == 1
+
+
+def test_no_all_zero_columns_in_real_loss_matrix(tmd_variables):
+    """The real loss matrix must have no all-zero columns.
+
+    All-zero columns mean no reweighting can hit the target.
+    This is a data problem that must be fixed upstream, not
+    silently filtered out at optimization time.
+    """
+    targets = pd.read_csv(STORAGE_FOLDER / "input" / "soi.csv")
+    import warnings
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        build_loss_matrix(tmd_variables, targets, 2021)
+    impossible = [w for w in caught if "impossible targets" in str(w.message)]
+    if impossible:
+        raise AssertionError(str(impossible[0].message))

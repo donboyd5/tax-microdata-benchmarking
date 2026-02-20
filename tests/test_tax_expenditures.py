@@ -33,10 +33,9 @@ def test_tax_exp_diffs(
     assert actdf.shape == expdf.shape, "actdf and expdf are not the same shape"
     # compare actdf and expdf rows
     same = True
-    # define relative diff tolerance
     actval = actdf.iloc[:, 3].to_numpy(dtype=np.float64)
     expval = expdf.iloc[:, 3].to_numpy(dtype=np.float64)
-    if not np.allclose(actval, expval, atol=0.0, rtol=0.002):
+    if not np.allclose(actval, expval):
         same = False
     if same:
         return

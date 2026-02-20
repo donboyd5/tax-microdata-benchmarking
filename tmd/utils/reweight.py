@@ -87,13 +87,13 @@ def build_loss_matrix(df, targets, time_period):
         "business_net_losses",
         "capital_gains_distributions",
         "capital_gains_losses",
-        "estate_income",
-        "estate_losses",
+        # "estate_income",  # all zeros in tc_to_soi (not in Tax-Calculator)
+        # "estate_losses",  # all zeros in tc_to_soi (not in Tax-Calculator)
         "exempt_interest",
         "ira_distributions",
         "partnership_and_s_corp_losses",
-        "rent_and_royalty_net_income",
-        "rent_and_royalty_net_losses",
+        # "rent_and_royalty_net_income",  # all zeros in tc_to_soi (not in TC)
+        # "rent_and_royalty_net_losses",  # all zeros in tc_to_soi (not in TC)
         "taxable_pension_income",
         "taxable_social_security",
         "unemployment_compensation",
@@ -231,9 +231,7 @@ def reweight(
     if use_gpu_actual:
         gpu_name = torch.cuda.get_device_name(0)
         gpu_mem = torch.cuda.get_device_properties(0).total_memory / 1024**3
-        print(
-            f"...GPU acceleration enabled: {gpu_name} ({gpu_mem:.1f} GB)"
-        )
+        print(f"...GPU acceleration enabled: {gpu_name} ({gpu_mem:.1f} GB)")
     elif use_gpu and not gpu_available:
         print("...GPU requested but not available, using CPU")
     elif not use_gpu and gpu_available:
@@ -366,9 +364,7 @@ def reweight(
         loss_value.backward()
         return loss_value
 
-    print(
-        f"...starting L-BFGS optimization (up to {max_lbfgs_iter} steps)"
-    )
+    print(f"...starting L-BFGS optimization (up to {max_lbfgs_iter} steps)")
     optimization_start_time = time.time()
 
     for step_count in range(1, max_lbfgs_iter + 1):
