@@ -49,6 +49,14 @@ The `session_notes/` directory is tracked on a dedicated orphan branch (`session
 - Editable from any branch without switching
 - Pushed to the origin fork for backup
 
+### How it's wired up
+
+- **Orphan branch `session-notes`** has no parent history (completely independent of master). Notes files live at the branch root.
+- **Git worktree** checks out `session-notes` into `session_notes/`. The worktree creates a `.git` file (not directory) inside `session_notes/` that points to the main repo's worktree metadata.
+- **`.git/info/exclude`** contains `session_notes/` so the main repo's `git status` never shows it (this is local-only, not committed anywhere).
+- **Upstream tracking** is set: `session-notes` tracks `origin/session-notes`, so bare `git push` from inside the worktree goes to the fork.
+- **Main repo `git status`** shows `nothing to commit, working tree clean` -- session_notes is completely invisible to all other branches.
+
 ### Daily workflow for committing session notes changes
 
 **Ask Claude to commit and push session notes** at any point during a session (e.g., "push session notes" or "commit the notes"). Claude should run:
