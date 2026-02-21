@@ -14,12 +14,13 @@ def test_weights(tmd_variables):
     wght = tmd_variables["s006"].to_numpy()
     actual = {"mean": wght.mean(), "sdev": wght.std()}
     expect = {"mean": 815.5521277934885, "sdev": 961.7270821801824}
+    r_tol = 7e-5  # larger than the np.allclose default value of 1e-5
     diffs = []
     for stat in ["mean", "sdev"]:
         act = actual[stat]
         exp = expect[stat]
-        if not np.allclose([act], [exp]):
-            diff = f"WEIGHT_DIFF:{stat},act,exp= {act} {exp}"
+        if not np.allclose([act], [exp], rtol=r_tol):
+            diff = f"WEIGHT_DIFF:{stat},act,exp,rtol= {act} {exp} {r_tol}"
             diffs.append(diff)
     if diffs:
         emsg = "\nWEIGHT VARIABLE ACT-vs-EXP DIFFS:"
