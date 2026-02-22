@@ -24,16 +24,19 @@ The root cause is structural: PyTorch L-BFGS uses `torch.clamp()` to enforce bou
 
 ## Key Insight: The Existing Objective Is Already a Convex QP
 
-The reweighting objective function is:
+The reweighting objective function in its original (NLP) formulation is:
 
-```
-minimize  sum_j [ (sum_i w0_i * m_i * A_ij) / (t_j + 1) - t_j / (t_j + 1) ]^2
-        + penalty * L0 * sum_i (w0_i^2 / sum(w0^2)) * (m_i - 1)^2
+$$\min_m \sum_j \left( \frac{\sum_i w_{0,i} , m_i , A_{ij}}{t_j + 1} - \frac{t_j}{t_j + 1} \right)^2 + \lambda \sum_i (m_i - 1)^2 \quad \text{s.t.} \quad m_{\min} \le m_i \le m_{\max}$$
 
-subject to:  m_min <= m_i <= m_max
-```
+where $m_i$ are weight multipliers, $w_{0,i}$ are original weights, $A_{ij}$ is the output matrix, $t_j$ are SOI targets, and $L_0$ is the initial unpenalized loss (for scaling the penalty term).
 
-where `m_i` are weight multipliers, `w0_i` are original weights, `A_ij` is the output matrix, `t_j` are SOI targets, and `L0` is the initial unpenalized loss (for scaling the penalty term).
+The equivalent QP form is:
+
+$$\min_m \frac{1}{2} m^T P m + q^T m \quad \text{s.t.} \quad m_{\min} \le m_i \le m_{\max}$$
+
+where $P = 2(B^T B + \text{diag}(\lambda))$ and $q = -2(B^T c + \lambda)$, with $B_{ij} = w_{0,i} A_{ij} / (t_j + 1)$ and $c_j = t_j / (t_j + 1)$.
+
+These are algebraically identical — expanding the squares in the NLP form and collecting terms gives the QP form. The NLP form is how we think about the problem; the QP form is what lets us exploit structure (analytical gradient, projected-gradient bounds, uniqueness guarantee).
 
 This is a **bound-constrained convex quadratic program (QP)**. The Hessian is positive definite, which guarantees a **unique global minimum**. We have been solving this problem all along — but with PyTorch L-BFGS, we were not exploiting its QP structure:
 
@@ -43,7 +46,7 @@ This is a **bound-constrained convex quadratic program (QP)**. The Hessian is po
 
 ## Proposed Two-Part Solution
 
-### Part 1: Reformulate the problem as a QP and switcch to L-BFGS-B
+### Part 1: Reformulate the problem as a QP and switch to L-BFGS-B
 
 Replace the PyTorch L-BFGS solver with **scipy's `L-BFGS-B`** (Fortran implementation), which properly exploits the QP structure:
 
@@ -55,6 +58,8 @@ Replace the PyTorch L-BFGS solver with **scipy's `L-BFGS-B`** (Fortran implement
    where `B_ij = w0_i * A_ij / (t_j + 1)` and `c_j = t_j / (t_j + 1)`
 3. **Same objective function** — no change to what we're optimizing, only how
 4. **Unique minimum convergence** — any machine converging tightly enough must find the same answer
+
+This solver has not been written to work on a GPU, but we don't need it to because it is so fast on a CPU.
 
 #### Experimental Results
 
