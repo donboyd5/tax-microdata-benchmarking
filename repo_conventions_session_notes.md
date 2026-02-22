@@ -44,6 +44,13 @@
 
 ## Session Notes Workflow
 
+- **All session notes go in the top-level `session_notes/` folder.** Never put them elsewhere (e.g., not in `compare/` or other subdirectories).
+- **Each session notes file should have a unique, descriptive name** (e.g., `reweighting_experimentation_session_notes.md`). New notes should either get a new unique name or be incorporated into an existing related notes file.
+- **Every session notes file must begin with:**
+  ```
+  **Read `repo_conventions_session_notes.md` first.**
+  ```
+
 The `session_notes/` directory is tracked on a dedicated orphan branch (`session-notes`) on the `origin` fork, using a git worktree. This keeps session notes:
 - Separate from all working branches (no risk of accidentally including them in PRs to upstream)
 - Editable from any branch without switching
