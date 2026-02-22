@@ -26,9 +26,9 @@ The root cause is structural: PyTorch L-BFGS uses `torch.clamp()` to enforce bou
 
 The reweighting objective function in its original (NLP) formulation is:
 
-$$\min_m \sum_j \left( \frac{\sum_i w_{0,i} , m_i , A_{ij}}{t_j + 1} - \frac{t_j}{t_j + 1} \right)^2 + \lambda \sum_i (m_i - 1)^2 \quad \text{s.t.} \quad m_{\min} \le m_i \le m_{\max}$$
+$$\min_m \sum_j \left( \frac{\sum_i w_{0,i} \, m_i \, A_{ij}}{t_j + 1} - \frac{t_j}{t_j + 1} \right)^2 + \sum_i \lambda_i (m_i - 1)^2 \quad \text{s.t.} \quad m_{\min} \le m_i \le m_{\max}$$
 
-where $m_i$ are weight multipliers, $w_{0,i}$ are original weights, $A_{ij}$ is the output matrix, $t_j$ are SOI targets, and $L_0$ is the initial unpenalized loss (for scaling the penalty term).
+where $m_i$ are weight multipliers, $w_{0,i}$ are original weights, $A_{ij}$ is the output matrix, $t_j$ are SOI targets, and $\lambda_i = \text{penalty} \cdot L_0 \cdot w_{0,i}^2 / \sum w_0^2$ is the per-record regularization weight (with $L_0$ = initial unpenalized loss).
 
 The equivalent QP form is:
 
@@ -78,7 +78,7 @@ Scipy L-BFGS-B achieves **better loss** (0.1065 vs 0.1126) because it can proper
 
 OSQP (a dedicated QP solver using ADMM) was also tested but could not converge to tight tolerances within reasonable time — a fundamental limitation of first-order ADMM methods for high-accuracy solutions.
 
-## What Changes
+#### What Changes
 
 - **Solver**: PyTorch L-BFGS → scipy L-BFGS-B (Fortran)
 - **Gradient**: autograd → analytical (closed-form)
@@ -86,7 +86,7 @@ OSQP (a dedicated QP solver using ADMM) was also tested but could not converge t
 - **Objective function**: unchanged
 - **GPU dependency**: eliminated (CPU-only, deterministic)
 
-## What Doesn't Change
+#### What Doesn't Change
 
 - The objective function and its meaning
 - The targets, penalties, and bound constraints
