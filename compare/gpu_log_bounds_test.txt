@@ -1,0 +1,62 @@
+Loaded 225256 records from compare/pre_reweight_snapshot.csv.gz
+...reweighting for year 2021
+...weight deviation penalty: 0.1
+...gradient norm tolerance: 1e-05
+...weight multiplier bounds: [0.5, 2.0]
+...GPU acceleration enabled: NVIDIA GeForce RTX 5070 Ti (15.9 GB)
+...pre-scaled weights: target filers=160,824,340, current filers=161,180,573, scale=0.997790
+Targeting 550 SOI statistics
+...input records: 225256, columns: 212
+...input weights: total=183102955.22, mean=812.866051, sdev=733.258325
+...initial loss: 30.1622806381
+...starting L-BFGS optimization (up to 800 steps)
+    step    1: loss=4.5545801410, grad=1.98e-02
+    step    2: loss=4.2568476817, grad=5.05e-03
+    step    3: loss=4.2046004064, grad=4.31e-03
+    step    4: loss=4.1870686564, grad=4.51e-03
+    step    5: loss=4.1810226987, grad=1.17e-03
+    step   10: loss=4.1725661808, grad=4.51e-04
+    step   20: loss=4.1711357830, grad=1.10e-04
+    step   30: loss=4.1710329120, grad=3.62e-05
+    step   40: loss=4.1710099394, grad=2.23e-05
+    step   50: loss=4.1710024168, grad=2.65e-05
+    converged at step 53 (grad norm 9.54e-06 < 1e-05)
+...optimization completed in 11.8 seconds (53 steps)
+...final loss: 4.1710016232
+...final weights: total=181240849.82, mean=804.599433, sdev=813.767459
+...target accuracy (550 targets):
+    mean |relative error|: 0.027718
+    max  |relative error|: 0.630401
+    within   0.1%:   97/550 (17.6%)
+    within   1.0%:  369/550 (67.1%)
+    within   5.0%:  490/550 (89.1%)
+    within  10.0%:  517/550 (94.0%)
+    worst targets:
+       63.040% | count/count/AGI in -inf-0/all returns/Single
+       62.824% | adjusted gross income/total/AGI in -inf-0/all returns/Married Filing Separately
+       55.206% | partnership and s corp income/total/AGI in -inf-0/all returns/All
+       51.358% | count/count/AGI in -inf-0/all returns/All
+       48.832% | count/count/AGI in -inf-0/all returns/Head of Household
+       46.805% | adjusted gross income/total/AGI in -inf-0/all returns/Married Filing Jointly/Surviving Spouse
+       46.094% | count/count/AGI in -inf-0/all returns/Married Filing Separately
+       44.423% | adjusted gross income/total/AGI in -inf-0/all returns/All
+       38.895% | capital gains gross/total/AGI in -inf-0/all returns/All
+       38.475% | adjusted gross income/total/AGI in -inf-0/all returns/Single
+...weight changes (vs pre-optimization weights):
+    weight ratio (new/original):
+      min=0.498895, p5=0.498895, median=0.900349, p95=1.995580, max=1.995580
+    distribution of |% change|:
+          <0.01%:      11 (0.0%)
+       0.01-0.1%:     243 (0.1%)
+          0.1-1%:  20,412 (9.1%)
+            1-5%:  12,998 (5.8%)
+           5-10%:  11,220 (5.0%)
+         10-100%: 180,372 (80.1%)
+           >100%:       0 (0.0%)
+...REPRODUCIBILITY FINGERPRINT:
+    weights: n=225256, total=181240849.823434, mean=804.599433, sdev=813.767459
+    weights: min=0.538475, p25=22.013480, p50=705.518969, p75=1367.810687, max=5605.295545
+    sum(weights^2)=294994745149.259766
+    final loss: 4.1710016232
+...reweighting finished
+Weights saved to compare/gpu_weights_bounds_test.csv

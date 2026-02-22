@@ -1,0 +1,98 @@
+Loaded 225256 records from compare/pre_reweight_snapshot.csv.gz
+...reweighting for year 2021
+...weight deviation penalty: 0.01
+...gradient norm tolerance: 1e-05
+...weight multiplier bounds: [0.1, 10.0]
+...GPU available but disabled by user, using CPU
+...pre-scaled weights: target filers=160,824,340, current filers=161,180,573, scale=0.997790
+Targeting 550 SOI statistics
+...input records: 225256, columns: 212
+...input weights: total=183102955.22, mean=812.866051, sdev=733.258325
+...initial loss: 30.1622806381
+...starting L-BFGS optimization (up to 800 steps)
+    step    1: loss=1.4427306263, grad=7.31e-02
+    step    2: loss=0.3713031445, grad=1.35e-02
+    step    3: loss=0.2004057567, grad=6.96e-03
+    step    4: loss=0.1515716113, grad=5.17e-03
+    step    5: loss=0.1404665139, grad=2.23e-03
+    step   10: loss=0.1280947420, grad=1.01e-03
+    step   20: loss=0.1186269172, grad=4.95e-04
+    step   30: loss=0.1166797155, grad=2.99e-04
+    step   40: loss=0.1154537087, grad=2.13e-04
+    step   50: loss=0.1146505280, grad=2.02e-04
+    step   60: loss=0.1140785574, grad=3.18e-04
+    step   70: loss=0.1138259202, grad=9.76e-05
+    step   80: loss=0.1136907384, grad=1.03e-04
+    step   90: loss=0.1135580148, grad=1.66e-04
+    step  100: loss=0.1133701600, grad=9.93e-05
+    step  110: loss=0.1132149498, grad=6.09e-05
+    step  120: loss=0.1131648444, grad=4.43e-05
+    step  130: loss=0.1131048740, grad=7.13e-05
+    step  140: loss=0.1130372254, grad=8.37e-05
+    step  150: loss=0.1129736295, grad=7.84e-05
+    step  160: loss=0.1128972161, grad=8.66e-05
+    step  170: loss=0.1128568916, grad=1.33e-04
+    step  180: loss=0.1128230334, grad=6.27e-05
+    step  190: loss=0.1127967779, grad=3.58e-05
+    step  200: loss=0.1127789505, grad=3.78e-05
+    step  210: loss=0.1127694700, grad=3.07e-05
+    step  220: loss=0.1127585713, grad=7.88e-05
+    step  230: loss=0.1127447960, grad=2.79e-05
+    step  240: loss=0.1127347912, grad=3.27e-05
+    step  250: loss=0.1127271174, grad=2.51e-05
+    step  260: loss=0.1127193162, grad=2.71e-05
+    step  270: loss=0.1127110259, grad=1.67e-05
+    step  280: loss=0.1127039237, grad=2.39e-05
+    step  290: loss=0.1126950443, grad=2.09e-05
+    step  300: loss=0.1126890810, grad=1.86e-05
+    step  310: loss=0.1126791961, grad=1.88e-05
+    step  320: loss=0.1126704312, grad=2.18e-05
+    step  330: loss=0.1126624079, grad=2.84e-05
+    step  340: loss=0.1126556989, grad=2.37e-05
+    step  350: loss=0.1126508699, grad=3.56e-05
+    step  360: loss=0.1126460353, grad=1.49e-05
+    step  370: loss=0.1126415392, grad=2.18e-05
+    step  380: loss=0.1126364530, grad=2.00e-05
+    step  390: loss=0.1126332549, grad=1.35e-05
+    step  400: loss=0.1126296676, grad=1.76e-05
+    step  410: loss=0.1126250681, grad=2.29e-05
+    converged at step 418 (grad norm 9.05e-06 < 1e-05)
+...optimization completed in 1652.4 seconds (418 steps)
+...final loss: 0.1126222979
+...final weights: total=183707144.30, mean=815.548284, sdev=961.671163
+...target accuracy (550 targets):
+    mean |relative error|: 0.001206
+    max  |relative error|: 0.085752
+    within   0.1%:  416/550 (75.6%)
+    within   1.0%:  539/550 (98.0%)
+    within   5.0%:  549/550 (99.8%)
+    within  10.0%:  550/550 (100.0%)
+    worst targets:
+        8.575% | unemployment compensation/count/AGI in -inf-inf/all returns/All
+        2.607% | unemployment compensation/total/AGI in -inf-inf/all returns/All
+        2.018% | employment income/total/AGI in 15k-20k/all returns/All
+        1.908% | count/count/AGI in -inf-0/all returns/Single
+        1.494% | employment income/count/AGI in 10k-15k/all returns/All
+        1.376% | count/count/AGI in -inf-0/all returns/All
+        1.103% | employment income/count/AGI in 15k-20k/all returns/All
+        1.091% | adjusted gross income/total/AGI in 15k-20k/all returns/Single
+        1.073% | employment income/total/AGI in 20k-25k/all returns/All
+        1.014% | employment income/total/AGI in 50k-75k/all returns/All
+...weight changes (vs pre-optimization weights):
+    weight ratio (new/original):
+      min=0.099779, p5=0.099779, median=0.891718, p95=3.747255, max=9.977898
+    distribution of |% change|:
+          <0.01%:       9 (0.0%)
+       0.01-0.1%:     185 (0.1%)
+          0.1-1%:  19,879 (8.8%)
+            1-5%:  12,244 (5.4%)
+           5-10%:  17,353 (7.7%)
+         10-100%: 147,133 (65.3%)
+           >100%:  28,453 (12.6%)
+...REPRODUCIBILITY FINGERPRINT:
+    weights: n=225256, total=183707144.300661, mean=815.548284, sdev=961.671163
+    weights: min=0.107695, p25=15.681872, p50=577.321736, p75=1364.445476, max=16527.649527
+    sum(weights^2)=358141369022.230469
+    final loss: 0.1126222979
+...reweighting finished
+Weights saved to compare/cpu_weights_1e-05.csv

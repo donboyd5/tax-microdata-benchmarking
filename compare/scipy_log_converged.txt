@@ -1,0 +1,117 @@
+Loaded 225256 records from compare/pre_reweight_snapshot.csv.gz
+...reweighting for year 2021
+...weight deviation penalty: 0.01
+...gradient norm tolerance: 1e-05
+...weight multiplier bounds: [0.1, 10.0]
+...GPU available but disabled by user, using CPU
+...pre-scaled weights: target filers=160,824,340, current filers=161,180,573, scale=0.997790
+Targeting 550 SOI statistics
+...input records: 225256, columns: 212
+...input weights: total=183102955.22, mean=812.866051, sdev=733.258325
+...initial loss: 30.1622806381
+...using scipy L-BFGS-B optimizer (Fortran, proper bounds)
+...scipy initial loss: 30.1622806381
+    iter     3: loss=29.3903316116, grad=2.21e-01
+    iter     4: loss=21.3591531962, grad=3.23e-01
+    iter     5: loss=17.4346088141, grad=3.05e-01
+    iter    50: loss=0.7136750892, grad=1.41e-02
+    iter   100: loss=0.2210210003, grad=2.00e-02
+    iter   150: loss=0.1499999906, grad=2.35e-03
+    iter   250: loss=0.1313822292, grad=3.62e-04
+    iter   300: loss=0.1271899425, grad=4.76e-04
+    iter   350: loss=0.1249943864, grad=3.98e-04
+    iter   400: loss=0.1230337442, grad=7.18e-04
+    iter   450: loss=0.1211718153, grad=8.13e-04
+    iter   500: loss=0.1194980986, grad=3.78e-04
+    iter   550: loss=0.1179133161, grad=4.68e-04
+    iter   600: loss=0.1164517906, grad=9.15e-04
+    iter   650: loss=0.1152218803, grad=1.03e-03
+    iter   700: loss=0.1133516096, grad=7.82e-04
+    iter   750: loss=0.1122692374, grad=1.67e-04
+    iter   800: loss=0.1117273509, grad=5.10e-04
+    iter   850: loss=0.1111998977, grad=3.43e-04
+    iter   900: loss=0.1108231727, grad=5.95e-04
+    iter   950: loss=0.1105820263, grad=7.16e-04
+    iter  1000: loss=0.1103784257, grad=1.62e-04
+    iter  1050: loss=0.1102347680, grad=4.02e-04
+    iter  1100: loss=0.1101001834, grad=1.92e-04
+    iter  1150: loss=0.1099125345, grad=4.24e-04
+    iter  1200: loss=0.1096453069, grad=6.99e-04
+    iter  1250: loss=0.1094224366, grad=1.64e-04
+    iter  1300: loss=0.1092103917, grad=2.99e-04
+    iter  1350: loss=0.1090445829, grad=1.36e-04
+    iter  1400: loss=0.1088493222, grad=1.13e-03
+    iter  1450: loss=0.1086426767, grad=3.15e-04
+    iter  1500: loss=0.1084811565, grad=3.28e-04
+    iter  1550: loss=0.1083086829, grad=4.27e-04
+    iter  1600: loss=0.1081424374, grad=2.61e-04
+    iter  1650: loss=0.1080282068, grad=1.81e-04
+    iter  1700: loss=0.1079148427, grad=3.03e-04
+    iter  1750: loss=0.1078336987, grad=1.72e-04
+    iter  1800: loss=0.1077610737, grad=4.68e-04
+    iter  1850: loss=0.1076978173, grad=6.52e-04
+    iter  1900: loss=0.1076314239, grad=1.49e-04
+    iter  1950: loss=0.1075549073, grad=2.23e-04
+    iter  2000: loss=0.1074694922, grad=5.91e-04
+    iter  2050: loss=0.1073968237, grad=2.08e-04
+    iter  2100: loss=0.1073146812, grad=2.57e-04
+    iter  2150: loss=0.1072191270, grad=1.56e-04
+    iter  2200: loss=0.1071092579, grad=2.48e-04
+    iter  2250: loss=0.1070020513, grad=1.58e-04
+    iter  2300: loss=0.1069357015, grad=2.82e-04
+    iter  2350: loss=0.1068912794, grad=1.62e-04
+    iter  2400: loss=0.1068517372, grad=2.76e-04
+    iter  2450: loss=0.1068221392, grad=1.76e-04
+    iter  2500: loss=0.1067775914, grad=1.53e-04
+    iter  2550: loss=0.1067442020, grad=7.08e-04
+    iter  2600: loss=0.1067168620, grad=1.57e-04
+    iter  2650: loss=0.1066911557, grad=1.55e-04
+    iter  2700: loss=0.1066611552, grad=1.61e-04
+    iter  2750: loss=0.1066336993, grad=2.51e-04
+    iter  2800: loss=0.1066083410, grad=1.52e-04
+    iter  2850: loss=0.1065885506, grad=1.54e-04
+    iter  2900: loss=0.1065662409, grad=1.79e-04
+    iter  2950: loss=0.1065433868, grad=1.57e-04
+    iter  3000: loss=0.1065218113, grad=1.54e-04
+...scipy result: success=True, message='CONVERGENCE: NORM OF PROJECTED GRADIENT <= PGTOL'
+...scipy stats: 2940 iterations, 3008 function evaluations
+...scipy final grad norm: 1.53e-04
+...optimization completed in 422.5 seconds (2940 iterations, 3008 function evals)
+...final loss: 0.1065189719
+...final weights: total=183699321.93, mean=815.513558, sdev=952.456801
+...target accuracy (550 targets):
+    mean |relative error|: 0.001253
+    max  |relative error|: 0.085552
+    within   0.1%:  411/550 (74.7%)
+    within   1.0%:  540/550 (98.2%)
+    within   5.0%:  549/550 (99.8%)
+    within  10.0%:  550/550 (100.0%)
+    worst targets:
+        8.555% | unemployment compensation/count/AGI in -inf-inf/all returns/All
+        2.591% | unemployment compensation/total/AGI in -inf-inf/all returns/All
+        2.212% | count/count/AGI in -inf-0/all returns/Single
+        2.036% | employment income/total/AGI in 15k-20k/all returns/All
+        1.592% | count/count/AGI in -inf-0/all returns/All
+        1.446% | employment income/count/AGI in 10k-15k/all returns/All
+        1.112% | employment income/count/AGI in 15k-20k/all returns/All
+        1.095% | adjusted gross income/total/AGI in 15k-20k/all returns/Single
+        1.075% | employment income/total/AGI in 20k-25k/all returns/All
+        1.012% | count/count/AGI in 15k-20k/all returns/Single
+...weight changes (vs pre-optimization weights):
+    weight ratio (new/original):
+      min=0.099779, p5=0.099779, median=0.891599, p95=2.865648, max=9.977898
+    distribution of |% change|:
+          <0.01%:      16 (0.0%)
+       0.01-0.1%:     180 (0.1%)
+          0.1-1%:  20,147 (8.9%)
+            1-5%:  12,626 (5.6%)
+           5-10%:  19,185 (8.5%)
+         10-100%: 150,456 (66.8%)
+           >100%:  22,646 (10.1%)
+...REPRODUCIBILITY FINGERPRINT:
+    weights: n=225256, total=183699321.926071, mean=815.513558, sdev=952.456801
+    weights: min=0.107695, p25=15.392907, p50=625.950803, p75=1363.026814, max=15267.371016
+    sum(weights^2)=354155664610.257080
+    final loss: 0.1065189719
+...reweighting finished
+Weights saved to compare/scipy_weights_converged.csv

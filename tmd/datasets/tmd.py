@@ -1,3 +1,4 @@
+import os
 import sys
 import subprocess
 import tempfile
@@ -57,6 +58,14 @@ def create_tmd_2021():
         snapshot_path = f"{tmpdir}/snapshot.csv.gz"
         result_path = f"{tmpdir}/result.csv.gz"
         combined.to_csv(snapshot_path, index=False)
+        # Save a persistent copy for GPU vs CPU comparison experiments
+        compare_dir = os.path.join(os.getcwd(), "compare")
+        os.makedirs(compare_dir, exist_ok=True)
+        persistent_snapshot = os.path.join(
+            compare_dir, "pre_reweight_snapshot.csv.gz"
+        )
+        combined.to_csv(persistent_snapshot, index=False)
+        print(f"...saved pre-reweight snapshot to {persistent_snapshot}")
         subprocess.run(
             [
                 sys.executable,

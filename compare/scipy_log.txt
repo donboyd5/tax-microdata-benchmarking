@@ -1,0 +1,55 @@
+Loaded 225256 records from compare/pre_reweight_snapshot.csv.gz
+...reweighting for year 2021
+...weight deviation penalty: 0.01
+...gradient norm tolerance: 1e-05
+...weight multiplier bounds: [0.1, 10.0]
+...GPU available but disabled by user, using CPU
+...pre-scaled weights: target filers=160,824,340, current filers=161,180,573, scale=0.997790
+Targeting 550 SOI statistics
+...input records: 225256, columns: 212
+...input weights: total=183102955.22, mean=812.866051, sdev=733.258325
+...initial loss: 30.1622806381
+...using scipy L-BFGS-B optimizer (Fortran, proper bounds)
+...scipy initial loss: 30.1622806381
+...scipy result: success=False, message='STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT'
+...scipy stats: 800 iterations, 827 function evaluations
+...scipy final grad norm: 1.09e-03
+...optimization completed in 115.5 seconds (800 iterations, 827 function evals)
+...final loss: 0.1114657000
+...final weights: total=183674662.11, mean=815.404083, sdev=965.044153
+...target accuracy (550 targets):
+    mean |relative error|: 0.001525
+    max  |relative error|: 0.084599
+    within   0.1%:  371/550 (67.5%)
+    within   1.0%:  539/550 (98.0%)
+    within   5.0%:  549/550 (99.8%)
+    within  10.0%:  550/550 (100.0%)
+    worst targets:
+        8.460% | unemployment compensation/count/AGI in -inf-inf/all returns/All
+        2.483% | unemployment compensation/total/AGI in -inf-inf/all returns/All
+        2.294% | count/count/AGI in -inf-0/all returns/Single
+        2.047% | employment income/total/AGI in 15k-20k/all returns/All
+        1.652% | count/count/AGI in -inf-0/all returns/All
+        1.485% | employment income/count/AGI in 10k-15k/all returns/All
+        1.109% | employment income/count/AGI in 15k-20k/all returns/All
+        1.108% | adjusted gross income/total/AGI in 15k-20k/all returns/Single
+        1.016% | employment income/total/AGI in 20k-25k/all returns/All
+        1.014% | employment income/count/AGI in 5k-10k/all returns/All
+...weight changes (vs pre-optimization weights):
+    weight ratio (new/original):
+      min=0.099779, p5=0.100460, median=0.913733, p95=2.458849, max=9.977898
+    distribution of |% change|:
+          <0.01%:      27 (0.0%)
+       0.01-0.1%:     239 (0.1%)
+          0.1-1%:  21,207 (9.4%)
+            1-5%:  16,445 (7.3%)
+           5-10%:  22,336 (9.9%)
+         10-100%: 146,886 (65.2%)
+           >100%:  18,116 (8.0%)
+...REPRODUCIBILITY FINGERPRINT:
+    weights: n=225256, total=183674662.108901, mean=815.404083, sdev=965.044153
+    weights: min=0.107695, p25=20.014144, p50=600.119420, p75=1357.363343, max=15682.443694
+    sum(weights^2)=359552283758.916138
+    final loss: 0.1114657000
+...reweighting finished
+Weights saved to compare/scipy_weights.csv

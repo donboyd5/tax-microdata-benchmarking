@@ -20,3 +20,6 @@ REWEIGHT_DEVIATION_PENALTY = 0.01
 # penalty value of 1.0 says "this is as important as everything else"
 # penalty value of 0.0 imposes no penalty
 # uses L2 norm: sum((new - original)^2) / sum(original^2)
+REWEIGHT_GRAD_NORM_TOL = 1e-5
+# gradient norm convergence tolerance for L-BFGS optimizer
+# smaller values force tighter convergence (more iterations)

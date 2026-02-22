@@ -1,0 +1,103 @@
+Loaded 225256 records from compare/pre_reweight_snapshot.csv.gz
+...reweighting for year 2021
+...weight deviation penalty: 0.1
+...gradient norm tolerance: 5e-06
+...weight multiplier bounds: [0.1, 10.0]
+...GPU acceleration enabled: NVIDIA GeForce RTX 5070 Ti (15.9 GB)
+...pre-scaled weights: target filers=160,824,340, current filers=161,180,573, scale=0.997790
+Targeting 550 SOI statistics
+...input records: 225256, columns: 212
+...input weights: total=183102955.22, mean=812.866051, sdev=733.258325
+...initial loss: 30.1622806381
+...starting L-BFGS optimization (up to 800 steps)
+    step    1: loss=1.8743644395, grad=7.93e-02
+    step    2: loss=1.0124274667, grad=1.55e-02
+    step    3: loss=0.8608278487, grad=8.09e-03
+    step    4: loss=0.8098838723, grad=5.73e-03
+    step    5: loss=0.7832255850, grad=4.86e-03
+    step   10: loss=0.7261645965, grad=1.20e-03
+    step   20: loss=0.7041702432, grad=7.10e-04
+    step   30: loss=0.6987527751, grad=6.12e-04
+    step   40: loss=0.6949836819, grad=3.83e-04
+    step   50: loss=0.6938185032, grad=2.96e-04
+    step   60: loss=0.6929288642, grad=2.54e-04
+    step   70: loss=0.6923093524, grad=1.74e-04
+    step   80: loss=0.6918032767, grad=9.86e-05
+    step   90: loss=0.6915259537, grad=1.81e-04
+    step  100: loss=0.6912789955, grad=9.45e-05
+    step  110: loss=0.6910760789, grad=1.07e-04
+    step  120: loss=0.6909335261, grad=1.08e-04
+    step  130: loss=0.6907907452, grad=9.17e-05
+    step  140: loss=0.6906771432, grad=1.49e-04
+    step  150: loss=0.6905993257, grad=1.28e-04
+    step  160: loss=0.6905422023, grad=1.07e-04
+    step  170: loss=0.6904997765, grad=7.34e-05
+    step  180: loss=0.6904499814, grad=4.70e-05
+    step  190: loss=0.6904132268, grad=5.15e-05
+    step  200: loss=0.6903878085, grad=4.02e-05
+    step  210: loss=0.6903675521, grad=2.80e-05
+    step  220: loss=0.6903463167, grad=4.63e-05
+    step  230: loss=0.6903136789, grad=4.05e-05
+    step  240: loss=0.6902901983, grad=3.30e-05
+    step  250: loss=0.6902819031, grad=1.59e-05
+    step  260: loss=0.6902756483, grad=1.81e-05
+    step  270: loss=0.6902672944, grad=3.29e-05
+    step  280: loss=0.6902521252, grad=3.11e-05
+    step  290: loss=0.6902361701, grad=3.93e-05
+    step  300: loss=0.6902277573, grad=2.23e-05
+    step  310: loss=0.6902222519, grad=1.91e-05
+    step  320: loss=0.6902182952, grad=1.09e-05
+    step  330: loss=0.6902164147, grad=9.29e-06
+    step  340: loss=0.6902146428, grad=8.94e-06
+    step  350: loss=0.6902126713, grad=1.08e-05
+    step  360: loss=0.6902112825, grad=6.40e-06
+    step  370: loss=0.6902101150, grad=8.05e-06
+    step  380: loss=0.6902091133, grad=8.89e-06
+    step  390: loss=0.6902079863, grad=1.14e-05
+    step  400: loss=0.6902064259, grad=2.23e-05
+    step  410: loss=0.6902042738, grad=1.47e-05
+    step  420: loss=0.6902019711, grad=1.22e-05
+    step  430: loss=0.6902001130, grad=6.44e-06
+    step  440: loss=0.6901993816, grad=6.62e-06
+    step  450: loss=0.6901988531, grad=7.43e-06
+    step  460: loss=0.6901982757, grad=6.22e-06
+    converged at step 469 (grad norm 4.43e-06 < 5e-06)
+...optimization completed in 105.6 seconds (469 steps)
+...final loss: 0.6901978542
+...final weights: total=183042099.50, mean=812.595889, sdev=845.592309
+...target accuracy (550 targets):
+    mean |relative error|: 0.005722
+    max  |relative error|: 0.330998
+    within   0.1%:  249/550 (45.3%)
+    within   1.0%:  476/550 (86.5%)
+    within   5.0%:  544/550 (98.9%)
+    within  10.0%:  547/550 (99.5%)
+    worst targets:
+       33.100% | unemployment compensation/count/AGI in -inf-inf/all returns/All
+       16.417% | count/count/AGI in -inf-0/all returns/Single
+       11.877% | count/count/AGI in -inf-0/all returns/All
+        7.225% | unemployment compensation/total/AGI in -inf-inf/all returns/All
+        5.977% | employment income/total/AGI in 15k-20k/all returns/All
+        5.144% | employment income/count/AGI in 10k-15k/all returns/All
+        4.743% | capital gains losses/count/AGI in -inf-inf/all returns/All
+        4.598% | employment income/total/AGI in 20k-25k/all returns/All
+        4.311% | employment income/count/AGI in 15k-20k/all returns/All
+        4.280% | capital gains gross/count/AGI in 100k-200k/all returns/All
+...weight changes (vs pre-optimization weights):
+    weight ratio (new/original):
+      min=0.099779, p5=0.099779, median=0.896623, p95=4.814209, max=9.977898
+    distribution of |% change|:
+          <0.01%:      18 (0.0%)
+       0.01-0.1%:     374 (0.2%)
+          0.1-1%:  21,084 (9.4%)
+            1-5%:  13,978 (6.2%)
+           5-10%:  16,545 (7.3%)
+         10-100%: 147,137 (65.3%)
+           >100%:  26,120 (11.6%)
+...REPRODUCIBILITY FINGERPRINT:
+    weights: n=225256, total=183042099.498187, mean=812.595889, sdev=845.592309
+    weights: min=0.107695, p25=15.392907, p50=650.026431, p75=1407.455218, max=16527.649527
+    sum(weights^2)=309803233563.234985
+    final loss: 0.6901978542
+...reweighting finished
+Weights saved to compare/gpu_weights_5e-06.csv

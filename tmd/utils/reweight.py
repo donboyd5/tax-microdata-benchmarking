@@ -14,6 +14,7 @@ from tmd.imputation_assumptions import (
     REWEIGHT_MULTIPLIER_MIN,
     REWEIGHT_MULTIPLIER_MAX,
     REWEIGHT_DEVIATION_PENALTY,
+    REWEIGHT_GRAD_NORM_TOL,
 )
 
 TAX_YEAR = 2021  # set equal to TAXYEAR in create_taxcalc_input_variables.py
@@ -206,7 +207,11 @@ def reweight(
     weight_multiplier_min: float = REWEIGHT_MULTIPLIER_MIN,
     weight_multiplier_max: float = REWEIGHT_MULTIPLIER_MAX,
     weight_deviation_penalty: float = REWEIGHT_DEVIATION_PENALTY,
+    grad_norm_tol: float = REWEIGHT_GRAD_NORM_TOL,
     use_gpu: bool = True,
+    use_lbfgsb: bool = False,
+    use_scipy: bool = False,
+    use_osqp: bool = False,
 ):
     targets = pd.read_csv(STORAGE_FOLDER / "input" / "soi.csv")
 
@@ -214,6 +219,7 @@ def reweight(
         raise ValueError(f"Year {time_period} not in targets.")
     print(f"...reweighting for year {time_period}")
     print(f"...weight deviation penalty: {weight_deviation_penalty}")
+    print(f"...gradient norm tolerance: {grad_norm_tol:.0e}")
     print(
         f"...weight multiplier bounds: "
         f"[{weight_multiplier_min}, {weight_multiplier_max}]"
@@ -328,89 +334,474 @@ def reweight(
     original_loss_value = (((outputs + 1) / (target_array + 1) - 1) ** 2).sum()
     print(f"...initial loss: {original_loss_value.item():.10f}")
 
-    # L-BFGS optimizer: quasi-Newton method with line search.
-    # Converges much faster than Adam for this smooth problem.
-    # The closure function is called multiple times per step
-    # (line search).
-    max_lbfgs_iter = 800
-    optimizer = torch.optim.LBFGS(
-        [weight_multiplier],
-        max_iter=20,  # max line-search iterations per step
-        history_size=10,  # past gradients for Hessian approx
-        line_search_fn="strong_wolfe",
-    )
+    if use_scipy:
+        # ---- Scipy L-BFGS-B path (CPU, Fortran, deterministic) ----
+        from scipy.optimize import minimize as scipy_minimize
 
-    step_count = 0
-    loss_value = None
+        print("...using scipy L-BFGS-B optimizer (Fortran, proper bounds)")
 
-    def closure():
-        nonlocal loss_value
-        optimizer.zero_grad()
-        new_weights = weights * torch.clamp(
-            weight_multiplier,
-            min=weight_multiplier_min,
-            max=weight_multiplier_max,
+        # Convert to numpy for scipy
+        w0_np = flat_file.s006.values.astype(np.float64)  # prescaled weights
+        A_np = output_matrix.values.astype(np.float64)  # 225K x 550
+        t_np = target_array.detach().cpu().numpy()  # 550
+        L0 = original_loss_value.item()
+
+        # Build scaled matrix: B[i,j] = w0[i] * A[i,j] / (t[j] + 1)
+        # so that loss = ||B^T m - c||^2 where c[j] = t[j]/(t[j]+1)
+        scale = 1.0 / (t_np + 1.0)  # 550
+        B = w0_np[:, None] * A_np * scale[None, :]  # 225K x 550
+        c = t_np * scale  # 550
+
+        # Penalty coefficient per multiplier:
+        # penalty_i = penalty * L0 * w0_i^2 / sum(w0^2)
+        w0_sq_sum = np.sum(w0_np**2)
+        lam = weight_deviation_penalty * L0 * (w0_np**2) / w0_sq_sum
+
+        n_calls = [0]
+        iter_state = {"last_loss": None, "last_grad": None}
+
+        def objective_and_grad(m):
+            n_calls[0] += 1
+            residual = B.T @ m - c
+            target_loss = np.dot(residual, residual)
+            dev = m - 1.0
+            penalty_loss = np.dot(lam, dev**2)
+            loss = target_loss + penalty_loss
+            grad = 2.0 * (B @ residual) + 2.0 * lam * dev
+            iter_state["last_loss"] = loss
+            iter_state["last_grad"] = np.max(np.abs(grad))
+            return loss, grad
+
+        def scipy_callback(xk):
+            """Print progress every 10 iterations."""
+            nit = n_calls[0]
+            loss = iter_state["last_loss"]
+            gnorm = iter_state["last_grad"]
+            if nit <= 5 or nit % 50 == 0:
+                print(
+                    f"    iter {nit:>5d}: "
+                    f"loss={loss:.10f}, "
+                    f"grad={gnorm:.2e}",
+                    flush=True,
+                )
+
+        m0 = np.ones(len(w0_np), dtype=np.float64)
+        bounds = [
+            (weight_multiplier_min, weight_multiplier_max)
+        ] * len(m0)
+
+        init_loss, _ = objective_and_grad(m0)
+        print(f"...scipy initial loss: {init_loss:.10f}")
+
+        optimization_start_time = time.time()
+        result = scipy_minimize(
+            objective_and_grad,
+            m0,
+            method="L-BFGS-B",
+            jac=True,
+            bounds=bounds,
+            callback=scipy_callback,
+            options={
+                "maxiter": 4000,
+                "ftol": 0,
+                "gtol": grad_norm_tol,
+                "maxcor": 10,
+                "disp": False,
+            },
         )
+
+        m_final = result.x
+        final_weights_np = w0_np * np.clip(
+            m_final, weight_multiplier_min, weight_multiplier_max
+        )
+        step_count = result.nit
+
+        # Compute final outputs for reporting (using torch for consistency)
+        final_weights_tensor = torch.tensor(
+            final_weights_np, dtype=torch.float64, device="cpu"
+        )
+        output_matrix_cpu = torch.tensor(
+            A_np, dtype=torch.float64, device="cpu"
+        )
+        target_array_cpu = torch.tensor(
+            t_np, dtype=torch.float64, device="cpu"
+        )
+        outputs = (
+            final_weights_tensor * output_matrix_cpu.T
+        ).sum(axis=1)
+        new_weights = final_weights_tensor
+        target_array = target_array_cpu
+
+        final_loss_val = result.fun
+        print(
+            f"...scipy result: success={result.success}, "
+            f"message='{result.message}'"
+        )
+        print(
+            f"...scipy stats: {result.nit} iterations, "
+            f"{n_calls[0]} function evaluations"
+        )
+        print(f"...scipy final grad norm: {np.max(np.abs(result.jac)):.2e}")
+
+        # Set variables needed by reporting section below
+        class _LossValue:
+            def item(self):
+                return final_loss_val
+        loss_value = _LossValue()
+
+        optimization_end_time = time.time()
+        optimization_duration = (
+            optimization_end_time - optimization_start_time
+        )
+        final_loss = final_loss_val
+        print(
+            f"...optimization completed in "
+            f"{optimization_duration:.1f} seconds "
+            f"({step_count} iterations, "
+            f"{n_calls[0]} function evals)"
+        )
+        print(f"...final loss: {final_loss:.10f}")
+
+        final_weights = final_weights_np
+
+    elif use_osqp:
+        # ---- OSQP path (ADMM-based QP, CPU, deterministic) ----
+        import osqp
+        from scipy import sparse
+
+        print("...using OSQP solver (ADMM-based QP, proper bounds)")
+
+        # Convert to numpy for OSQP
+        w0_np = flat_file.s006.values.astype(np.float64)
+        A_np = output_matrix.values.astype(np.float64)  # n_records x n_targets
+        t_np = target_array.detach().cpu().numpy()
+        L0 = original_loss_value.item()
+
+        n_records = len(w0_np)
+        n_tgt = len(t_np)
+
+        # Build scaled matrix: B[i,j] = w0[i] * A[i,j] / (t[j] + 1)
+        scale = 1.0 / (t_np + 1.0)
+        B = w0_np[:, None] * A_np * scale[None, :]  # n_records x n_tgt
+        c = t_np * scale
+
+        # Penalty coefficients per multiplier
+        w0_sq_sum = np.sum(w0_np**2)
+        lam = weight_deviation_penalty * L0 * (w0_np**2) / w0_sq_sum
+
+        # Reformulate to avoid forming the dense n_records x n_records
+        # matrix P = 2*(B B^T + diag(lam)).
+        #
+        # Introduce auxiliary residual variables r (n_tgt):
+        #   r = B^T m - c   (equality constraint)
+        #
+        # Objective becomes:
+        #   ||r||^2 + sum lam_i (m_i - 1)^2
+        # which is QP in x = [m, r]:
+        #   (1/2) x^T P x + q^T x
+        #   P = block_diag(2*diag(lam), 2*I_tgt)   (diagonal!)
+        #   q = [-2*lam, 0]
+        #
+        # Constraints:
+        #   B^T m - r = c          (n_tgt equality rows)
+        #   lb <= m <= ub           (n_records bound rows)
+        #   r is free               (-inf <= r <= inf, via bound rows)
+
+        n_vars = n_records + n_tgt
+
+        # P matrix — sparse diagonal
+        P_diag = np.concatenate([2.0 * lam, 2.0 * np.ones(n_tgt)])
+        P_qp = sparse.diags(P_diag, format="csc")
+
+        # q vector
+        q_qp = np.concatenate([-2.0 * lam, np.zeros(n_tgt)])
+
+        # Constraint matrix A_osqp:
+        # Row block 1: [B^T, -I_tgt]   (n_tgt rows — equality)
+        # Row block 2: [I_records, 0]   (n_records rows — bounds on m)
+        # Row block 3: [0, I_tgt]       (n_tgt rows — r is free)
+        B_sparse = sparse.csc_matrix(B.T)  # n_tgt x n_records
+        A_eq = sparse.hstack(
+            [B_sparse, -sparse.eye(n_tgt, format="csc")], format="csc"
+        )
+        A_bounds_m = sparse.hstack(
+            [
+                sparse.eye(n_records, format="csc"),
+                sparse.csc_matrix((n_records, n_tgt)),
+            ],
+            format="csc",
+        )
+        A_bounds_r = sparse.hstack(
+            [
+                sparse.csc_matrix((n_tgt, n_records)),
+                sparse.eye(n_tgt, format="csc"),
+            ],
+            format="csc",
+        )
+        A_osqp = sparse.vstack(
+            [A_eq, A_bounds_m, A_bounds_r], format="csc"
+        )
+
+        # Lower and upper bounds for constraints
+        inf_arr = np.inf * np.ones(n_tgt)
+        l_osqp = np.concatenate([
+            c,  # equality: B^T m - r = c
+            weight_multiplier_min * np.ones(n_records),  # m bounds
+            -inf_arr,  # r is free
+        ])
+        u_osqp = np.concatenate([
+            c,  # equality: B^T m - r = c
+            weight_multiplier_max * np.ones(n_records),  # m bounds
+            inf_arr,  # r is free
+        ])
+
+        nnz_B = np.count_nonzero(B)
+        nnz_A = A_osqp.nnz
+        print(
+            f"...QP size: {n_vars} variables, "
+            f"{n_tgt + n_records + n_tgt} constraints"
+        )
+        print(
+            f"...B matrix: {n_records}x{n_tgt}, "
+            f"{nnz_B:,} nonzeros "
+            f"({nnz_B / (n_records * n_tgt) * 100:.1f}% dense)"
+        )
+        print(f"...A_osqp: {A_osqp.shape}, {nnz_A:,} nonzeros")
+
+        # Compute initial loss for comparison
+        init_r = B.T @ np.ones(n_records) - c
+        init_loss = np.dot(init_r, init_r) + np.dot(lam, np.zeros(n_records)**2)
+        print(f"...OSQP initial loss: {init_loss:.10f}")
+
+        optimization_start_time = time.time()
+
+        solver = osqp.OSQP()
+        solver.setup(
+            P_qp,
+            q_qp,
+            A_osqp,
+            l_osqp,
+            u_osqp,
+            verbose=True,
+            eps_abs=1e-5,
+            eps_rel=1e-5,
+            max_iter=50000,
+            polish=True,
+            adaptive_rho=True,
+            rho=5e-4,
+            sigma=1e-4,
+        )
+
+        result = solver.solve()
+
+        optimization_end_time = time.time()
+        optimization_duration = (
+            optimization_end_time - optimization_start_time
+        )
+
+        print(f"...OSQP status: {result.info.status}")
+        print(f"...OSQP iterations: {result.info.iter}")
+        print(
+            f"...OSQP primal residual: {result.info.prim_res:.2e}, "
+            f"dual residual: {result.info.dual_res:.2e}"
+        )
+
+        m_final = result.x[:n_records]
+        r_final = result.x[n_records:]
+
+        # Clip multipliers to bounds (polishing may leave tiny violations)
+        m_final = np.clip(m_final, weight_multiplier_min, weight_multiplier_max)
+        final_weights_np = w0_np * m_final
+
+        # Compute the actual loss for comparison with other solvers
+        residual = B.T @ m_final - c
+        target_loss = np.dot(residual, residual)
+        dev = m_final - 1.0
+        penalty_loss = np.dot(lam, dev**2)
+        final_loss_val = target_loss + penalty_loss
+
+        step_count = result.info.iter
+
+        # Compute final outputs for reporting (using torch for consistency)
+        final_weights_tensor = torch.tensor(
+            final_weights_np, dtype=torch.float64, device="cpu"
+        )
+        output_matrix_cpu = torch.tensor(
+            A_np, dtype=torch.float64, device="cpu"
+        )
+        target_array_cpu = torch.tensor(
+            t_np, dtype=torch.float64, device="cpu"
+        )
+        outputs = (
+            final_weights_tensor * output_matrix_cpu.T
+        ).sum(axis=1)
+        new_weights = final_weights_tensor
+        target_array = target_array_cpu
+
+        class _LossValue:
+            def item(self):
+                return final_loss_val
+
+        loss_value = _LossValue()
+        final_loss = final_loss_val
+
+        print(
+            f"...optimization completed in "
+            f"{optimization_duration:.1f} seconds "
+            f"({step_count} iterations)"
+        )
+        print(f"...final loss: {final_loss:.10f}")
+
+        final_weights = final_weights_np
+
+    else:
+        # ---- PyTorch optimizer path (GPU or CPU) ----
+        max_lbfgs_iter = 800
+        step_count = 0
+        loss_value = None
+        stagnation_window = 50
+        recent_losses = []
+
+        if use_lbfgsb:
+            from tmd.utils.lbfgsb import LBFGSB
+
+            lower_bound = torch.full_like(
+                weight_multiplier, weight_multiplier_min
+            )
+            upper_bound = torch.full_like(
+                weight_multiplier, weight_multiplier_max
+            )
+            optimizer = LBFGSB(
+                [weight_multiplier],
+                lower_bound=lower_bound,
+                upper_bound=upper_bound,
+                max_iter=10,
+                tolerance_grad=grad_norm_tol,
+                tolerance_change=1e-20,
+                history_size=10,
+            )
+            print(
+                "...using L-BFGS-B optimizer (projected gradient bounds)"
+            )
+
+            def closure():
+                nonlocal loss_value
+                optimizer.zero_grad()
+                new_weights = weights * weight_multiplier
+                outputs = (
+                    new_weights * output_matrix_tensor.T
+                ).sum(axis=1)
+                weight_deviation = (
+                    ((new_weights - original_weights) ** 2).sum()
+                    / (original_weights**2).sum()
+                    * weight_deviation_penalty
+                    * original_loss_value
+                )
+                loss_value = (
+                    ((outputs + 1) / (target_array + 1) - 1) ** 2
+                ).sum() + weight_deviation
+                loss_value.backward()
+                return loss_value
+        else:
+            optimizer = torch.optim.LBFGS(
+                [weight_multiplier],
+                max_iter=20,
+                history_size=10,
+                tolerance_change=0,
+                line_search_fn="strong_wolfe",
+            )
+            print("...using L-BFGS optimizer (clamped bounds)")
+
+            def closure():
+                nonlocal loss_value
+                optimizer.zero_grad()
+                new_weights = weights * torch.clamp(
+                    weight_multiplier,
+                    min=weight_multiplier_min,
+                    max=weight_multiplier_max,
+                )
+                outputs = (
+                    new_weights * output_matrix_tensor.T
+                ).sum(axis=1)
+                weight_deviation = (
+                    ((new_weights - original_weights) ** 2).sum()
+                    / (original_weights**2).sum()
+                    * weight_deviation_penalty
+                    * original_loss_value
+                )
+                loss_value = (
+                    ((outputs + 1) / (target_array + 1) - 1) ** 2
+                ).sum() + weight_deviation
+                loss_value.backward()
+                return loss_value
+
+        optimizer_label = "L-BFGS-B" if use_lbfgsb else "L-BFGS"
+        print(
+            f"...starting {optimizer_label} optimization "
+            f"(up to {max_lbfgs_iter} steps)"
+        )
+        optimization_start_time = time.time()
+
+        for step_count in range(1, max_lbfgs_iter + 1):
+            optimizer.step(closure)
+            current_loss = loss_value.item()
+            grad_norm = (
+                weight_multiplier.grad.norm().item()
+                if weight_multiplier.grad is not None
+                else float("inf")
+            )
+            if step_count % 10 == 0 or step_count <= 5:
+                print(
+                    f"    step {step_count:>4d}: "
+                    f"loss={current_loss:.10f}, "
+                    f"grad={grad_norm:.2e}"
+                )
+            if grad_norm < grad_norm_tol:
+                print(
+                    f"    converged at step {step_count} "
+                    f"(grad norm {grad_norm:.2e} < {grad_norm_tol:.0e})"
+                )
+                break
+            recent_losses.append(current_loss)
+            if len(recent_losses) > stagnation_window:
+                recent_losses.pop(0)
+            if len(recent_losses) == stagnation_window:
+                loss_range = max(recent_losses) - min(recent_losses)
+                if loss_range < 1e-12:
+                    print(
+                        f"    stagnated at step {step_count} "
+                        f"(loss range {loss_range:.2e} over last "
+                        f"{stagnation_window} steps, "
+                        f"grad={grad_norm:.2e})"
+                    )
+                    break
+
+        # Recompute final weights and outputs
+        if use_lbfgsb:
+            new_weights = weights * weight_multiplier
+        else:
+            new_weights = weights * torch.clamp(
+                weight_multiplier,
+                min=weight_multiplier_min,
+                max=weight_multiplier_max,
+            )
         outputs = (new_weights * output_matrix_tensor.T).sum(axis=1)
-        weight_deviation = (
-            ((new_weights - original_weights) ** 2).sum()
-            / (original_weights**2).sum()
-            * weight_deviation_penalty
-            * original_loss_value
+
+        optimization_end_time = time.time()
+        optimization_duration = (
+            optimization_end_time - optimization_start_time
         )
-        loss_value = (
-            ((outputs + 1) / (target_array + 1) - 1) ** 2
-        ).sum() + weight_deviation
-        loss_value.backward()
-        return loss_value
-
-    print(f"...starting L-BFGS optimization (up to {max_lbfgs_iter} steps)")
-    optimization_start_time = time.time()
-
-    for step_count in range(1, max_lbfgs_iter + 1):
-        optimizer.step(closure)
-        current_loss = loss_value.item()
-        grad_norm = (
-            weight_multiplier.grad.norm().item()
-            if weight_multiplier.grad is not None
-            else float("inf")
+        final_loss = loss_value.item()
+        print(
+            f"...optimization completed in "
+            f"{optimization_duration:.1f} seconds "
+            f"({step_count} steps)"
         )
-        if step_count % 10 == 0 or step_count <= 5:
-            print(
-                f"    step {step_count:>4d}: loss={current_loss:.10f}, "
-                f"grad={grad_norm:.2e}"
-            )
-        # Convergence check: gradient norm is the proper first-order
-        # optimality condition (vs loss-change which can falsely trigger
-        # when the Hessian approximation is poor and steps are tiny)
-        if grad_norm < 1e-5:
-            print(
-                f"    converged at step {step_count} "
-                f"(grad norm {grad_norm:.2e} < 1e-5)"
-            )
-            break
+        print(f"...final loss: {final_loss:.10f}")
 
-    # Recompute final weights and outputs after optimization
-    new_weights = weights * torch.clamp(
-        weight_multiplier,
-        min=weight_multiplier_min,
-        max=weight_multiplier_max,
-    )
-    outputs = (new_weights * output_matrix_tensor.T).sum(axis=1)
+        final_weights = new_weights.detach().cpu().numpy()
 
-    optimization_end_time = time.time()
-    optimization_duration = optimization_end_time - optimization_start_time
-
-    final_loss = loss_value.item()
-    print(
-        f"...optimization completed in "
-        f"{optimization_duration:.1f} seconds "
-        f"({step_count} steps)"
-    )
-    print(f"...final loss: {final_loss:.10f}")
-
-    # Move final weights back to CPU for numpy conversion
-    final_weights = new_weights.detach().cpu().numpy()
+    # ---- Shared reporting section ----
     print(
         f"...final weights: total={final_weights.sum():.2f}, "
         f"mean={final_weights.mean():.6f}, "
@@ -418,22 +809,35 @@ def reweight(
     )
 
     # Target hit statistics
-    rel_errors = (
-        ((outputs + 1) / (target_array + 1) - 1).detach().cpu().numpy()
-    )
+    if isinstance(outputs, torch.Tensor):
+        rel_errors = (
+            ((outputs + 1) / (target_array + 1) - 1)
+            .detach()
+            .cpu()
+            .numpy()
+        )
+        n_targets = len(target_array)
+    else:
+        t_np = target_array.detach().cpu().numpy() if isinstance(
+            target_array, torch.Tensor
+        ) else target_array
+        rel_errors = (
+            (outputs.detach().cpu().numpy() + 1) / (t_np + 1) - 1
+        )
+        n_targets = len(t_np)
+
     abs_rel_errors = np.abs(rel_errors)
-    print(f"...target accuracy ({len(target_array)} targets):")
-    print(f"    mean |relative error|: " f"{abs_rel_errors.mean():.6f}")
-    print(f"    max  |relative error|: " f"{abs_rel_errors.max():.6f}")
+    print(f"...target accuracy ({n_targets} targets):")
+    print(f"    mean |relative error|: {abs_rel_errors.mean():.6f}")
+    print(f"    max  |relative error|: {abs_rel_errors.max():.6f}")
     pct_bins = [0.001, 0.01, 0.05, 0.10]
     for threshold in pct_bins:
         n_within = (abs_rel_errors <= threshold).sum()
         print(
             f"    within {threshold * 100:5.1f}%: "
-            f"{n_within:>4d}/{len(target_array)} "
-            f"({n_within / len(target_array) * 100:.1f}%)"
+            f"{n_within:>4d}/{n_targets} "
+            f"({n_within / n_targets * 100:.1f}%)"
         )
-    # Show worst 10 targets
     worst_idx = np.argsort(abs_rel_errors)[::-1][:10]
     print("    worst targets:")
     for idx in worst_idx:
@@ -475,9 +879,6 @@ def reweight(
             f"({count / len(abs_pct) * 100:.1f}%)"
         )
 
-    # Reproducibility fingerprint: compare these values across
-    # machines to verify near-identical results (agreement to
-    # ~4-6 significant figures = good)
     print("...REPRODUCIBILITY FINGERPRINT:")
     print(
         f"    weights: n={len(final_weights)}, "
@@ -492,7 +893,7 @@ def reweight(
         f"p75={np.percentile(final_weights, 75):.6f}, "
         f"max={final_weights.max():.6f}"
     )
-    print(f"    sum(weights^2)=" f"{np.sum(final_weights**2):.6f}")
+    print(f"    sum(weights^2)={np.sum(final_weights**2):.6f}")
     print(f"    final loss: {final_loss:.10f}")
 
     print("...reweighting finished")
