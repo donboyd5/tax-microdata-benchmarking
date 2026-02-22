@@ -125,3 +125,51 @@ The scipy implementation uses analytical gradient:
 grad_i = 2 * sum_j B_ij * (sum_k B_kj * m_k - c_j) + 2 * lam_i * (m_i - 1)
 ```
 where B_ij = w0_i * A_ij / (t_j + 1), c_j = t_j / (t_j + 1)
+
+## Session 2026-02-21: Issue Drafting and QP Framing
+
+### Key insight documented
+
+The existing objective function **already is** a bound-constrained convex QP.
+We aren't changing the objective — we're recognizing its structure and switching
+to a solver (scipy L-BFGS-B) that properly exploits it:
+- Projected-gradient bounds instead of clamping
+- Analytical gradient instead of autograd
+- Unique minimum guarantee (positive definite Hessian)
+
+The NLP and QP formulations are algebraically identical — expanding the squares
+in the NLP form and collecting terms gives standard QP form:
+  min (1/2) m^T P m + q^T m   s.t.  m_min <= m_i <= m_max
+where P = 2(B^T B + diag(lambda)), q = -2(B^T c + lambda)
+
+### Why not JAX?
+
+The scipy solver uses a hand-coded analytical gradient (plain numpy). JAX or
+any AD framework would give the same gradient but adds unnecessary complexity
+for a QP — the gradient is just a linear function (matrix-vector multiply +
+element-wise ops). AD is valuable for complex objectives where hand-deriving
+the gradient is error-prone; for a QP it's overkill.
+
+### PyTorch CPU convergence clarification
+
+Full-pipeline `make clean && make data` on CPU (no GPU) showed PyTorch L-BFGS
+**does converge** at grad_norm < 1e-5 (step 418, 1652s, loss=0.1126). The
+"Stagnated" label in the results table was from earlier subprocess-isolated
+experiments with tighter tolerances. The key point remains: both GPU and CPU
+converge, but to **different points** on the clamping plateau, so weights
+diverge across machines.
+
+### GitHub issue draft
+
+Draft issue for @martinholmer created in:
+  `session_notes/reweighting_solver_issue_draft.md`
+
+Proposed two-part solution:
+1. Reformulate as QP + switch to scipy L-BFGS-B
+2. Create gold-star weights committed to master
+
+Plan: implement when 2022 targets are updated (non-disruptive timing).
+
+### Files created this session (in session_notes/)
+- `reweighting_solver_issue_draft.md` -- GitHub issue draft with formulas
+- `gold_standard_implementation_snippet.md` -- Implementation strategy snippet
