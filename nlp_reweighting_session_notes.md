@@ -3,14 +3,14 @@
 # Session Notes: Constrained Optimization (NLP) Reweighting
 
 *Branch: `experiment-nlp`*
-*Last updated: 2026-02-25*
+*Last updated: 2026-02-25 (afternoon ET)*
 
 ---
 
 ## Current Status
 
-**Initial implementation complete and tested on real data (225K records, 548 targets).**
-**IPOPT converged in 28 iterations, 820 seconds. All 548 constraints satisfied (zero slack).**
+**Clarabel is default solver. Per-constraint tolerance overrides and dual-based
+constraint cost reporting implemented. UC re-enabled with ±5% override.**
 
 ---
 
@@ -42,18 +42,60 @@
 
 ### Comparison with PyTorch L-BFGS (PR #407)
 
-| Metric | PyTorch L-BFGS | IPOPT NLP |
-|--------|---------------|-----------|
-| Approach | Penalty-based | Constrained |
-| Target guarantee | No (soft) | Yes (within ε) |
-| Runtime | ~90s GPU, ~180s CPU | ~820s CPU |
-| All within ±0.5% | ~81% | 81.9% (guaranteed) |
-| Weight deviation | Unknown | 22.014 |
-| Infeasibility handling | Manual target curation | Automatic (slack) |
+| Metric | PyTorch L-BFGS | IPOPT NLP | Clarabel NLP |
+|--------|---------------|-----------|-------------|
+| Approach | Penalty-based | Constrained | Constrained |
+| Target guarantee | No (soft) | Yes (within ε) | Yes (within ε) |
+| Runtime | ~90s GPU, ~180s CPU | ~820s CPU | **~14s CPU** |
+| All within ±0.5% | ~81% | 81.9% (guaranteed) | 98.2% (guaranteed) |
+| Weight deviation | Unknown | 22.014 | 22.014 |
+| Infeasibility handling | Manual target curation | Automatic (slack) | Automatic (slack) |
+| Dependencies | PyTorch | cyipopt + MUMPS | clarabel (pip) |
 
-**Key observation:** Runtime is slower than PyTorch L-BFGS (820s vs 90-180s).
-The bottleneck is MUMPS linear algebra (808s of 820s total). HSL MA57/MA97
-could significantly reduce this — the KKT system is sparse and structured.
+**Clarabel is the recommended solver** — 57x faster than IPOPT, same solution
+quality, and only requires `pip install clarabel` (no system libraries).
+
+### Unemployment compensation experiments (2026-02-25)
+
+UC was initially dropped from the target list because it's hard to match.
+Three scenarios tested with Clarabel:
+
+| Scenario | Targets | Objective | UC tolerance | Notes |
+|----------|---------|-----------|-------------|-------|
+| UC dropped | 548 | **22.01** | n/a | Baseline |
+| UC at ±0.5% | 550 | **118** | 0.5% (default) | Severe weight distortion |
+| UC at ±5% | 550 | **31.11** | 5% (relaxed) | Acceptable compromise |
+
+UC at default ±0.5% causes 5.3x objective increase (22→118). Relaxing to ±5%
+brings it down to 31 — still 41% above no-UC, but weight distortion is manageable.
+
+Per-constraint tolerance overrides implemented:
+```python
+reweight_nlp(df, 2021, tolerance_overrides={"unemployment compensation": 0.05})
+```
+
+### Constraint cost reporting (2026-02-25)
+
+Dual variables from Clarabel (`result.z`) now extracted and used to compute
+marginal cost per 1 percentage point of tolerance relaxation:
+`cost_per_pp[j] = dual[j] * |target_j| * 0.01`
+
+Top 5 most expensive constraints (UC at ±5% run):
+
+| Rank | cost/pp | Target |
+|------|---------|--------|
+| 1 | 26.40 | employment income/count/50k-75k |
+| 2 | 25.19 | employment income/total/50k-75k |
+| 3 | 9.57 | employment income/count/40k-50k |
+| 4 | 9.22 | employment income/total/40k-50k |
+| 5 | 8.09 | employment income/total/15k-20k |
+| 11 | 4.66 | unemployment compensation/count (at ±5%) |
+
+Interpretation: cost/pp is a marginal (local) estimate — the derivative of the
+objective with respect to tolerance at the current solution. Employment income
+constraints in the 40k-75k AGI range are the biggest drivers of weight distortion.
+UC at ±5% still has significant marginal cost (4.66), suggesting it would need
+±8-10% before its dual drops to near zero.
 
 ### MUMPS tuning attempt
 Tested with `OMP_NUM_THREADS=16`, `mumps_permuting_scaling=7`, `mumps_scaling=77`,
@@ -65,6 +107,26 @@ from MUMPS reordering/scaling. Real speedup requires HSL or Schur complement.
 Fixed dense intermediate B matrix (225K × 548 × 8 bytes ≈ 1GB waste). Now uses
 sparse-only path: `A_csc = csc_matrix(A); B_csc = spdiags(w0) @ A_csc`. Peak
 memory for constraint matrix reduced from ~2GB to ~90MB.
+
+### Alternative solver results (2026-02-25)
+
+| Solver | Time | Iterations | Objective | Status |
+|--------|------|-----------|-----------|--------|
+| IPOPT/MUMPS | 820s | 28 | 22.01392 | Optimal |
+| OSQP (1K iter) | 6.2s | 1000 | 57.3 | Max iter (not converged) |
+| OSQP (10K iter) | 55s | 10000 | 24.9 | Max iter (not converged) |
+| **Clarabel** | **14.4s** | **33** | **22.01403** | **AlmostSolved** |
+
+**Clarabel is the recommended solver.** 57x faster than IPOPT with identical
+solution quality. Interior-point method (like IPOPT) but designed for sparse
+conic QPs — no MUMPS dependency. Uses `faer` linear algebra (Rust, 32 threads).
+
+OSQP (ADMM first-order method) converges quickly to rough solutions but slowly
+to high precision. Not suitable for matching IPOPT's objective quality.
+
+Weight distributions match between IPOPT and Clarabel to 4+ decimal places:
+- IPOPT total: 183,488,183.32, objective: 22.0139152
+- Clarabel total: 183,488,178.91, objective: 22.0140317
 
 ---
 
@@ -167,13 +229,15 @@ should be sufficient. HSL MA57/MA97 available as future optimization via
 - Elastic/slack formulation always active with large penalty (1e6)
 - Non-zero slacks identify problematic constraints in output
 
-### C. Dropped targets
-- `unemployment_compensation` dropped initially (matching experiment-scipy-lbfgsb)
-- 4 estate/rental variables already commented out in master
-- Eventually: elastic formulation handles these automatically (no manual curation)
+### C. Target handling
+- `unemployment_compensation` re-enabled with ±5% tolerance override
+- 4 estate/rental variables still commented out in master
+- Per-constraint tolerance overrides handle problematic targets without dropping them
+- Dual-based constraint cost reporting identifies expensive constraints automatically
 
-### D. Solver fallback
-- Primary: IPOPT (cyipopt Problem class with analytical Hessian)
+### D. Solver
+- Primary: Clarabel (default) — 14s, pip-installable, interior-point conic QP
+- Alternative: IPOPT (820s, requires cyipopt + MUMPS)
 - Fallback: scipy trust-constr (no installation needed, uses BFGS approximation)
 
 ---
@@ -181,13 +245,14 @@ should be sufficient. HSL MA57/MA97 available as future optimization via
 ## Files
 
 ### New files
-- `tmd/utils/reweight_nlp.py` — Constrained optimization solver
+- `tmd/utils/reweight_nlp.py` — Constrained optimization solver (Clarabel/IPOPT)
+- `test_nlp_reweight.py` — Standalone test script (runs Clarabel on existing tmd.csv.gz)
 - `session_notes/nlp_reweighting_session_notes.md` — This file
 
 ### Modified files
 - `tmd/imputation_assumptions.py` — NLP constants (tolerance, slack penalty, max iter)
-- `tmd/datasets/tmd.py` — Switchable solver (NLP_REWEIGHT env var)
-- `tmd/utils/reweight.py` — Drop UC from target list
+- `tmd/datasets/tmd.py` — Switchable solver (NLP_REWEIGHT env var), Clarabel default
+- `tmd/utils/reweight.py` — UC re-enabled (handled via tolerance override)
 
 ### Reused from existing code
 - `build_loss_matrix()` — builds output matrix and SOI targets
@@ -201,7 +266,9 @@ should be sufficient. HSL MA57/MA97 available as future optimization via
 1. Switch to branch `experiment-nlp`
 2. Read this file: `session_notes/nlp_reweighting_session_notes.md`
 3. Key module: `tmd/utils/reweight_nlp.py`
-4. Test: `NLP_REWEIGHT=1 make data` or run reweight_nlp() standalone
+4. Quick test: `python test_nlp_reweight.py` (uses existing tmd.csv.gz)
+5. Full pipeline: `NLP_REWEIGHT=1 make data`
+6. Install: `pip install clarabel` (only new dependency)
 
 ---
 
