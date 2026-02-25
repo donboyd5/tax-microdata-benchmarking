@@ -3,14 +3,16 @@
 # Session Notes: Constrained Optimization (NLP) Reweighting
 
 *Branch: `experiment-nlp`*
-*Last updated: 2026-02-25 (afternoon ET)*
+*Last updated: 2026-02-25 (evening ET)*
 
 ---
 
 ## Current Status
 
 **Clarabel is default solver. Per-constraint tolerance overrides and dual-based
-constraint cost reporting implemented. UC re-enabled with ±5% override.**
+constraint cost reporting implemented. UC re-enabled with ±5% override.
+Cross-machine reproducibility investigated — input data diverges slightly
+between machines due to data generation pipeline, not solver.**
 
 ---
 
@@ -96,6 +98,44 @@ objective with respect to tolerance at the current solution. Employment income
 constraints in the 40k-75k AGI range are the biggest drivers of weight distortion.
 UC at ±5% still has significant marginal cost (4.66), suggesting it would need
 ±8-10% before its dual drops to near zero.
+
+### Cross-machine reproducibility investigation (2026-02-25)
+
+Compared Clarabel results on two machines, both running `make clean && make data`
+from the same version of master. Found input data differs slightly **before**
+optimization begins:
+
+| Metric | Machine A (this) | Machine B (other) |
+|--------|-------------------|-------------------|
+| Target filers | 160,824,340 | 160,824,340 |
+| Current filers (pre-scale) | 161,429,395 | 161,430,211 |
+| Scale factor | 0.996252 | 0.996247 |
+| **Filer difference** | — | **+816** |
+
+Post-optimization results diverge as a downstream consequence:
+
+| Metric | Machine A | Machine B |
+|--------|-----------|-----------|
+| Weight total | 183,488,178.91 | 183,491,268.25 |
+| Weight mean | 814.576211 | 814.589925 |
+| Weight sdev | 967.378494 | 967.487097 |
+| Objective | **22.0140** | **21.8849** |
+| sum(weights^2) | 360,264,434,413 | 360,316,801,114 |
+| p50 | 574.040 | 574.301 |
+| max | 16,919.445 | 16,918.580 |
+
+**Root cause:** The data generation pipeline produces slightly different weights
+on the two machines. The optimizer divergence (~0.6% objective difference) is too
+large for solver non-determinism — it's driven by the 816-filer input difference.
+
+**Likely causes for input divergence:**
+- Different dependency versions (numpy, pandas, taxcalc)
+- Non-deterministic operations in data generation (unseeded randomness, hash ordering)
+- Platform floating-point differences (different CPU architecture / BLAS)
+
+**Verification approach:** Copy generated data files from one machine to the other
+and run only the optimization step. If results then match within solver tolerance
+(~1e-8), the issue is confirmed as data-generation-only.
 
 ### MUMPS tuning attempt
 Tested with `OMP_NUM_THREADS=16`, `mumps_permuting_scaling=7`, `mumps_scaling=77`,
