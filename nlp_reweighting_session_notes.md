@@ -3,7 +3,7 @@
 # Session Notes: Constrained Optimization (NLP) Reweighting
 
 *Branch: `experiment-nlp`*
-*Last updated: 2026-02-25 (evening ET)*
+*Last updated: 2026-02-26 (morning ET)*
 
 ---
 
@@ -128,14 +128,82 @@ Post-optimization results diverge as a downstream consequence:
 on the two machines. The optimizer divergence (~0.6% objective difference) is too
 large for solver non-determinism — it's driven by the 816-filer input difference.
 
-**Likely causes for input divergence:**
-- Different dependency versions (numpy, pandas, taxcalc)
-- Non-deterministic operations in data generation (unseeded randomness, hash ordering)
-- Platform floating-point differences (different CPU architecture / BLAS)
+**Machine environment comparison (2026-02-26):**
+
+| Item | business-new (Machine A) | business-old (Machine B) |
+|------|--------------------------|--------------------------|
+| Python | 3.12.3 | 3.12.3 |
+| CPU | Ryzen 9 9950X (Zen 5, AVX-512) | FX-8350 (Piledriver, AVX only) |
+| Platform | WSL2 | Native Linux |
+| numpy | 2.1.3 | 2.1.3 |
+| **pandas** | **2.3.3** | **2.3.2** |
+| **scipy** | **1.16.2** | **1.16.1** |
+| taxcalc | 6.4.0 | 6.4.0 |
+| **tax-calculator** | **1.2.4** | **(not installed)** |
+| **policyengine-core** | **3.20.1** | **3.20.0** |
+| policyengine-us | 1.55.0 | 1.55.0 |
+| **numba** | **0.62.1** | **0.61.2** |
+| clarabel | 0.11.1 | 0.11.1 |
+
+**Top suspects for 816-filer input divergence:**
+1. **policyengine-core 3.20.1 vs 3.20.0** — tax policy engine; even patch versions
+   can change computation results affecting filer status or imputed values
+2. **tax-calculator 1.2.4** present on new, absent on old — if any code path
+   imports from it, behavior would differ
+3. **CPU FP differences** — Piledriver (FX-8350, no AVX2/512) vs Zen 5 (9950X,
+   AVX-512) have different FPU implementations; NumPy/BLAS uses different
+   instruction paths, and threshold-sensitive records could flip filer status
+
+**Recommended fix:** Pin policyengine-core to same version on both machines,
+ensure tax-calculator presence matches, re-run `make clean && make data`.
 
 **Verification approach:** Copy generated data files from one machine to the other
 and run only the optimization step. If results then match within solver tolerance
 (~1e-8), the issue is confirmed as data-generation-only.
+
+### Code analysis: non-determinism in data generation (2026-02-26)
+
+Thorough review of the `make data` pipeline identified the probable root cause
+and secondary risk factors.
+
+**Most likely root cause — binary threshold on continuous FP values:**
+
+Two places in `tmd/datasets/tmd.py` apply boolean filters to floating-point
+tax computations:
+
+1. **Line 28:** `tax_unit_is_filer` — PolicyEngine Microsimulation classifies CPS
+   records as filers. The calculation involves hundreds of FP operations. On
+   borderline cases, tiny CPU/BLAS differences flip the boolean result.
+2. **Line 42:** `iitax > 0` — Tax-Calculator computes income tax for CPS records;
+   those with positive tax are dropped. Again, borderline FP values near zero
+   resolve differently on different hardware.
+
+These two filters directly determine the record count. 816 flipped records out
+of ~161M is ~0.0005%, consistent with floating-point threshold sensitivity.
+
+**Secondary risk factors identified:**
+
+| Risk | Source | Location |
+|------|--------|----------|
+| HIGH | PolicyEngine/TaxCalc FP threshold flips | `tmd.py:28,42` |
+| MED-HIGH | `taxcalc>=6.4.0` not strictly pinned | `setup.py:12` |
+| MEDIUM | scikit-learn not pinned (tree imputation) | `setup.py:13` |
+| MEDIUM | `astype(int)` truncation after FP diffs | `create_taxcalc_input_variables.py:55` |
+| MEDIUM | `set()` iteration in MICE (no PYTHONHASHSEED) | `mice.py:447,452,509` |
+| LOW-MED | CPU-specific BLAS paths (AVX vs AVX-512) | numpy/scipy/torch throughout |
+
+**What's NOT a problem:** All random number generators are properly seeded
+(cps.py, puf.py, imputation.py, reweight.py, mice.py). RNG usage is deterministic
+*given identical inputs*. The non-determinism enters upstream via FP differences
+that change which data flows through the seeded RNG code.
+
+**Probable causal chain:**
+1. Different CPU/BLAS produces slightly different FP intermediates in PolicyEngine
+   and/or Tax-Calculator
+2. Borderline tax units flip filer status at `tmd.py:28` and/or `iitax > 0` at
+   `tmd.py:42` — this accounts for the 816-record difference
+3. Different record set enters reweighting, producing different optimal weights
+4. Weighted totals diverge (~3K difference in weight total, ~0.6% in objective)
 
 ### MUMPS tuning attempt
 Tested with `OMP_NUM_THREADS=16`, `mumps_permuting_scaling=7`, `mumps_scaling=77`,
