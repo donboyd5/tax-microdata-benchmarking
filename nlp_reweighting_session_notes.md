@@ -166,26 +166,28 @@ and run only the optimization step. If results then match within solver toleranc
 Thorough review of the `make data` pipeline identified the probable root cause
 and secondary risk factors.
 
-**Most likely root cause — binary threshold on continuous FP values:**
+**Candidate root causes — binary thresholds in data pipeline:**
 
-Two places in `tmd/datasets/tmd.py` apply boolean filters to floating-point
-tax computations:
+Two places in `tmd/datasets/tmd.py` apply boolean filters that determine the
+record set:
 
 1. **Line 28:** `tax_unit_is_filer` — PolicyEngine Microsimulation classifies CPS
-   records as filers. The calculation involves hundreds of FP operations. On
-   borderline cases, tiny CPU/BLAS differences flip the boolean result.
+   records as filers. *Note: this is likely a boolean/categorical variable, not
+   a continuous FP value, so FP threshold sensitivity may not apply here.
+   Needs investigation of PolicyEngine internals to confirm.*
 2. **Line 42:** `iitax > 0` — Tax-Calculator computes income tax for CPS records;
-   those with positive tax are dropped. Again, borderline FP values near zero
+   those with positive tax are dropped. Borderline FP values near zero could
    resolve differently on different hardware.
 
-These two filters directly determine the record count. 816 flipped records out
-of ~161M is ~0.0005%, consistent with floating-point threshold sensitivity.
+The 816 difference is in **weighted filers** (sum of s006), not necessarily 816
+individual records. A small number of records with weights summing to 816 could
+account for the difference.
 
 **Secondary risk factors identified:**
 
 | Risk | Source | Location |
 |------|--------|----------|
-| HIGH | PolicyEngine/TaxCalc FP threshold flips | `tmd.py:28,42` |
+| HIGH | TaxCalc `iitax > 0` FP threshold; PE filer TBD | `tmd.py:28,42` |
 | MED-HIGH | `taxcalc>=6.4.0` not strictly pinned | `setup.py:12` |
 | MEDIUM | scikit-learn not pinned (tree imputation) | `setup.py:13` |
 | MEDIUM | `astype(int)` truncation after FP diffs | `create_taxcalc_input_variables.py:55` |
@@ -200,8 +202,8 @@ that change which data flows through the seeded RNG code.
 **Probable causal chain:**
 1. Different CPU/BLAS produces slightly different FP intermediates in PolicyEngine
    and/or Tax-Calculator
-2. Borderline tax units flip filer status at `tmd.py:28` and/or `iitax > 0` at
-   `tmd.py:42` — this accounts for the 816-record difference
+2. Borderline tax units flip at `iitax > 0` (`tmd.py:42`) and/or filer
+   classification (`tmd.py:28`, mechanism TBD) — accounts for 816 weighted filers
 3. Different record set enters reweighting, producing different optimal weights
 4. Weighted totals diverge (~3K difference in weight total, ~0.6% in objective)
 
