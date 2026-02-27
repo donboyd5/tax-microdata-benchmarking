@@ -3,16 +3,16 @@
 # Session Notes: Constrained Optimization (NLP) Reweighting
 
 *Branch: `experiment-nlp`*
-*Last updated: 2026-02-26 (morning ET)*
+*Last updated: 2026-02-27 (morning ET)*
 
 ---
 
 ## Current Status
 
-**Clarabel is default solver. Per-constraint tolerance overrides and dual-based
-constraint cost reporting implemented. UC re-enabled with ±5% override.
-Cross-machine reproducibility investigated — input data diverges slightly
-between machines due to data generation pipeline, not solver.**
+**Clarabel is default solver (Clarabel replaces PyTorch L-BFGS as default in
+`tmd.py`). Constraint scaling enabled by default. Strict ±0.5% tolerance on
+all 548 constraints (no absolute floor). Slack penalty increased to 1e7.
+UC targets removed (2021 anomalies). Cross-machine reproducibility CONFIRMED.**
 
 ---
 
@@ -207,6 +207,134 @@ that change which data flows through the seeded RNG code.
 3. Different record set enters reweighting, producing different optimal weights
 4. Weighted totals diverge (~3K difference in weight total, ~0.6% in objective)
 
+### Cross-machine reproducibility RESOLVED (2026-02-26 evening)
+
+**Root cause found:** The previous cross-machine comparison was flawed. `test_nlp_reweight.py` loaded `tmd.csv.gz` (which contains POST-PyTorch-reweighting weights) and fed those to Clarabel. Since each machine's PyTorch run produced slightly different weights (due to the 816-filer input difference), Clarabel received different starting points on each machine — explaining the apparent divergence.
+
+**Fix:** Modified `tmd/datasets/tmd.py` to save pre-reweighting weights to `tmd/storage/output/pre_reweight_weights.csv.gz` before the reweighting subprocess runs. Then ran `NLP_REWEIGHT=1 make clean && NLP_REWEIGHT=1 make data` on both machines.
+
+**Result: Both machines produce IDENTICAL output:**
+
+| Metric | Machine A | Machine B |
+|--------|-----------|-----------|
+| Pre-scaled filers | 161,180,573 | 161,180,573 |
+| Scale factor | 0.997790 | 0.997790 |
+| sum(weights^2) | 400,090,259,974.648621 | 400,090,259,974.648621 |
+| Objective (sum((x-1)^2)) | 105,285.2561 | 105,285.2561 |
+| Clarabel iterations | 33 | 33 |
+| Solve time | ~14s | ~14s |
+
+The previous divergence was entirely an artifact of the test script using wrong starting weights. The Clarabel solver is perfectly deterministic across machines when given the same input.
+
+**Note:** The pre-reweighting s006 values only exist transiently during `make data` (in a temp directory). They are now also saved to `pre_reweight_weights.csv.gz` for debugging. `tmd.csv.gz` and `tmd_weights.csv.gz` both contain POST-reweighting weights.
+
+---
+
+### QP solver exploration via `qpsolvers` (2026-02-27)
+
+Exploring alternative QP solvers for a related project requiring hundreds of similar solves. Created `sandbox_qpsolvers.py` to benchmark solvers on a synthetic problem matching TMD dimensions (225K variables, 550 constraints, 2% density).
+
+**Problem formulation (same as reweight_nlp.py):**
+```
+minimize    sum((x_i - 1)^2) + lambda * penalty(s)
+subject to  G @ x - s <= h    (target bounds, stacked upper+lower = 1100 rows)
+            x in [0.1, 10.0], s >= 0
+```
+
+Two penalty modes: L1 (lambda * sum(s)) and L2 (lambda * sum(s^2)).
+
+**Results WITHOUT constraint scaling (lambda=1e6):**
+
+| Solver | Type | Status | Time | Notes |
+|--------|------|--------|------|-------|
+| **Clarabel** | Interior-point | OK | ~44s | 550/550 within tol, 0 slacks |
+| OSQP | First-order (ADMM) | FAILED | — | Diverges, can't handle 1e6 penalty |
+| PIQP | First-order | FAILED | — | Diverges similarly |
+| ProxQP | Interior-point | HUNG | — | Didn't start solving, killed |
+| HiGHS | Active-set | SLOW | >60s | Converging but very slowly; warned about "excessively large row bounds" |
+
+**Key insight from HiGHS diagnostics:**
+```
+Coefficient ranges:
+  Cost    [2e+00, 1e+06]    ← 500,000:1 ratio (lambda in cost vector)
+  RHS     [1e+08, 1e+08]    ← huge constraint bounds (aggregate targets)
+WARNING: Problem has some excessively large row bounds
+WARNING:    Consider scaling the bounds by 1e-3
+```
+
+**Constraint scaling implementation:** Divide each constraint row by |target_j|:
+- RHS normalises from ~1e8 to ~1.0 (the ±0.5% tolerance band)
+- Slacks now measure *relative* constraint violation
+- Lambda can be reduced (1e4 instead of 1e6) since slack units changed
+
+**Results WITH constraint scaling (lambda=1e4):**
+
+| Solver | Status | Time | Targets met | Weight dev | Notes |
+|--------|--------|------|-------------|------------|-------|
+| **Clarabel** | OK | 44s | 550/550 (100%) | 2904.90 | Same quality; already does internal equilibration |
+| OSQP | Max iter (4K) | 49s | — | — | **Converging now** (vs diverging before), needs more iterations |
+| HiGHS | Converging | >35s | — | — | No more warnings, objective declining steadily |
+| PIQP | FAILED | — | — | — | Still struggles even with scaling |
+
+**Coefficient ranges after scaling:**
+```
+  Matrix  [7.5e-07, 1.0e+00]
+  Cost    [2.0e+00, 1.0e+04]    ← 5000:1 ratio (100x better)
+  RHS     [9.9e-01, 1.0e+00]    ← normalised (8 orders of magnitude better)
+  Bound   [1.0e-01, 1.0e+01]
+```
+
+**Conclusions so far:**
+1. Constraint scaling is essential for first-order solvers
+2. Clarabel remains the most reliable choice (interior-point, handles bad conditioning internally)
+3. OSQP becomes viable with scaling + more iterations — potentially faster for "good enough" solutions
+4. Should apply scaling to the real problem in `reweight_nlp.py` if switching to OSQP or other first-order solvers
+
+**File:** `sandbox_qpsolvers.py` — standalone benchmark script with `scale_constraints` parameter, `**solver_kwargs` passthrough, coefficient range diagnostics.
+
+---
+
+### Constraint scaling applied to production solver (2026-02-27)
+
+Constraint scaling (from `sandbox_qpsolvers.py` experiments) implemented in
+`_solve_clarabel` in `reweight_nlp.py`. Each constraint row is divided by
+|target_j|, normalizing RHS from ~1e8 to ~1.0. Dual variables are converted
+back to original space after solving.
+
+**Enabled by default** — `targets=target_array` is always passed to
+`_solve_clarabel`. Can be disabled with `CLARABEL_NO_SCALE=1` env var.
+
+### Strict ±0.5% tolerance — absolute floor removed (2026-02-27)
+
+`_ABS_TOL_FLOOR` changed from 100.0 to 0.0. Previously, near-zero targets
+(e.g., count=1125) got effective tolerance of ±8.9% because
+`max(1125*0.005, 100) = 100`. With constraint scaling normalizing all
+constraints, the generous floor became even more visible to the solver.
+
+Now all 548 constraints use strict ±0.5% relative tolerance. Elastic slack
+handles any that are mathematically infeasible.
+
+### Slack penalty increased to 1e7 (2026-02-27)
+
+`NLP_SLACK_PENALTY` in `imputation_assumptions.py` changed from 1e6 to 1e7.
+Higher penalty pushes harder on constraint satisfaction at the cost of slightly
+more weight distortion for infeasible constraints.
+
+### UC targets removed (2026-02-27)
+
+Unemployment compensation targets (2 constraints: count + total) commented out
+in `reweight.py` `aggregate_level_targeted_variables`. 2021 UC anomalies made
+these targets unreliable. Constraint set reduced from 550 to 548.
+
+### Floating-point reporting fix (2026-02-27)
+
+Added `+ 1e-9` epsilon to target accuracy bin comparisons in `_print_diagnostics`.
+Solver satisfies constraints to `tol_feas=1e-7`, so binding constraints at ±0.5%
+could land at 0.0050000001, causing `<= 0.005` to spuriously fail. The epsilon
+prevents this noise from affecting the reported counts.
+
+---
+
 ### MUMPS tuning attempt
 Tested with `OMP_NUM_THREADS=16`, `mumps_permuting_scaling=7`, `mumps_scaling=77`,
 `nlp_scaling_method=gradient-based`. Result: 812.6s (vs 820s baseline) — negligible
@@ -334,15 +462,16 @@ should be sufficient. HSL MA57/MA97 available as future optimization via
 - Non-quadratic objectives lose QP structure but IPOPT handles general NLP
 
 ### B. Constraints
-- Inequality with ±0.5% tolerance (configurable)
-- For near-zero targets: minimum absolute tolerance (100) to avoid ±0% = equality
-- Elastic/slack formulation always active with large penalty (1e6)
+- Inequality with ±0.5% strict relative tolerance (configurable)
+- No absolute tolerance floor (`_ABS_TOL_FLOOR = 0.0`); elastic slack handles infeasibility
+- Elastic/slack formulation always active with penalty M=1e7 (`NLP_SLACK_PENALTY`)
 - Non-zero slacks identify problematic constraints in output
+- Constraint scaling (divide by |target_j|) enabled by default for Clarabel
 
 ### C. Target handling
-- `unemployment_compensation` re-enabled with ±5% tolerance override
+- `unemployment_compensation` removed (2021 anomalies; 2 constraints dropped)
 - 4 estate/rental variables still commented out in master
-- Per-constraint tolerance overrides handle problematic targets without dropping them
+- Per-constraint tolerance overrides available for problematic targets
 - Dual-based constraint cost reporting identifies expensive constraints automatically
 
 ### D. Solver
@@ -357,12 +486,13 @@ should be sufficient. HSL MA57/MA97 available as future optimization via
 ### New files
 - `tmd/utils/reweight_nlp.py` — Constrained optimization solver (Clarabel/IPOPT)
 - `test_nlp_reweight.py` — Standalone test script (runs Clarabel on existing tmd.csv.gz)
+- `sandbox_qpsolvers.py` — QP solver benchmark (qpsolvers package, constraint scaling)
 - `session_notes/nlp_reweighting_session_notes.md` — This file
 
 ### Modified files
-- `tmd/imputation_assumptions.py` — NLP constants (tolerance, slack penalty, max iter)
-- `tmd/datasets/tmd.py` — Switchable solver (NLP_REWEIGHT env var), Clarabel default
-- `tmd/utils/reweight.py` — UC re-enabled (handled via tolerance override)
+- `tmd/imputation_assumptions.py` — NLP constants (tolerance, slack penalty=1e7, max iter)
+- `tmd/datasets/tmd.py` — Clarabel default (PYTORCH_REWEIGHT=1 for PyTorch), saves pre-reweight weights
+- `tmd/utils/reweight.py` — UC targets removed (2021 anomalies)
 
 ### Reused from existing code
 - `build_loss_matrix()` — builds output matrix and SOI targets
@@ -377,8 +507,10 @@ should be sufficient. HSL MA57/MA97 available as future optimization via
 2. Read this file: `session_notes/nlp_reweighting_session_notes.md`
 3. Key module: `tmd/utils/reweight_nlp.py`
 4. Quick test: `python test_nlp_reweight.py` (uses existing tmd.csv.gz)
-5. Full pipeline: `NLP_REWEIGHT=1 make data`
-6. Install: `pip install clarabel` (only new dependency)
+5. Full pipeline: `make clean && make data` (Clarabel is default)
+6. To use PyTorch instead: `PYTORCH_REWEIGHT=1 make data`
+7. To disable constraint scaling: `CLARABEL_NO_SCALE=1 make data`
+8. Install: `pip install clarabel` (only new dependency)
 
 ---
 
