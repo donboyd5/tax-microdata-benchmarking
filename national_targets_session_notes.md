@@ -239,11 +239,11 @@ The `reweight()` function reads `soi.csv` and builds two lists of targeted varia
 
 ---
 
-## Answers to Questions (updated 2026-02-18)
+## Answers to Questions (updated 2026-03-01)
 
-1. **Recipe file version**: `target_recipes_v4.xlsx` is current. `setup.R` needs to be updated from v3 → v4.
+1. **Recipe file version**: `target_recipes_v4.xlsx` is current. Exists on both master and `improve-potential-targets-structure` branches. `setup.R` on master references v2; on `improve-potential-targets-structure` the QMD uses v4.
 
-2. **potential_targets_preliminary.csv status**: Data directory is gitignored. Don will share the data contents. **[PENDING - Don returning shortly]**
+2. **potential_targets_preliminary.csv status**: **RESOLVED.** File exists on master (1.2 MB, 6,281 rows). Contains data for 2015, 2021, 2022. Has 41 unique var_names. Schema: rownum, idbase, year, table, var_name, var_type, var_description, value_filter, subgroup, marstat, incsort, incrange, ptarget, fname, xlcell, xl_colnumber, xlcolumn, xlrownum.
 
 3. **New variables for 2022 vs 2021**: **[PENDING]**
 
@@ -251,11 +251,11 @@ The `reweight()` function reads `soi.csv` and builds two lists of targeted varia
 
 5. **Crosswalk output format**: Separate file (JSON or CSV). Don confirmed this.
 
-6. **Long-term goal**: Convert the entire target-getting process from R to Python. The R Quarto approach is current but Python is the target. Plan: (a) finish the R pipeline first to validate the approach, (b) then rewrite in Python using `openpyxl`/`xlrd` for Excel reading.
+6. **Long-term goal**: Convert the entire target-getting process from R to Python. Don confirmed: OK to do this early rather than finishing R pipeline first.
 
-## Open Questions (still pending)
+## Open Questions (updated 2026-03-01)
 
-- What's in `data/potential_targets_preliminary.csv`? (Don will share)
+- ~~What's in `data/potential_targets_preliminary.csv`?~~ **RESOLVED** — 6,281 rows, 41 var_names, 3 years
 - Any structural differences in 2022 IRS spreadsheets vs 2021?
 - What new targets to add for 2022 version (beyond current 11+13 variable lists)?
 - Does `target_recipes_v4.xlsx` have a `puf2015_wtdsums` sheet (used by `summarize_puf_for_irs_comparison.qmd`)?
@@ -292,18 +292,42 @@ Don wants the entire target-getting process converted from R to Python eventuall
 
 ---
 
+## Session Update: 2026-03-01
+
+### What we learned this session:
+- Currently on `master` branch (Clarabel reweighting PR already merged)
+- `improve-potential-targets-structure` branch exists locally (79 commits ahead of master, tracks origin)
+- `potential_targets_preliminary.csv` exists on master with all 3 years of data (6,281 rows, 41 var_names)
+- `target_recipes_v4.xlsx` exists on both branches
+- `setup.R` on master references v2; on improve-potential-targets-structure branch the QMD uses v4
+- `pufirs_fullmap.json` maps PUF→IRS (reverse of what we need for Step 2)
+- `soi.csv` has 47 unique TMD variable names, 2 years (2015, 2021), 5,331 rows
+
+### Agreed execution order:
+1. **Steps 2-3 first: Create mapping files** (IRS var_name → PUF → TMD)
+   - Extract from existing code: `clean_vname()` in soi_targets.py, `pufirs_fullmap.json`, crosswalk QMD docs
+   - Don reviews and verifies
+2. **Step 4: Write Python converter** (potential_targets_preliminary.csv + mappings → soi.csv)
+3. **Step 5: Verify 2021** (compare new soi.csv to current, run reweighting)
+4. **Step 6: Add 2022** (generate 2022 soi.csv, update reweighting)
+5. **Step 1 (later): Port R→Python** (read IRS Excel files directly in Python)
+
+### Plan file location:
+`~/.claude/plans/shimmering-meandering-wand.md`
+
+---
+
 ## Resume Instructions
 
 When resuming this session:
-1. The key branch is `improve-potential-targets-structure`
-2. National targets R Quarto project is at `tmd/national_targets/qmd/`
-3. Data is at `tmd/national_targets/data/` (partially gitignored — Don will share)
-4. Python optimization code is at `tmd/utils/reweight.py` (reads `tmd/storage/input/soi.csv`)
-5. The goal is to produce a new `soi.csv` (same format as current) from the new pipeline's outputs
-6. **MOST IMPORTANT NEXT STEP**: Get `potential_targets_preliminary.csv` data from Don, then:
-   a. Fix `setup.R` (v3 → v4)
-   b. Write var_name → TMD variable name crosswalk as JSON
-   c. Write Python script to produce `soi.csv` from potential_targets_preliminary.csv + crosswalk
-   d. Test 2021 match, then test 2022 new
+1. Read `repo_conventions_session_notes.md` first
+2. Read the plan file at `~/.claude/plans/shimmering-meandering-wand.md`
+3. Currently on `master` branch; may need a new branch for this work
+4. `potential_targets_preliminary.csv` is available (6,281 rows, 41 var_names, 3 years)
+5. **NEXT STEP**: Create the 3-step mapping files (IRS→PUF→TMD), starting by extracting mappings from existing code
+6. Key existing mapping sources:
+   - `tmd/utils/soi_targets.py` — `clean_vname()` has IRS→TMD mapping (lines 96-159)
+   - `tmd/national_targets/data/pufirs_fullmap.json` — PUF→IRS mapping
+   - `tmd/utils/soi_replication.py` — `tc_to_soi()` has TC/PUF→TMD mapping
+   - `tmd/national_targets/qmd/puf_irs_crosswalk_tmd2025.qmd` — 602 lines of crosswalk docs
 7. This session notes file is at `session_notes/national_targets_session_notes.md`
-8. See also: `tmd/national_targets/qmd/documentation_of_tmd2025_targeted_variables.qmd` for existing crosswalk table
