@@ -317,17 +317,183 @@ Don wants the entire target-getting process converted from R to Python eventuall
 
 ---
 
+## Session Update: 2026-03-03
+
+### What we accomplished:
+
+#### Phase 1 Complete: Tier 1 Mapping Validation Framework
+- Created `tmd/national_targets/data/irs_to_puf_map.json` — maps IRS var names to PUF codes
+- Created `tmd/national_targets/data/puf_to_tmd_map.json` — maps PUF codes to TMD variable names
+- Created `tmd/national_targets/validate_mappings.py` — three-level validation script
+- Created `tmd/national_targets/test_validate_mappings.py` — automated regression test
+- **10/10 Tier 1 variables validated successfully**
+
+#### Three-Level Validation Chain
+We discovered that the correct validation approach has three levels:
+
+1. **Check 1 — IRS extraction (IRS spreadsheet vs soi2015 from PUF booklet p.46)**
+   - Both are full SOI sample totals → should match exactly if mapping is correct
+   - Result: 10/10 exact match (0.0000% difference)
+
+2. **Check 2 — Documentation errors (soi2015 vs soi2015_adj)**
+   - Flags 10x missing-digit errors in PUF documentation (Don identified these in R code)
+   - 13 variables have this issue (E17500, E18400, E18500, E19200, E19700, etc.)
+   - None of the 10 Tier 1 variables are affected
+
+3. **Check 3 — PUF quality (soi2015_adj vs PUF calculated sum)**
+   - Measures PUF subsample representativeness (expected ~0.5-2% diff)
+   - NOT a mapping error — it's subsampling variation
+   - Result: 10/10 within 5% threshold
+
+#### Key technical lessons:
+- **Must use "All returns, total" row (incsort==1)** from potential_targets to avoid double-counting (detail rows sum to same total)
+- **Must use E-codes** (raw PUF inputs) not C-codes (computed) for validation against pufsums
+- **Value filter matters**: AGI uses `value_filter='all'`, most income types use `'nz'` (nonzero)
+- The original comparison (IRS vs PUF sum) conflated mapping correctness with PUF subsampling quality; the three-level chain separates these concerns
+
+#### Tier 1 validated variables (IRS name → PUF code → TMD name):
+| IRS var | PUF code | TMD variable | IRS vs SOI | SOI vs PUF |
+|---------|----------|--------------|------------|------------|
+| agi | E00100 | adjusted_gross_income | 0.0000% | +0.40% |
+| wages | E00200 | employment_income | 0.0000% | +0.62% |
+| taxint | E00300 | taxable_interest_income | 0.0000% | +2.05% |
+| orddiv | E00600 | ordinary_dividends | 0.0000% | +0.26% |
+| pensions | E01500 | total_pension_income | 0.0000% | +0.84% |
+| socsectot | E02400 | total_social_security | 0.0000% | -0.06% |
+| socsectaxable | E02500 | taxable_social_security | 0.0000% | -0.16% |
+| ti | E04800 | taxable_income | 0.0000% | +0.60% |
+| taxbc | E05800 | income_tax_before_credits | 0.0000% | +0.72% |
+| taxac | E08800 | income_tax_after_credits | 0.0000% | +0.70% |
+
+#### Phase 2: Gain/Loss Variables (Tier 2)
+
+Extended validation to handle gain/loss variables (those with value_filter gt0/lt0).
+
+**Gain/loss validation approach:**
+- Check 1 becomes: IRS_gt0 - IRS_lt0 should equal soi2015 (net value confirms mapping)
+- Check 3 splits: IRS_gt0 vs pufsums.sumgtz, IRS_lt0 vs |pufsums.sumltz|
+
+**Results:**
+| IRS var | PUF code | IRS net vs SOI | Status |
+|---------|----------|---------------|--------|
+| busprofincome | E00900 | 0.0000% | validated |
+| cgtaxable | E01000 | 0.0000% | validated |
+| partnerscorpincome | E26270 | 0.0000% | validated |
+| rentroyalty | E25850 | 406.66% (mismatch!) | needs review |
+| estateincome | E26390 | -19.11% (mismatch) | needs review |
+| partnerincome | E26270 | N/A (2021/2022 only) | no 2015 data |
+| scorpincome | E26270 | N/A (2021/2022 only) | no 2015 data |
+
+**Key findings requiring detective work:**
+- **rentroyalty**: E25850 is "Rent/royalty net income" but has a 10x documentation error.
+  Even with adjustment, the IRS definition of rentroyalty doesn't match E25850.
+  Multiple IRS columns (rent, royalty, farm rent, etc.) may need combining.
+- **estateincome**: IRS gt0-lt0 ($27.4B) != E26390 soi2015 ($33.9B).
+  Possible definitional mismatch between IRS table and PUF variable.
+- **E02000** (Schedule E net) combines rent + royalties + partnerships + S corps + estate/trust.
+  Individual IRS components (rentroyalty, partnerincome, scorpincome, estateincome) are
+  subsets that don't map 1:1 to PUF codes.
+- **partnerincome** and **scorpincome** are new 2021/2022 breakdowns of the combined
+  partnerscorpincome (E26270). They can't be validated against 2015 pufsums.
+
+### Commits made:
+1. `8606cb2` Add Phase 1: IRS-PUF-TMD mapping validation framework
+2. `212912b` Add automated test for Tier 1 mapping validation
+3. `e05a649` Restructure validation with three-level comparison chain
+4. `de58deb` Phase 2: gain/loss validation
+
+#### Phase 3a: Quick-Win Variables (Tier 3a)
+
+Added 5 straightforward variable mappings. All pass three-level validation:
+
+| IRS var | PUF code | TMD variable | IRS vs SOI | SOI vs PUF |
+|---------|----------|--------------|------------|------------|
+| qualdiv | E00650 | qualified_dividends | 0.0000% | +0.41% |
+| pensions_taxable | E01700 | taxable_pension_income | 0.0000% | +0.44% |
+| unempcomp | E02300 | unemployment_compensation | 0.0000% | -2.06% |
+| exemptint | E00400 | exempt_interest | 0.0000% | -0.39% |
+| cgdist | E01100 | capital_gains_distributions | 0.0000% | +1.77% |
+
+#### Detective Work: Schedule E Component Decomposition
+
+**Major finding**: The three IRS Schedule E components sum to E02000 soi2015 **exactly**:
+
+```
+rentroyalty net:         $103,059M - $46,246M = $56,813M
+partnerscorpincome net:  $755,623M - $126,618M = $629,005M
+estateincome net:         $32,453M -  $5,033M =  $27,420M
+─────────────────────────────────────────────────────────
+SUM:                                            $713,238M
+E02000 soi2015:                                 $713,238M  ← EXACT MATCH
+```
+
+**Why individual components don't match their PUF codes:**
+
+1. **estateincome** — Symmetric excess ($1.44B on BOTH income and loss sides)
+   - IRS gt0 ($32.5B) < E26390 soi2015 ($33.9B) — PUF includes extra items
+   - IRS lt0 ($5.0B) < E26400 soi2015 ($6.5B) — same extra items on loss side
+   - BUT the nets match exactly: $27.4B = $27.4B
+   - Likely: PUF includes passive activity reclassifications symmetrically
+
+2. **rentroyalty** — Asymmetric excess (PUF is larger on both sides, more so for losses)
+   - IRS gt0 ($103.1B) < E25850_adj ($112.1B) — 8.8% difference
+   - IRS lt0 ($46.2B) < E25860 ($59.8B) — 29.3% difference
+   - Farm rental (E27200=$4.5B) is included in IRS rentroyalty but separated in PUF
+   - PUF variables may capture pre-passive-limitation amounts
+   - Nets don't match: IRS $56.8B vs PUF $52.4B — still needs manual review
+
+3. **partnerscorpincome** — Perfect match at net level ($629.0B = $629.0B)
+
+**Targeting implications**:
+- For estateincome: IRS gt0/lt0 values could be used as targets even though they differ from PUF code soi2015, because the net is correct and the differences are definitional
+- For rentroyalty: Still needs manual review to decide targeting strategy
+
+### Commits made:
+1. `8606cb2` Add Phase 1: IRS-PUF-TMD mapping validation framework
+2. `212912b` Add automated test for Tier 1 mapping validation
+3. `e05a649` Restructure validation with three-level comparison chain
+4. `de58deb` Phase 2: gain/loss validation
+5. `34cdf3c` Phase 3a: quick-win variables + Schedule E detective work
+
+### Updated plan file:
+`~/.claude/plans/bubbly-splashing-volcano.md`
+
+---
+
+## Validated Variables Summary (as of Phase 3a)
+
+**Total: 22 variables mapped, 18 validated, 2 flagged for review, 2 no 2015 data**
+
+| Tier | Variables | Status |
+|------|-----------|--------|
+| Tier 1 (standard) | agi, wages, taxint, orddiv, pensions, socsectot, socsectaxable, ti, taxbc, taxac | 10/10 validated |
+| Tier 2 (gain/loss validated) | busprofincome, cgtaxable, partnerscorpincome | 3/3 validated |
+| Tier 2 (needs review) | rentroyalty, estateincome | 2/2 flagged |
+| Tier 2 (no 2015 data) | partnerincome, scorpincome | 2021/2022 only |
+| Tier 3a (quick wins) | qualdiv, pensions_taxable, unempcomp, exemptint, cgdist | 5/5 validated |
+
+**Remaining unmapped** (20 of 42 var_names):
+iradist, exemption, exemptions_n, id, id_salt, id_mortgage, id_retax, id_pit, id_gst,
+id_pitgst, id_taxpaid, id_intpaid, id_contributions, id_medical_capped, id_medical_uncapped,
+itemded, sd, qbid, amt, tottax
+
+---
+
 ## Resume Instructions
 
 When resuming this session:
 1. Read `repo_conventions_session_notes.md` first
-2. Read the plan file at `~/.claude/plans/shimmering-meandering-wand.md`
-3. Currently on `master` branch; may need a new branch for this work
-4. `potential_targets_preliminary.csv` is available (6,281 rows, 41 var_names, 3 years)
-5. **NEXT STEP**: Create the 3-step mapping files (IRS→PUF→TMD), starting by extracting mappings from existing code
-6. Key existing mapping sources:
-   - `tmd/utils/soi_targets.py` — `clean_vname()` has IRS→TMD mapping (lines 96-159)
-   - `tmd/national_targets/data/pufirs_fullmap.json` — PUF→IRS mapping
-   - `tmd/utils/soi_replication.py` — `tc_to_soi()` has TC/PUF→TMD mapping
-   - `tmd/national_targets/qmd/puf_irs_crosswalk_tmd2025.qmd` — 602 lines of crosswalk docs
+2. Read the plan file at `~/.claude/plans/bubbly-splashing-volcano.md`
+3. Currently on `improve-potential-targets-structure` branch
+4. `potential_targets_preliminary.csv` is available (6,281 rows, 42 var_names, 3 years)
+5. **NEXT STEP**: Phase 4 — Code discovery for remaining 20 unmapped variables.
+   Start with quick wins: iradist→E01400 (likely). Then tackle itemized deductions
+   (id_salt, id_mortgage, etc.) which require C-code discovery. Also decide targeting
+   strategy for rentroyalty and estateincome.
+6. Key files:
+   - `tmd/national_targets/validate_mappings.py` — three-level validation (Tier 1, 2, 3a)
+   - `tmd/national_targets/data/irs_to_puf_map.json` — IRS→PUF mapping (22 vars total)
+   - `tmd/national_targets/data/puf_to_tmd_map.json` — PUF→TMD mapping
+   - `tmd/national_targets/data/pufsums.csv` — PUF documentation values with sum, sumgtz, sumltz
+   - `tmd/national_targets/test_validate_mappings.py` — automated tests (Tier 1 + 2 + 3a)
 7. This session notes file is at `session_notes/national_targets_session_notes.md`
