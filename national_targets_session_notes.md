@@ -560,29 +560,189 @@ Old soi.csv backed up at `tmd/storage/input/soi.csv.bak`.
 | Tier 4 (10x errors) | id_medical_uncapped, id_contributions, id_intpaid, id_retax, id_salt | 5/5 validated |
 | Mapped (no pufsums) | exemption, exemptions_n, amt, qbid, itemded, sd, id_mortgage, id_pit, id_gst, id_pitgst, id_taxpaid, id_medical_capped, id | 13 mapped |
 
+## Session Update: 2026-03-05
+
+### What we accomplished:
+
+#### Quality Control Analysis: Two Key Comparison Tables
+
+Produced two QC comparison tables and saved them in `tmd/national_targets/data/qc_reports/`:
+
+**1. `targets_year_comparison.csv` — IRS targets across 2015, 2021, 2022**
+- 96 rows: all unique (var_name, var_type, value_filter) combinations at total-income-range level (incsort=1, marstat='all')
+- Columns: var_name, var_description, var_type, value_filter, 2015/2021/2022 values, 2022-2021 difference, % change
+- Key findings:
+  - Wages up 7.9% ($9,022B → $9,739B) 2021→2022
+  - Capital gains (gt0) down 38% ($2,049B → $1,270B) — 2021 was a boom year
+  - Unemployment comp collapsed 85.5% ($209B → $30B) — end of COVID benefits
+  - Taxable interest up 29% ($104B → $134B) — rising interest rates
+  - 2015-only variables: exemption, exemptions_n, partnerscorpincome (pre-TCJA)
+  - 2021+ only variables: qbid, partnerincome, scorpincome, id_pitgst
+
+**2. `puf_vs_irs_2015.csv` — PUF weighted sums vs IRS published totals for 2015**
+- 63 rows: all mapped variables with both a PUF code and pufsums data
+- Columns: var_name, var_description, var_type, value_filter, puf_code, irs_2015, puf_2015, difference, pct_diff
+- Sorted descending by absolute % difference
+- Source: PUF sums from `pufsums.csv` (derived from `puf_2015.csv` via `summarize_puf_for_irs_comparison.qmd`; **includes the 4 aggregate records**)
+- Key findings:
+  - Most variables within 1% — excellent PUF representation
+  - Large discrepancies concentrated in Schedule E components:
+    - estateincome lt0: +71% count, +23% amount (PUF includes passive activity items)
+    - rentroyalty lt0: +31% amount, +25% count (PUF captures pre-limitation amounts)
+    - rentroyalty gt0: +9% amount (farm rental separated in PUF, combined in IRS)
+    - partnerscorpincome lt0: -6%
+  - Core variables (wages, agi, dividends, pensions, social security, taxes) all <1%
+
+#### Understanding the 558 Target Count
+
+Documented how 11 AGI-level + 13 aggregate variables produce 558 targets:
+- `adjusted_gross_income` and `count`: 19 AGI bins × 5 filing statuses = 95 each (190 total)
+- Other 9 AGI-level income vars: 19 bins × 1 ("All") × 2 (amount + count) = 38 each (342 total)
+- 13 aggregate vars: 1 × 2 (amount + count) = 2 each (26 total)
+- Total: 190 + 342 + 26 = **558** (for year 2021; 2015 has 505 due to fewer bins)
+
+#### Branch Merged with Master
+
+Merged master into `improve-potential-targets-structure` branch (clean merge, no conflicts). Branch now includes:
+- Clarabel reweighting (#416), version 1.2.0 (#417), scipy deprecation fix (#418), AGI range label fix (#421)
+- Full pipeline (`make clean && make data`) passes: 57 tests passed, 3 skipped, 0 failures
+- Clarabel QP solver: 550 targets solved in ~10s, all within 0.5% tolerance
+
+#### Correction: Target Count is 550, Not 558
+
+The actual targeted count is **550**, not 558. The 8 difference:
+- `estate_income`, `estate_losses`, `rent_and_royalty_net_income`, `rent_and_royalty_net_losses` are **commented out** in `reweight.py` (lines 90-96) because Tax-Calculator doesn't model them (all zeros in `tc_to_soi()`)
+- Even if uncommented, `_drop_impossible_targets()` would remove them (all data values zero)
+
+#### Deeper Schedule E Analysis
+
+Investigated all PUF Schedule E variables to find combinations matching IRS totals:
+
+**PUF Schedule E variables:**
+- E25850: Rent/royalty income (positive values only, income-side)
+- E25860: Rent/royalty loss (positive values representing losses, loss-side)
+- E26270: Partnership/S-corp net income (true signed variable)
+- E26390: Estate/trust income (positive values only, income-side)
+- E26400: Estate/trust loss (positive values representing losses, loss-side)
+- E27200: Farm rental income
+- E02000: Schedule E net total = E25850 - E25860 + E26270 + E26390 - E26400 + E27200
+
+**Best PUF combo for rentroyalty income**: E25850 - E27200 = $108.0B (+4.8% vs IRS $103.1B)
+**Rentroyalty loss**: E25860 = $60.4B vs IRS $46.2B (+30.6%) — no good match
+
+**Root cause**: PUF captures pre-passive-activity-limitation amounts; IRS reports post-limitation.
+This causes systematic PUF > IRS for rental/estate losses.
+
+**Decision**: Exclude rentroyalty and estateincome from 2022 targeting until better approach found.
+
+#### Don's PUF-IRS Correspondence Notes (from earlier research)
+
+Key findings from Don's detailed PUF-IRS correspondence work:
+- **10x documentation errors confirmed**: E17500, E18400, E18500, E19200, E19700 have documentation values that are 10x too low (missing a digit)
+- **Capital gains on aggregate records**: $86.7B (12.5% of total) is on the 4 aggregate PUF records (MARS=0)
+- **SALT and aggregate records**: Question about whether aggregate records should be included in SALT comparisons
+- **E02000 soi2015 matches IRS component net sum exactly**: $713.238B = rentroyalty net + partnerscorpincome net + estateincome net
+- **pufsums.csv includes 4 aggregate records** (derived from `puf_2015.csv` via R Quarto script)
+
+#### IRS Spreadsheet Provenance Added to Mapping
+
+Updated `irs_to_puf_map.json` with `irs_locations` field for each variable, recording exact IRS Excel file and cell references (e.g., `"2015": "15in14ar.xls_G9"`). Sourced from `potential_targets_preliminary.csv` `fname` and `xlcell` columns.
+
+#### 2022 Data Added to soi.csv
+
+- Converter updated to support year-specific variable exclusions via `year_exclude_vars` parameter
+- soi.csv now has 3 years: 2015 (1,864 rows) + 2021 (1,986 rows) + 2022 (1,830 rows) = **5,680 rows**
+- 2022 excludes rentroyalty and estateincome (4 TMD variables: estate_income, estate_losses, rent_and_royalty_net_income, rent_and_royalty_net_losses)
+- 2021 targeted rows verified: 558/558 match backup soi.csv exactly
+- Full pipeline passes with new 3-year soi.csv (57 tests passed)
+
+#### Targeted Variables Summary Document
+
+Created `tmd/national_targets/data/targeted_variables_summary.md` documenting:
+- All 20 targeted variables (11 AGI-level + 9 aggregate)
+- How 550 targets are constructed (bins × filing statuses × amount/count)
+- AGI income bins (19 bins)
+- Variables NOT targeted (estate/rentroyalty — commented out in reweight.py)
+
+#### Important: Pipeline Still Targets 2021
+
+The current pipeline is hardcoded to `TAXYEAR = 2021` in `create_taxcalc_input_variables.py`. The 2022 targets are in soi.csv but to actually use them for reweighting would require:
+- Changing `TAXYEAR` to 2022
+- Having growth factors that age PUF from 2015 to 2022
+- Ensuring Tax-Calculator models all targeted variables correctly for 2022
+
+---
+
+## Session Update: 2026-03-05 (continued — PR #424 merged)
+
+### What we accomplished:
+
+#### PR #424 Merged: 2022 IRS Target Data Infrastructure
+
+Created and merged PR #424 (`pr-424-2022-target-infrastructure`) into PSLmodels master. This is the first of a planned 5-PR strategy for enabling 2022 national reweighting.
+
+**Files merged:**
+- `tmd/national_targets/potential_targets_to_soi.py` — Python converter (replaces old soi_targets.py pipeline)
+- `tmd/national_targets/data/irs_to_puf_map.json` — 42-variable IRS→PUF→TMD mapping with irs_locations
+- `tmd/storage/input/soi.csv` — 3-year data (2015/2021/2022, 5,680 rows)
+- `tmd/national_targets/data/targeted_variables_summary.md` — documentation of 550 targets
+
+**Verification:** `make clean && make data` passes — all tests identical to before merge. 2021 optimizer sees identical data.
+
+**Lint:** Both `pycodestyle` and `pylint` pass with zero issues.
+
+#### 5-PR Strategy Status
+
+| PR | Description | Status |
+|----|-------------|--------|
+| PR #1 (PR #424) | Infrastructure (soi.csv, converter, mapping) | **MERGED** |
+| PR #2a | Cleanup hardcoded 2021 (keep TAXYEAR=2021) | Pending |
+| PR #2b | Flip TAXYEAR to 2022 (depends on #2a + #3) | Pending |
+| PR #3 | CPS 2022 classes (parallel with #2a) | Pending |
+| PR #4 | Test updates (depends on #2b) | Pending |
+| PR #5 | All-Python, data-driven targets | Longer-term |
+
+**Plan file:** `~/.claude/plans/sprightly-munching-finch.md` — contains detailed analysis of each PR.
+
+#### Workflow Lessons Learned
+
+- **Don't push to origin or create PRs without explicit user direction.** Don's workflow: Claude prepares branches and commits; Don pushes upstream and creates PRs.
+- **Push to upstream (PSLmodels), not origin (donboyd5 fork)** when creating PRs for review.
+- **Run `make format` and lint before committing** — black, pycodestyle, pylint.
+
 ---
 
 ## Resume Instructions
 
 When resuming this session:
 1. Read `repo_conventions_session_notes.md` first
-2. Currently on `improve-potential-targets-structure` branch (also known as `pr-fix-420`)
+2. Currently on **master** branch (synced with upstream after PR #424 merge)
 3. `potential_targets_preliminary.csv` is available (6,281 rows, 42 var_names, 3 years)
-4. **Phase 4 is complete.** All 42 variables mapped, 100% soi.csv coverage, `make clean && make data` passes.
-5. **Converter is working:** `tmd/national_targets/potential_targets_to_soi.py` replaces old pipeline.
-6. **NEXT STEPS**:
-   - Decide whether to wire the converter into the Makefile (replace soi_targets.py call)
-   - Test on 2022 (generate 2022 soi.csv, run reweighting)
-   - Resolve rentroyalty and estateincome targeting strategy
-   - Consider adding new target variables beyond the current 24 (11 AGI-level + 13 aggregate)
-   - Long-term: port R pipeline (IRS Excel → potential_targets) to Python
-7. Key files:
-   - `tmd/national_targets/potential_targets_to_soi.py` — **NEW** converter (replaces soi_targets.py)
+4. **PR #424 merged.** Infrastructure for 2022 targets is in production master.
+5. **Pipeline targets 2021**: TAXYEAR=2021 is hardcoded. 2022 targets in soi.csv but not yet used.
+6. **NEXT STEPS** (from 5-PR strategy):
+   - **PR #2a**: Eliminate duplicated `TAX_YEAR = 2021` in reweight.py (import TAXYEAR instead). Replace hardcoded `2021` in tmd.py function calls with TAXYEAR. Keep TAXYEAR=2021. Pure cleanup — zero behavioral change.
+   - **PR #2b**: Actually change TAXYEAR to 2022 + handle growth factors subtlety + bypass tmd_constructor. Depends on PR #2a + PR #3.
+   - **PR #3**: CPS 2022 classes (RawCPS_2022, CPS_2022). Can proceed in parallel with #2a. CPS 2022 data URL already in cps.py (asecpub23csv.zip = March 2023 ASEC = 2022 income data).
+   - **PR #4**: Update tests for year flexibility (hardcoded fingerprint values).
+   - **PR #5**: All-Python pipeline, data-driven targets.
+   - **Growth factors subtlety** (PR #2b): `create_taxcalc_growth_factors.py` lines 51-57 adjust `gfdf.iat[2022 - FIRST_YEAR, ...]`. When FIRST_YEAR=2022, index becomes 0, corrupting the baseline all-ones row. Must be conditional.
+   - **taxcalc dependency** (PR #2b): `Records.TMDCSV_YEAR = 2021` is hardcoded in taxcalc library. Workaround: bypass `tmd_constructor()` and construct `Records` directly with `start_year=TAX_YEAR`.
+7. Key files on master:
+   - `tmd/national_targets/potential_targets_to_soi.py` — converter (replaces soi_targets.py)
+   - `tmd/national_targets/data/irs_to_puf_map.json` — IRS→PUF mapping (42 vars, with irs_locations)
+   - `tmd/national_targets/data/targeted_variables_summary.md` — full target breakdown documentation
+   - `tmd/storage/input/soi.csv` — generated by converter (5,680 rows, 3 years)
+   - `tmd/create_taxcalc_input_variables.py` — TAXYEAR = 2021 (line 17)
+   - `tmd/utils/reweight.py` — TAX_YEAR = 2021 (line 19, should import from TAXYEAR)
+   - `tmd/datasets/tmd.py` — 5+ hardcoded 2021 values
+   - `tmd/create_taxcalc_growth_factors.py` — 2022 growth factor adjustments at lines 51-57
+8. Key files NOT on master (remain on working branches or untracked):
    - `tmd/national_targets/validate_mappings.py` — three-level validation (all tiers)
-   - `tmd/national_targets/data/irs_to_puf_map.json` — IRS→PUF mapping (42 vars)
    - `tmd/national_targets/data/puf_to_tmd_map.json` — PUF→TMD mapping
    - `tmd/national_targets/data/pufsums.csv` — PUF documentation values
-   - `tmd/national_targets/test_validate_mappings.py` — automated tests (all tiers)
-   - `tmd/storage/input/soi.csv` — **NOW generated by converter** (3,850 rows)
-   - `tmd/storage/input/soi.csv.bak` — backup of old soi.csv (5,331 rows)
-8. This session notes file is at `session_notes/national_targets_session_notes.md`
+   - `tmd/national_targets/data/qc_reports/` — QC comparison tables
+   - `tmd/national_targets/scripts/` — R Quarto pipeline scripts
+   - `tmd/national_targets/test_validate_mappings.py` — automated validation tests
+   - `tmd/storage/input/soi.csv.bak` — backup of old soi.csv
+9. This session notes file is at `session_notes/national_targets_session_notes.md`
