@@ -479,21 +479,110 @@ itemded, sd, qbid, amt, tottax
 
 ---
 
+## Session Update: 2026-03-04
+
+### What we accomplished:
+
+#### Phase 4 Complete: All 42 Variables Mapped, 100% soi.csv Coverage
+
+Extended `irs_to_puf_map.json` from 22 to all 42 IRS var_names. Achieved 47/47 soi.csv variable coverage (100%).
+
+**New variables mapped:**
+
+| Tier | Variables | Status |
+|------|-----------|--------|
+| Tier 4 standard | iradist (E01400), tottax (E06500) | 2/2 validated |
+| Tier 4 itemized deductions (10x errors) | id_medical_uncapped (E17500), id_contributions (E19700), id_intpaid (E19200), id_retax (E18500), id_salt (E18400) | 5/5 validated (with expected 10x doc errors) |
+| Variables without PUF E-codes | exemption, exemptions_n (XTOT), amt (C09600), qbid (QBIDED), itemded (C21060), sd (C04200) | Mapped (TC computed or no E-code) |
+| Deduction subset variables | id_mortgage, id_pit, id_gst, id_pitgst, id_taxpaid, id_medical_capped (C17000) | Mapped (subsets of E-codes, no independent validation) |
+| Count-only variable | id (count of itemized filers) | Mapped as tmd_name=null (skipped in converter) |
+
+**Key fixes:**
+- Fixed 6 TMD name mismatches between our mapping chain and soi.csv conventions
+- Added `tmd_name_count: "count"` to agi entry for return count mapping
+- Updated validate_mappings.py with 10x error fallback logic
+- Added Tier 4 tests (standard + 10x) to test_validate_mappings.py
+
+#### Deduction Hierarchy Discovery
+
+```
+id_taxpaid (C18300) ⊃ id_salt (E18400) + id_retax (E18500) + personal property taxes
+id_salt (E18400)    = id_pit + id_gst (filers choose one)
+id_intpaid (E19200) ⊃ id_mortgage + investment interest
+```
+
+Variables like id_mortgage, id_pit, id_gst are subsets of their parent E-code — no separate PUF codes exist.
+
+#### Python Converter: potential_targets → soi.csv
+
+Created `tmd/national_targets/potential_targets_to_soi.py` — replaces the old `agi_targets.csv → soi_targets.py → soi.csv` pipeline.
+
+**Key design:**
+- Reads `potential_targets_preliminary.csv` + `irs_to_puf_map.json`
+- Maps var_name+var_type+value_filter → TMD variable name using irs_to_puf_map.json
+- Maps marstat → Filing status, incrange → AGI bounds, subgroup → Taxable only
+- Handles partner+S-corp aggregation for 2021 (partnerincome+scorpincome → partnership_and_s_corp)
+- ptarget is already in dollars (old pipeline had values in thousands)
+- Does NOT produce Taxable only rows (potential_targets has no taxfilers subgroup; reweight.py skips these anyway)
+
+**Converter output:** 3,850 rows (vs old 5,331 — difference is missing Taxable only rows)
+
+#### End-to-End Verification: `make clean && make data`
+
+Ran full pipeline with converter-generated soi.csv:
+
+1. **558/558 targeted rows** match exactly between new and old soi.csv (zero mismatches)
+2. **1,986/1,986 non-taxable 2021 rows** match exactly
+3. **Reweighting targeted 558 SOI statistics** (same count as before)
+4. **All 14 tests passed** (including test_income_tax, test_tax_revenue, test_variable_totals)
+5. **Growth factors identical** (md5 checksum match)
+6. tmd.csv.gz and weights checksums differ only due to gzip timestamps + GPU float non-determinism
+
+Old soi.csv backed up at `tmd/storage/input/soi.csv.bak`.
+
+### Commits made this session:
+(See git log on `improve-potential-targets-structure` branch for full list)
+
+---
+
+## Validated Variables Summary (as of Phase 4)
+
+**Total: 42 variables mapped, 25 validated against pufsums, 47/47 soi.csv variables covered**
+
+| Tier | Variables | Status |
+|------|-----------|--------|
+| Tier 1 (standard) | agi, wages, taxint, orddiv, pensions, socsectot, socsectaxable, ti, taxbc, taxac | 10/10 validated |
+| Tier 2 (gain/loss validated) | busprofincome, cgtaxable, partnerscorpincome | 3/3 validated |
+| Tier 2 (needs review) | rentroyalty, estateincome | 2/2 flagged |
+| Tier 2 (no 2015 data) | partnerincome, scorpincome | 2021/2022 only |
+| Tier 3a (quick wins) | qualdiv, pensions_taxable, unempcomp, exemptint, cgdist | 5/5 validated |
+| Tier 4 (standard) | iradist, tottax | 2/2 validated |
+| Tier 4 (10x errors) | id_medical_uncapped, id_contributions, id_intpaid, id_retax, id_salt | 5/5 validated |
+| Mapped (no pufsums) | exemption, exemptions_n, amt, qbid, itemded, sd, id_mortgage, id_pit, id_gst, id_pitgst, id_taxpaid, id_medical_capped, id | 13 mapped |
+
+---
+
 ## Resume Instructions
 
 When resuming this session:
 1. Read `repo_conventions_session_notes.md` first
-2. Read the plan file at `~/.claude/plans/bubbly-splashing-volcano.md`
-3. Currently on `improve-potential-targets-structure` branch
-4. `potential_targets_preliminary.csv` is available (6,281 rows, 42 var_names, 3 years)
-5. **NEXT STEP**: Phase 4 — Code discovery for remaining 20 unmapped variables.
-   Start with quick wins: iradist→E01400 (likely). Then tackle itemized deductions
-   (id_salt, id_mortgage, etc.) which require C-code discovery. Also decide targeting
-   strategy for rentroyalty and estateincome.
-6. Key files:
-   - `tmd/national_targets/validate_mappings.py` — three-level validation (Tier 1, 2, 3a)
-   - `tmd/national_targets/data/irs_to_puf_map.json` — IRS→PUF mapping (22 vars total)
+2. Currently on `improve-potential-targets-structure` branch (also known as `pr-fix-420`)
+3. `potential_targets_preliminary.csv` is available (6,281 rows, 42 var_names, 3 years)
+4. **Phase 4 is complete.** All 42 variables mapped, 100% soi.csv coverage, `make clean && make data` passes.
+5. **Converter is working:** `tmd/national_targets/potential_targets_to_soi.py` replaces old pipeline.
+6. **NEXT STEPS**:
+   - Decide whether to wire the converter into the Makefile (replace soi_targets.py call)
+   - Test on 2022 (generate 2022 soi.csv, run reweighting)
+   - Resolve rentroyalty and estateincome targeting strategy
+   - Consider adding new target variables beyond the current 24 (11 AGI-level + 13 aggregate)
+   - Long-term: port R pipeline (IRS Excel → potential_targets) to Python
+7. Key files:
+   - `tmd/national_targets/potential_targets_to_soi.py` — **NEW** converter (replaces soi_targets.py)
+   - `tmd/national_targets/validate_mappings.py` — three-level validation (all tiers)
+   - `tmd/national_targets/data/irs_to_puf_map.json` — IRS→PUF mapping (42 vars)
    - `tmd/national_targets/data/puf_to_tmd_map.json` — PUF→TMD mapping
-   - `tmd/national_targets/data/pufsums.csv` — PUF documentation values with sum, sumgtz, sumltz
-   - `tmd/national_targets/test_validate_mappings.py` — automated tests (Tier 1 + 2 + 3a)
-7. This session notes file is at `session_notes/national_targets_session_notes.md`
+   - `tmd/national_targets/data/pufsums.csv` — PUF documentation values
+   - `tmd/national_targets/test_validate_mappings.py` — automated tests (all tiers)
+   - `tmd/storage/input/soi.csv` — **NOW generated by converter** (3,850 rows)
+   - `tmd/storage/input/soi.csv.bak` — backup of old soi.csv (5,331 rows)
+8. This session notes file is at `session_notes/national_targets_session_notes.md`
