@@ -712,34 +712,64 @@ Created and merged PR #424 (`pr-424-2022-target-infrastructure`) into PSLmodels 
 
 ---
 
+## Session Update: 2026-03-05 (continued — PR #2a in progress)
+
+### What we accomplished:
+
+#### PR #2a Commit: Parameterize TAXYEAR
+
+Branch: `pr2a-parameterize-taxyear` (1 commit: `b3a1b3f`)
+
+**Core change:** Moved `TAXYEAR = 2021` to `imputation_assumptions.py` as the single source of truth. Eliminated all hardcoded `2021` references and duplicate `TAX_YEAR` aliases.
+
+**Files modified (6):**
+
+| File | Change |
+|------|--------|
+| `tmd/imputation_assumptions.py` | Added `TAXYEAR = 2021` |
+| `tmd/create_taxcalc_input_variables.py` | Import TAXYEAR instead of defining it |
+| `tmd/utils/reweight.py` | Removed `TAX_YEAR` alias, use `TAXYEAR` directly in function defaults |
+| `tmd/utils/reweight_clarabel.py` | Import `TAXYEAR` from imputation_assumptions (was importing `TAX_YEAR` from reweight) |
+| `tmd/create_taxcalc_cached_files.py` | Removed `TAX_YEAR` alias, use `TAXYEAR` directly |
+| `tmd/datasets/tmd.py` | Replaced 5 hardcoded `2021` values with `TAXYEAR` |
+
+**Why imputation_assumptions.py?** `tmd.py` and `create_taxcalc_input_variables.py` import each other → circular import if TAXYEAR lives in either. `imputation_assumptions.py` has zero tmd imports.
+
+**Verification with TAXYEAR=2021:** 51 tests passed, 3 skipped (identical to master baseline).
+
+**Testing with TAXYEAR=2022:** `make data` crashes at `create_taxcalc_cached_files.py` because `tc.Records.tmd_constructor()` hardcodes `start_year=2021` internally. The growth factors also have a subtlety at lines 51-57. These need fixing to make the pipeline 2022-ready.
+
+#### Remaining work for PR #2a:
+
+Two fixes needed so that `make data` runs (even if tests fail) with TAXYEAR=2022:
+
+1. **`create_taxcalc_cached_files.py`**: Bypass `tmd_constructor()` and construct `tc.Records()` directly with `start_year=TAXYEAR`
+2. **`create_taxcalc_growth_factors.py`**: Lines 51-57 use `gfdf.iat[2022 - FIRST_YEAR, ...]`. When FIRST_YEAR=2022, index=0 overwrites the baseline all-ones row. Must be conditional on FIRST_YEAR < 2022.
+
+---
+
 ## Resume Instructions
 
 When resuming this session:
 1. Read `repo_conventions_session_notes.md` first
-2. Currently on **`pr2a-parameterize-taxyear`** branch (based on master after PR #424 merge). No commits yet on this branch.
+2. Currently on **`pr2a-parameterize-taxyear`** branch (1 commit: `b3a1b3f`).
 3. **PR #424 merged.** Infrastructure for 2022 targets is in production master.
-4. **Pipeline targets 2021**: TAXYEAR=2021 is hardcoded. 2022 targets in soi.csv but not yet used.
-5. **IMMEDIATE TASK — PR #2a**: Eliminate duplicated `TAX_YEAR = 2021` in reweight.py (import TAXYEAR instead). Replace hardcoded `2021` in tmd.py function calls with TAXYEAR. Keep TAXYEAR=2021. Pure cleanup — zero behavioral change. Files to modify:
-   - `tmd/utils/reweight.py` — line 19: `TAX_YEAR = 2021` → import from TAXYEAR
-   - `tmd/datasets/tmd.py` — lines 22-23, 40, 68-80: hardcoded `2021` → TAXYEAR
-   - `tmd/create_taxcalc_growth_factors.py` — line 10: already has `TAX_YEAR = TAXYEAR` (no change needed)
-   - `tmd/create_taxcalc_cached_files.py` — line 10: already has `TAX_YEAR = TAXYEAR` (no change needed)
+4. **IMMEDIATE TASK**: Fix the two remaining issues so `make data` completes with TAXYEAR=2022:
+   - **`create_taxcalc_cached_files.py`**: `tc.Records.tmd_constructor()` hardcodes `start_year=2021`. Fix: construct `tc.Records()` directly with `start_year=TAXYEAR`.
+   - **`create_taxcalc_growth_factors.py`**: Lines 51-57 growth factor adjustments must be conditional (`if FIRST_YEAR <= 2021`).
+5. **After fix**: Test with TAXYEAR=2021 (all tests pass), test with TAXYEAR=2022 (`make data` completes, tests may fail on hardcoded fingerprints), commit, then Don pushes.
 6. **SUBSEQUENT STEPS** (from 5-PR strategy):
-   - **PR #2b**: Actually change TAXYEAR to 2022 + handle growth factors subtlety + bypass tmd_constructor. Depends on #2a + #3.
-   - **PR #3**: CPS 2022 classes (RawCPS_2022, CPS_2022). Can proceed in parallel with #2a. CPS 2022 data URL already in cps.py (asecpub23csv.zip = March 2023 ASEC = 2022 income data).
+   - **PR #2b**: Actually change TAXYEAR default to 2022. Depends on PR #3.
+   - **PR #3**: CPS 2022 classes (RawCPS_2022, CPS_2022). CPS 2022 data URL already in cps.py.
    - **PR #4**: Update tests for year flexibility (hardcoded fingerprint values).
    - **PR #5**: All-Python pipeline, data-driven targets.
-   - **Growth factors subtlety** (PR #2b): `create_taxcalc_growth_factors.py` lines 51-57 adjust `gfdf.iat[2022 - FIRST_YEAR, ...]`. When FIRST_YEAR=2022, index becomes 0, corrupting baseline. Must be conditional.
-   - **taxcalc dependency** (PR #2b): `Records.TMDCSV_YEAR = 2021` hardcoded in taxcalc library. Workaround: bypass `tmd_constructor()` and construct `Records` directly with `start_year=TAX_YEAR`.
 7. **Workflow reminders**:
    - Don't push or create PRs without explicit user direction
    - Run `make format` and lint (pycodestyle + pylint) before committing
    - Don pushes upstream and creates PRs; Claude prepares branches and commits
-8. Key files on master:
-   - `tmd/create_taxcalc_input_variables.py` — TAXYEAR = 2021 (line 17) — the single source of truth
-   - `tmd/utils/reweight.py` — TAX_YEAR = 2021 (line 19) — should import from TAXYEAR
-   - `tmd/datasets/tmd.py` — 5+ hardcoded 2021 values in function calls
+8. Key files:
+   - `tmd/imputation_assumptions.py` — `TAXYEAR = 2021` — single source of truth (NEW location)
    - `tmd/create_taxcalc_growth_factors.py` — 2022 growth factor adjustments at lines 51-57
-   - `tmd/create_taxcalc_cached_files.py` — already uses TAXYEAR
+   - `tmd/create_taxcalc_cached_files.py` — needs `tmd_constructor` bypass
 9. **Plan file:** `~/.claude/plans/sprightly-munching-finch.md` — detailed analysis of all PRs
 10. This session notes file is at `session_notes/national_targets_session_notes.md`
