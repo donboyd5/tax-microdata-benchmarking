@@ -746,30 +746,89 @@ Two fixes needed so that `make data` runs (even if tests fail) with TAXYEAR=2022
 1. **`create_taxcalc_cached_files.py`**: Bypass `tmd_constructor()` and construct `tc.Records()` directly with `start_year=TAXYEAR`
 2. **`create_taxcalc_growth_factors.py`**: Lines 51-57 use `gfdf.iat[2022 - FIRST_YEAR, ...]`. When FIRST_YEAR=2022, index=0 overwrites the baseline all-ones row. Must be conditional on FIRST_YEAR < 2022.
 
+## Session Update: 2026-03-05 (continued — PR #2a complete)
+
+### What we accomplished:
+
+#### PR #2a Complete: All Code Changes Ready for PR
+
+Branch: `pr2a-parameterize-taxyear` (commits: `b3a1b3f`, `42754bc`, plus uncommitted test fixes)
+
+**Summary:** Parameterized TAXYEAR so changing one constant in `imputation_assumptions.py` switches the entire pipeline. With TAXYEAR=2021, `make clean && make data` passes all 51 tests. With TAXYEAR=2022, pipeline completes and all tests run (no crashes), but 6 tests fail on value mismatches (expected — fingerprints are for 2021 data).
+
+**All files modified (11):**
+
+| File | Change |
+|------|--------|
+| `tmd/imputation_assumptions.py` | Added `TAXYEAR = 2021` (single source of truth) |
+| `tmd/create_taxcalc_input_variables.py` | Import TAXYEAR instead of defining it |
+| `tmd/utils/reweight.py` | Removed `TAX_YEAR` alias, use `TAXYEAR` directly |
+| `tmd/utils/reweight_clarabel.py` | Import `TAXYEAR` from imputation_assumptions |
+| `tmd/datasets/tmd.py` | Replaced 5 hardcoded `2021` values with `TAXYEAR` |
+| `tmd/create_taxcalc_cached_files.py` | Bypass `tmd_constructor()`, construct `tc.Records()` directly with `start_year=TAXYEAR` |
+| `tmd/create_taxcalc_growth_factors.py` | Guard 2022 calibration adjustments with `if FIRST_YEAR < 2022:` |
+| `tests/conftest.py` | Added `create_tmd_records()` helper (same bypass as cached_files) |
+| `tests/__init__.py` | New empty file (makes `tests` importable for pytest-xdist `-n4`) |
+| `tests/test_misc.py` | Uses `create_tmd_records()` instead of `tmd_constructor()` |
+| `tests/test_area_weights.py` | Same |
+| `tests/test_imputed_variables.py` | Same |
+
+**Key technical decisions:**
+
+1. **Why bypass `tmd_constructor()`?** Tax-Calculator's `tmd_constructor()` hardcodes `start_year=Records.TMDCSV_YEAR=2021`. Direct `tc.Records()` construction accepts any `start_year`. No tax-calculator library change needed for now.
+
+2. **Why guard growth factor adjustments?** Martin's calibration adjustments nudge the 2022 row to match SOI published data when growing from 2021→2022. When TAXYEAR=2022, the 2022 row IS the baseline (all ones at index 0). Applying adjustments would corrupt it. When TAXYEAR=2022, reweighting handles calibration directly via SOI targets instead.
+
+3. **Why `tests/__init__.py`?** The `from tests.conftest import create_tmd_records` import requires `tests` to be a Python package. Master never imports from conftest so never needed it. Our new shared helper function does.
+
+4. **`create_tmd_records()` is test-only.** The pipeline itself (`create_taxcalc_cached_files.py`) does the same `tc.Records()` bypass inline. Long-term, tax-calculator's `tmd_constructor()` should accept a `start_year` parameter, eliminating the need for bypasses everywhere.
+
+**Understanding growth factors (for context):**
+- `puf_growfactors.csv` is an upstream input from Tax-Calculator, calibrated for taxdata's PUF — not modifiable by TMD
+- `create_taxcalc_growth_factors.py` reads it, applies TMD-specific adjustments, writes `tmd_growfactors.csv`
+- Martin's hardcoded 2022 adjustments exist because TMD's combined PUF+CPS data has different base-year aggregates than pure PUF, so the standard growth factors don't perfectly match IRS published 2022 totals for TMD
+
+#### Issues to Create Later
+
+Two follow-up issues identified during PR #2a work:
+
+1. **Growth factor calibration for 2022→2023** (tax-microdata-benchmarking issue)
+   - Same problem Martin solved for 2021→2022: PUF growfactors may not match published 2023 aggregates for TMD data
+   - Will need similar calibration adjustments for the 2023 row when TAXYEAR=2022
+   - Martin should be involved — he knows the methodology and SOI data sources
+
+2. **Tax-Calculator hardcoded year constants** (tax-calculator issue)
+   - `records.py` has `PUFCSV_YEAR = 2011`, `CPSCSV_YEAR = 2014`, `TMDCSV_YEAR = 2021`
+   - `tmd_constructor()` uses `TMDCSV_YEAR` to hardcode `start_year=2021`
+   - Ideal fix: `tmd_constructor()` should accept a `start_year` parameter
+   - This would eliminate the need for our `create_tmd_records()` bypass in tests and the direct `tc.Records()` construction in `create_taxcalc_cached_files.py`
+
 ---
 
 ## Resume Instructions
 
 When resuming this session:
 1. Read `repo_conventions_session_notes.md` first
-2. Currently on **`pr2a-parameterize-taxyear`** branch (1 commit: `b3a1b3f`).
+2. Currently on **`pr2a-parameterize-taxyear`** branch. Code is complete but needs commit + PR.
 3. **PR #424 merged.** Infrastructure for 2022 targets is in production master.
-4. **IMMEDIATE TASK**: Fix the two remaining issues so `make data` completes with TAXYEAR=2022:
-   - **`create_taxcalc_cached_files.py`**: `tc.Records.tmd_constructor()` hardcodes `start_year=2021`. Fix: construct `tc.Records()` directly with `start_year=TAXYEAR`.
-   - **`create_taxcalc_growth_factors.py`**: Lines 51-57 growth factor adjustments must be conditional (`if FIRST_YEAR <= 2021`).
-5. **After fix**: Test with TAXYEAR=2021 (all tests pass), test with TAXYEAR=2022 (`make data` completes, tests may fail on hardcoded fingerprints), commit, then Don pushes.
+4. **IMMEDIATE TASK**: Commit remaining changes (test fixes + `__init__.py`), format/lint, then Don creates PR.
+5. **Verified:** TAXYEAR=2021 → 51 passed, 3 skipped. TAXYEAR=2022 → pipeline completes, tests run (6 fail on value mismatches, 0 crashes).
 6. **SUBSEQUENT STEPS** (from 5-PR strategy):
    - **PR #2b**: Actually change TAXYEAR default to 2022. Depends on PR #3.
    - **PR #3**: CPS 2022 classes (RawCPS_2022, CPS_2022). CPS 2022 data URL already in cps.py.
    - **PR #4**: Update tests for year flexibility (hardcoded fingerprint values).
    - **PR #5**: All-Python pipeline, data-driven targets.
-7. **Workflow reminders**:
+7. **Issues to create:**
+   - Growth factor calibration 2022→2023 (TMD repo, involve Martin)
+   - Tax-Calculator `tmd_constructor()` start_year parameter (TC repo)
+8. **Workflow reminders**:
    - Don't push or create PRs without explicit user direction
    - Run `make format` and lint (pycodestyle + pylint) before committing
    - Don pushes upstream and creates PRs; Claude prepares branches and commits
-8. Key files:
-   - `tmd/imputation_assumptions.py` — `TAXYEAR = 2021` — single source of truth (NEW location)
-   - `tmd/create_taxcalc_growth_factors.py` — 2022 growth factor adjustments at lines 51-57
-   - `tmd/create_taxcalc_cached_files.py` — needs `tmd_constructor` bypass
-9. **Plan file:** `~/.claude/plans/sprightly-munching-finch.md` — detailed analysis of all PRs
-10. This session notes file is at `session_notes/national_targets_session_notes.md`
+9. Key files:
+   - `tmd/imputation_assumptions.py` — `TAXYEAR = 2021` — single source of truth
+   - `tests/conftest.py` — `create_tmd_records()` helper (bypasses `tmd_constructor`)
+   - `tmd/create_taxcalc_growth_factors.py` — guarded 2022 calibration adjustments
+   - `tmd/create_taxcalc_cached_files.py` — direct `tc.Records()` construction
+10. **Plan file:** `~/.claude/plans/sprightly-munching-finch.md` — detailed analysis of all PRs
+11. This session notes file is at `session_notes/national_targets_session_notes.md`
