@@ -754,9 +754,9 @@ Two fixes needed so that `make data` runs (even if tests fail) with TAXYEAR=2022
 
 Branch: `pr2a-parameterize-taxyear` (commits: `b3a1b3f`, `42754bc`, plus uncommitted test fixes)
 
-**Summary:** Parameterized TAXYEAR so changing one constant in `imputation_assumptions.py` switches the entire pipeline. With TAXYEAR=2021, `make clean && make data` passes all 51 tests. With TAXYEAR=2022, pipeline completes and all tests run (no crashes), but 6 tests fail on value mismatches (expected — fingerprints are for 2021 data).
+**Summary:** Parameterized TAXYEAR so changing one constant in `imputation_assumptions.py` switches the entire pipeline. With TAXYEAR=2021, `make clean && make data` passes all 51 tests. With TAXYEAR=2022, pipeline completes and all tests run (no crashes), but 5 tests fail on value mismatches (expected — fingerprints are for 2021 data).
 
-**All files modified (11):**
+**All files modified (12):**
 
 | File | Change |
 |------|--------|
@@ -767,6 +767,7 @@ Branch: `pr2a-parameterize-taxyear` (commits: `b3a1b3f`, `42754bc`, plus uncommi
 | `tmd/datasets/tmd.py` | Replaced 5 hardcoded `2021` values with `TAXYEAR` |
 | `tmd/create_taxcalc_cached_files.py` | Bypass `tmd_constructor()`, construct `tc.Records()` directly with `start_year=TAXYEAR` |
 | `tmd/create_taxcalc_growth_factors.py` | Guard 2022 calibration adjustments with `if FIRST_YEAR < 2022:` |
+| `tmd/utils/taxcalc_utils.py` | Changed `assert input_data_year == 2021` to `assert input_data_year == TAXYEAR` |
 | `tests/conftest.py` | Added `create_tmd_records()` helper (same bypass as cached_files) |
 | `tests/__init__.py` | New empty file (makes `tests` importable for pytest-xdist `-n4`) |
 | `tests/test_misc.py` | Uses `create_tmd_records()` instead of `tmd_constructor()` |
@@ -811,8 +812,8 @@ When resuming this session:
 1. Read `repo_conventions_session_notes.md` first
 2. Currently on **`pr2a-parameterize-taxyear`** branch. Code is complete but needs commit + PR.
 3. **PR #424 merged.** Infrastructure for 2022 targets is in production master.
-4. **IMMEDIATE TASK**: Commit remaining changes (test fixes + `__init__.py`), format/lint, then Don creates PR.
-5. **Verified:** TAXYEAR=2021 → 51 passed, 3 skipped. TAXYEAR=2022 → pipeline completes, tests run (6 fail on value mismatches, 0 crashes).
+4. **IMMEDIATE TASK**: Commit remaining changes (test fixes + `__init__.py` + taxcalc_utils.py), format/lint, then Don creates PR.
+5. **Verified:** TAXYEAR=2021 → 51 passed, 3 skipped. TAXYEAR=2022 → pipeline completes, tests run (5 fail on value mismatches, 0 crashes).
 6. **SUBSEQUENT STEPS** (from 5-PR strategy):
    - **PR #2b**: Actually change TAXYEAR default to 2022. Depends on PR #3.
    - **PR #3**: CPS 2022 classes (RawCPS_2022, CPS_2022). CPS 2022 data URL already in cps.py.
