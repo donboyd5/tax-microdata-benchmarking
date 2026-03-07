@@ -659,15 +659,67 @@ wage growth. SS_VAL (+9.4%) reflects the 5.9% COLA for 2022.
 
 ---
 
+## Implementation Results (PR #3)
+
+### Files Modified (7 files)
+
+| File | Change | Purpose |
+|------|--------|---------|
+| `tmd/datasets/cps.py` | +RawCPS_2022, +CPS_2022, +create_cps_2022(), parameterized retirement limits | Year-matched CPS dataset classes |
+| `tmd/datasets/puf.py` | +PUF_2022, +create_pe_puf_2022() | Year-matched PUF class (time_period=2022 controls uprating target) |
+| `tmd/datasets/tmd.py` | TAXYEAR-aware dataset selection, e01500/e00600 consistency clamps | Orchestration selects 2021 or 2022 classes based on TAXYEAR |
+| `tmd/utils/pension_contributions.py` | TAXYEAR-aware CPS class selection | Pension imputation uses year-matched CPS |
+| `tmd/utils/reweight_clarabel.py` | Prescale fix: only apply to filer records | Bug fix: CPS nonfilers were getting filer-derived prescale |
+| `tests/test_weights.py` | Updated weight fingerprint | Reflects prescale fix (small diffs in total, mean, p50, p75) |
+| `tests/test_imputed_variables.py` | Updated auto_loan_interest stats, ALL affpct | Reflects prescale fix ripple effect |
+
+### Bug Fixes
+
+1. **Prescale leak onto CPS nonfilers** (`reweight_clarabel.py:403`): `flat_file["s006"] *= prescale`
+   applied the filer-count-derived prescale to ALL records. Fixed to
+   `flat_file.loc[filer_mask, "s006"] *= prescale`. Effect on 2021 results: small — weight total
+   shifted from 183.89M to 183.94M (+0.03%).
+
+2. **e01500 >= e01700 constraint** (`tmd.py:60-61`): PUF uprating from 2015 to 2022 uses different
+   growth factors for total vs taxable pension income, causing `total < taxable` for some records.
+   Added `np.maximum` clamp after concat, before `add_taxcalc_outputs`. Same treatment for
+   `e00600 >= e00650` (dividends).
+
+### Test Results
+
+- **TAXYEAR=2021**: 51 passed, 3 skipped (all green after updating fingerprints for prescale fix)
+- **TAXYEAR=2022**: 45 passed, 3 skipped, 6 failed (all failures are hardcoded 2021 fingerprints)
+  - `test_income_tax`: $187B actual vs $184B expected (+1.6%, plausible for 2022)
+  - `test_weights`: different record count (226,366 vs 225,256) and weight distribution
+  - `test_imputed_variable_distribution`: different imputation stats
+  - `test_obbba_deduction_tax_benefits`: downstream of changed imputations
+  - `test_tax_exp_diffs`, `test_tax_revenue`: baseline-year-dependent expected files
+  - All 6 are "PR #4 scope" — updating expected values for TAXYEAR=2022
+
+### Retirement Contribution Limits (parameterized)
+
+| Year | 401(k) limit | 401(k) catch-up | IRA limit | IRA catch-up |
+|------|-------------|-----------------|-----------|-------------|
+| 2021 | $19,500 | $6,500 | $6,000 | $1,000 |
+| 2022 | $20,500 | $6,500 | $6,000 | $1,000 |
+| 2023 | $22,500 | $7,500 | $6,500 | $1,000 |
+
+### Open Items for Later PRs
+
+- Rename `create_tmd_2021()` to something year-neutral (cosmetic debt)
+- Update 6 test fingerprints for TAXYEAR=2022 (PR #4)
+- Consider year-specific `CPS_WEIGHTS_SCALE` values
+- Consider year-specific imputation fractions
+
+---
+
 ## Resume Instructions
 
 When resuming this session:
 1. Read `repo_conventions_session_notes.md` first
 2. Currently on **`cps-exploration`** branch (based on `pr2a-parameterize-taxyear`)
-3. The primary file to understand is `tmd/datasets/cps.py` (799 lines)
-4. Key companion files: `tmd/datasets/tmd.py`, `tmd/datasets/taxcalc_dataset.py`,
-   `tmd/imputation_assumptions.py`, `tmd/datasets/puf.py`
-5. PR #3 goal: add RawCPS_2022, CPS_2022, PUF_2022 classes and make tmd.py year-aware
-6. Plan file: `~/.claude/plans/enumerated-gliding-willow.md`
-7. Key findings: CPS has 175M tax units (137M filers, 38.5M nonfilers); .5806 scale reduces
-   nonfilers to 22.3M; Treasury OTA benchmark is 32M nonfilers; PUF_2022 needed for uprating
+3. PR #3 implementation is **complete** — code changes done, TAXYEAR=2021 tests all pass
+4. Next step: PR to merge cps-exploration → master (or create PR #4 for 2022 fingerprints)
+5. Plan file: `~/.claude/plans/enumerated-gliding-willow.md`
+6. Key files changed: cps.py, puf.py, tmd.py, pension_contributions.py, reweight_clarabel.py,
+   test_weights.py, test_imputed_variables.py
