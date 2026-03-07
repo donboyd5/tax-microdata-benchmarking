@@ -289,13 +289,175 @@ The split fractions (interest, dividends, capital gains) are based on specific S
 
 ---
 
+## Session Update: 2026-03-07
+
+### CPS 2021 Weighted Counts (Income Year 2021, March 2022 Survey)
+
+| Level | Records | Weighted Total |
+|-------|--------:|---------------:|
+| Persons | 152,732 | 327,809,775 |
+| Households | 59,148 | 131,314,715 |
+| Families | 66,529 | 148,631,518 |
+| Tax units (all) | 78,913 | 175,310,313 |
+| Tax units (filers) | 61,348 | 136,852,192 |
+| Tax units (nonfilers) | 17,565 | 38,458,120 |
+
+Weights used: `A_FNLWGT/100` for persons, `HSUP_WGT/100` for households, `FSUP_WGT/100` for families.
+Tax unit weight = family weight of containing family (first person in tax unit gets family weight).
+Filer/nonfiler split uses PolicyEngine `tax_unit_is_filer` with `period=2022` rules.
+
+### CPS Weight Flow in the Pipeline
+
+```
+All CPS tax units:        175.3M weighted (78,913 records)
+  → Filter to nonfilers:   38.5M weighted (17,565 records)
+  → × CPS_WEIGHTS_SCALE:   22.3M weighted (0.5806 × 38.5M)
+  → Drop positive iitax:   (removes a few records)
+  → Reweight with PUF:     22.3M in final TMD
+
+Final TMD:
+  PUF records: 207,692 records, 161.6M weighted
+  CPS records:  17,564 records,  22.3M weighted
+  Total:       225,256 records, 183.9M weighted
+```
+
+### Q&A: How CPS Interacts with PUF
+
+**Q: Are any CPS variables added to PUF records?**
+
+Indirectly, one case. `pension_contributions.py` (line 12) loads CPS_2021, extracts
+`employment_income`, `traditional_401k_contributions`, and `traditional_403b_contributions`,
+trains a RandomForest model on CPS data, then uses it to *predict* pension contributions
+(`pencon_p`, `pencon_s`) for PUF records. This happens inside `create_tc_dataset()`
+(`taxcalc_dataset.py:171-184`). PUF lacks pretax pension data, so CPS is the training source.
+No other CPS→PUF transfer occurs — the datasets are simply concatenated (`tmd.py:32`).
+
+**Q: Are CPS records reweighted, other than the .58 adjustment?**
+
+Yes. The .5806 is applied BEFORE reweighting (`tmd.py:45-46`). Then all records (PUF + CPS
+together) enter the Clarabel QP optimizer. The reweighter first prescales all weights to match
+the SOI filer count exactly (`reweight_clarabel.py:389-408`), then the optimizer adjusts
+individual weights to hit all 550 SOI targets. So CPS records get three adjustments:
+(1) CPS_WEIGHTS_SCALE=0.5806, (2) prescale to SOI filer count, (3) per-record optimizer weights.
+
+**Q: Why the .58 adjustment? Documentation?**
+
+It scales 38.5M nonfiler tax units down to ~22.3M. Martin Holmer introduced it in two commits
+on August 30, 2024:
+- PR #175, commit `21e1ee46`: "Scale CPS record weights" — initial value 0.6248
+- PR #176, commit `04c5fd0a`: "Rescale CPS weights" — refined to 0.5806 (same day)
+
+No derivation documented in commit messages, code comments, or PolicyEngine docs. The only
+comment is `# used to scale CPS-subsample population` (`imputation_assumptions.py:16`).
+It appears to be an empirically calibrated parameter. The rationale for cutting nonfiler
+tax units almost in half is unclear — needs investigation.
+
+**Q: What code is used from PolicyEngine?**
+
+Three packages:
+- `policyengine_core.data.Dataset` — base class for RawCPS, CPS, and PUF dataset classes.
+  Provides HDF5 storage, generate()/load() pattern, data format handling (TABLES vs ARRAYS).
+- `policyengine_us.Microsimulation` — tax calculation engine. Used to:
+  (A) identify nonfilers via `tax_unit_is_filer` (`tmd.py:27-28`),
+  (B) extract/aggregate all variables in `create_tc_dataset()` (`taxcalc_dataset.py:18`),
+  (C) train pension contribution imputation (`pension_contributions.py:12`),
+  (D) convert PE variables to SOI comparison format (`soi_replication.py`).
+- `policyengine_us.system` — variable metadata (entity keys, variable names).
+  Used in `taxcalc_dataset.py:10` and `puf.py:6`.
+
+**Q: Nonfiler identification period for 2022?**
+
+Decision: use `period=2022` for both TAXYEAR=2021 and TAXYEAR=2022. The current code already
+uses 2022 filer rules for 2021 data (to avoid COVID anomalies). For minimalism, keep the
+same period for both years.
+
+### PUF Also Needs a 2022 Class
+
+`PUF_2021` has `time_period=2021`, which controls `uprate_puf(puf, 2015, self.time_period)`.
+Without a `PUF_2022` (time_period=2022), PUF data would be uprated to 2021 instead of 2022.
+`soi.csv` already has 2022 data (from PR #424), so growth factors will work.
+`create_pe_puf_2022()` reads the same `puf_2015.csv` + `demographics_2015.csv` as 2021 —
+the only difference is the uprating target year.
+
+### Nonfiler Tax Unit Estimates from External Sources
+
+How many nonfiler tax units are there in the US? The CPS says 38.5M, TMD scales to 22.3M.
+External sources (all figures for ~2021 unless noted):
+
+**Tax-unit-based estimates (apples-to-apples):**
+
+| Source | Total Tax Units | Filers | Nonfilers | Notes |
+|--------|:-:|:-:|:-:|-------|
+| Treasury OTA (TP-8, May 2022) | 183M | ~151M | 32M (18%) | Distribution model; best single benchmark |
+| Tax Policy Center | ~177M | — | — | Microsimulation model baseline |
+| CPS ASEC (raw, this project) | 175M | 136.9M | 38.5M | Census tax model; known to overcount nonfilers |
+| **TMD (after .5806 scale)** | **183.9M** | **161.6M** | **22.3M** | PUF filers + scaled CPS nonfilers |
+| IRS SOI | — | 160.8M | — | Actual returns filed |
+
+**Individual-based estimates (different unit — not directly comparable to above):**
+
+| Source | Estimate | Unit | Notes |
+|--------|----------|------|-------|
+| IRS Research (Langetieg et al.) | 10-15M | Individuals | *Required* nonfilers only (should file but don't) |
+| CBPP (stimulus outreach) | 12M | Individuals | Nonfilers eligible for stimulus |
+| Cilke/Treasury (~10% of pop.) | ~33M | Individuals | Rough approximation |
+
+**Key observations:**
+- CPS nonfiler count (38.5M tax units) is widely known to be an overcount due to income
+  underreporting in survey data. Many CPS "nonfilers" actually have enough income to file.
+- Treasury OTA's 32M nonfiler tax units is the most authoritative tax-unit estimate.
+- TMD's 22.3M nonfilers is well below Treasury's 32M — the .5806 scale may be too aggressive.
+- TMD's filer count (161.6M) matches IRS SOI (160.8M) well — the PUF side is calibrated.
+- Treasury OTA says 151M filers vs IRS SOI 160.8M — a 10M gap. Possible definitional
+  differences (OTA may exclude some returns, or use a different filing unit definition).
+- The CPS filer count (136.9M) is far below IRS (160.8M) — the CPS significantly undercounts
+  filers, likely because income underreporting causes some true filers to be classified as
+  nonfilers in the PolicyEngine `tax_unit_is_filer` calculation.
+
+**Sources:**
+- Treasury OTA Technical Paper 8 (May 2022): https://home.treasury.gov/system/files/131/TP-8.pdf
+- IRS nonfiler research: https://www.irs.gov/pub/irs-soi/17resconpayne.pdf
+- Census CPS tax model: https://www.census.gov/topics/income-poverty/income/guidance/tax-model.html
+- Cilke, Treasury WP-78: https://home.treasury.gov/system/files/131/WP-78.pdf
+
+### Session Summary (2026-03-07)
+
+**What we learned:**
+
+1. **CPS structure**: The CPS 2021 has 152,732 person records (328M weighted), 59,148 households
+   (131M), 66,529 families (149M), and 78,913 tax units (175M). Of those tax units, 61,348 are
+   filers (137M weighted) and 17,565 are nonfilers (38.5M weighted).
+
+2. **CPS role in TMD**: CPS provides only the nonfiler population. PUF provides all filers.
+   The two are concatenated — no variable transfer except pension contribution imputation
+   (CPS trains a model, PUF gets predictions). CPS nonfiler weights are scaled by .5806,
+   then all records are reweighted together against SOI targets.
+
+3. **The .5806 mystery**: Scales 38.5M nonfiler tax units to ~22.3M. Introduced by Martin Holmer
+   (Aug 2024), no derivation documented. Treasury OTA estimates 32M nonfiler tax units for 2021,
+   so TMD's 22.3M may be too low. The CPS also undercounts filers (137M vs IRS 160.8M) due to
+   income underreporting — many true filers look like nonfilers in CPS data.
+
+4. **PolicyEngine dependency**: Three packages provide the Dataset base class, the tax
+   calculation engine (Microsimulation), and variable metadata. PolicyEngine determines
+   filer/nonfiler status and extracts all variables from CPS/PUF into Tax-Calculator format.
+
+5. **For CPS 2022 support**: Need new classes (RawCPS_2022, CPS_2022, PUF_2022) and
+   TAXYEAR-aware selection in tmd.py and pension_contributions.py. PUF_2022 is critical —
+   `time_period` controls uprating from 2015 base data. All year-specific parameters
+   (CPS_WEIGHTS_SCALE, retirement limits, imputation fractions) kept unchanged for minimalism.
+
+---
+
 ## Open Questions
 
-1. **CPS_WEIGHTS_SCALE for 2022** — is 0.5806 still appropriate? How was it derived?
-2. **Nonfiler identification period** — when TAXYEAR=2022, use 2023 filing rules?
-3. **Retirement contribution limits** — parameterize by year?
+1. **CPS_WEIGHTS_SCALE**: 0.5806 produces 22.3M nonfilers vs Treasury OTA's 32M. Too aggressive?
+   How was it derived? Should it change for 2022?
+2. **CPS filer undercount**: CPS identifies only 137M filers vs IRS 160.8M. Is this a known
+   limitation of PolicyEngine's `tax_unit_is_filer`, or of CPS income underreporting, or both?
+3. **Retirement contribution limits** — hardcoded as 2022 values. Parameterize by year?
 4. **Imputation fractions** — update for more recent SOI data?
-5. **INCRETIR coding fix** — does this affect any variables used in the pipeline?
+5. **INCRETIR coding fix** in 2023 ASEC — does this affect any variables used in the pipeline?
 6. **UH_STTAXREB_A1** (new in 2023 ASEC) — relevant for state tax modeling?
 
 ---
@@ -306,5 +468,9 @@ When resuming this session:
 1. Read `repo_conventions_session_notes.md` first
 2. Currently on **`cps-exploration`** branch (based on `pr2a-parameterize-taxyear`)
 3. The primary file to understand is `tmd/datasets/cps.py` (799 lines)
-4. Key companion files: `tmd/datasets/tmd.py`, `tmd/datasets/taxcalc_dataset.py`, `tmd/imputation_assumptions.py`
-5. PR #3 goal: add `RawCPS_2022` + `CPS_2022` classes and make `tmd.py` year-aware
+4. Key companion files: `tmd/datasets/tmd.py`, `tmd/datasets/taxcalc_dataset.py`,
+   `tmd/imputation_assumptions.py`, `tmd/datasets/puf.py`
+5. PR #3 goal: add RawCPS_2022, CPS_2022, PUF_2022 classes and make tmd.py year-aware
+6. Plan file: `~/.claude/plans/enumerated-gliding-willow.md`
+7. Key findings: CPS has 175M tax units (137M filers, 38.5M nonfilers); .5806 scale reduces
+   nonfilers to 22.3M; Treasury OTA benchmark is 32M nonfilers; PUF_2022 needed for uprating
