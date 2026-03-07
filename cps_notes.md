@@ -489,6 +489,176 @@ External sources (all figures for ~2021 unless noted):
 
 ---
 
+## Appendix: CPS Weighted Sums by Variable, 2021 vs 2022
+
+Person-level weighted sums using `A_FNLWGT/100`. CPS 2021 = income year 2021 (March 2022 survey,
+asecpub22csv.zip, 152,732 records, 327.8M weighted persons). CPS 2022 = income year 2022
+(March 2023 survey, asecpub23csv.zip, 146,133 records, 329.7M weighted persons).
+
+Sorted by absolute percent change, descending. Dollar amounts in billions (B) or millions (M).
+
+### Tax Credits & Federal Tax (Census Tax Model)
+
+| Variable | Description | Wtd Sum 2021 | Wtd Sum 2022 | Change | % Change |
+|----------|-------------|-------------:|-------------:|-------:|---------:|
+| CTC_CRD | Child tax credit | 4.4B | 91.1B | +86.7B | +1958.6% |
+| ACTC_CRD | Additional child tax credit | 203.7B | 22.1B | -181.6B | -89.1% |
+| FEDTAX_AC | Federal tax after credits | 1,098.5B | 1,649.1B | +550.6B | +50.1% |
+| EIT_CRED | Earned income tax credit | 46.8B | 35.7B | -11.1B | -23.7% |
+| TAX_INC | Taxable income | 9,922.3B | 10,392.9B | +470.6B | +4.7% |
+| AGI | Adjusted gross income | 12,787.3B | 13,385.4B | +598.1B | +4.7% |
+| MARG_TAX | Marginal tax rate | 2.1B | 2.2B | +84.9M | +4.0% |
+| STATETAX_B | State tax (method B) | 440.6B | 447.5B | +7.0B | +1.6% |
+| STATETAX_A | State tax (method A) | 413.0B | 406.9B | -6.2B | -1.5% |
+| FEDTAX_BC | Federal tax before credits | 1,718.8B | 1,706.9B | -11.8B | -0.7% |
+
+**Notes:** CTC_CRD jumps +1959% because 2021 had the expanded fully-refundable CTC ($3,600/$3,000
+per child, delivered mainly through ACTC_CRD). In 2022, CTC reverted to $2,000/child (non-refundable
+portion = CTC_CRD), so ACTC_CRD collapsed -89%. FEDTAX_AC rose +50% as refundable credits shrank.
+UC_VAL fell -81% as pandemic unemployment benefits expired.
+
+### Income Variables (Person-Level)
+
+| Variable | Description | Wtd Sum 2021 | Wtd Sum 2022 | Change | % Change |
+|----------|-------------|-------------:|-------------:|-------:|---------:|
+| UC_VAL | Unemployment compensation | 88.7B | 16.5B | -72.2B | -81.4% |
+| CAP_VAL | Capital gains/losses | 367.4B | 177.4B | -190.0B | -51.7% |
+| INT_VAL | Interest income | 594.2B | 342.4B | -251.8B | -42.4% |
+| FRSE_VAL | Farm self-employment income | 31.5B | 40.5B | +9.0B | +28.5% |
+| PAW_VAL | Public assistance (TANF) | 5.8B | 7.4B | +1.6B | +27.9% |
+| WC_VAL | Workers compensation | 9.7B | 7.8B | -1.9B | -19.8% |
+| DIS_VAL1 | Disability income (source 1) | 32.3B | 38.5B | +6.2B | +19.1% |
+| OI_VAL | Other income | 14.0B | 15.9B | +1.9B | +13.9% |
+| DIV_VAL | Dividend income | 209.9B | 181.8B | -28.1B | -13.4% |
+| WSAL_VAL | Wage and salary income | 9,873.7B | 10,856.9B | +983.2B | +10.0% |
+| SS_VAL | Social Security income | 953.6B | 1,043.1B | +89.4B | +9.4% |
+| RETCB_VAL | Retirement contributions | 394.0B | 426.7B | +32.7B | +8.3% |
+| ANN_VAL | Annuity income | 59.1B | 54.4B | -4.8B | -8.1% |
+| PNSN_VAL | Pension income | 435.4B | 463.0B | +27.6B | +6.3% |
+| SSI_VAL | Supplemental Security Income | 52.7B | 50.2B | -2.5B | -4.7% |
+| CSP_VAL | Child support received | 19.8B | 20.7B | +881.6M | +4.5% |
+| VET_VAL | Veterans benefits | 91.9B | 95.9B | +4.0B | +4.3% |
+| RNT_VAL | Rental income | 218.9B | 212.2B | -6.7B | -3.1% |
+| SEMP_VAL | Self-employment income | 491.7B | 497.8B | +6.1B | +1.3% |
+| DIS_VAL2 | Disability income (source 2) | 745.6M | 337.1M | -408.6M | -54.8% |
+
+**Notes:** CAP_VAL (-52%) and INT_VAL (-42%) reflect the 2022 market downturn and possible
+CPS reporting differences. DIV_VAL (-13%) follows the same pattern. WSAL_VAL (+10%) reflects
+wage growth. SS_VAL (+9.4%) reflects the 5.9% COLA for 2022.
+
+### Retirement Distributions
+
+| Variable | Description | Wtd Sum 2021 | Wtd Sum 2022 | Change | % Change |
+|----------|-------------|-------------:|-------------:|-------:|---------:|
+| DST_VAL2 | Ret. distribution (source 2) | 11.2B | 16.7B | +5.6B | +50.0% |
+| DST_VAL2_YNG | Ret. dist. young (source 2) | 609.3M | 368.3M | -241.0M | -39.5% |
+| DST_VAL1_YNG | Ret. dist. young (source 1) | 39.2B | 40.4B | +1.1B | +2.9% |
+| DST_VAL1 | Ret. distribution (source 1) | 210.4B | 207.2B | -3.2B | -1.5% |
+
+### Expense Variables
+
+| Variable | Description | Wtd Sum 2021 | Wtd Sum 2022 | Change | % Change |
+|----------|-------------|-------------:|-------------:|-------:|---------:|
+| CHSP_VAL | Child support paid | 19.3B | 20.1B | +814.9M | +4.2% |
+| MOOP | Medical out-of-pocket expenses | 603.7B | 627.3B | +23.6B | +3.9% |
+| PHIP_VAL | Health insurance premiums | 317.2B | 329.0B | +11.8B | +3.7% |
+
+### Work Variables
+
+| Variable | Description | Wtd Sum 2021 | Wtd Sum 2022 | Change | % Change |
+|----------|-------------|-------------:|-------------:|-------:|---------:|
+| WKSWORK | Weeks worked per year | 7.8B | 8.1B | +291.7M | +3.7% |
+| HRSWK | Hours worked per week | 6.5B | 6.6B | +147.0M | +2.3% |
+
+### Demographics & Weights
+
+| Variable | Description | Wtd Sum 2021 | Wtd Sum 2022 | Change | % Change |
+|----------|-------------|-------------:|-------------:|-------:|---------:|
+| A_FNLWGT | Person weight (total pop.) | 327.8M | 329.7M | +1.9M | +0.6% |
+| A_AGE | Age (person-weighted sum) | 12.9B | 13.0B | +121.3M | +0.9% |
+| A_SEX | Sex code (person-weighted) | 494.3M | 496.9M | +2.5M | +0.5% |
+| A_MARITL | Marital status code | 1,408.1M | 1,407.7M | -387.7K | -0.0% |
+| PRDTRACE | Race code | 513.3M | 519.0M | +5.8M | +1.1% |
+| PRDTHSP | Hispanic origin code | 156.8M | 165.0M | +8.2M | +5.2% |
+| A_HSCOL | School enrollment | 42.4M | 43.6M | +1.1M | +2.7% |
+| MRK | Marketplace health coverage | 643.0M | 646.4M | +3.3M | +0.5% |
+| WICYN | WIC receipt | 162.3M | 162.5M | +246.7K | +0.2% |
+
+### Disability Flags (person-weighted sums of codes)
+
+| Variable | Description | Wtd Sum 2021 | Wtd Sum 2022 | Change | % Change |
+|----------|-------------|-------------:|-------------:|-------:|---------:|
+| PEDISPHY | Physical disability | 458.9M | 465.2M | +6.3M | +1.4% |
+| PEDISREM | Cognitive disability | 465.5M | 471.7M | +6.3M | +1.3% |
+| PEDISDRS | Self-care disability | 471.2M | 477.5M | +6.3M | +1.3% |
+| PEDISOUT | Going-out disability | 465.4M | 471.6M | +6.2M | +1.3% |
+| PEDISEYE | Vision disability | 471.9M | 478.0M | +6.1M | +1.3% |
+| PEDISEAR | Hearing disability | 467.3M | 473.3M | +6.0M | +1.3% |
+
+### SPM Unit Variables
+
+| Variable | Description | Wtd Sum 2021 | Wtd Sum 2022 | Change | % Change |
+|----------|-------------|-------------:|-------------:|-------:|---------:|
+| SPM_ACTC | SPM: Additional CTC | 944.5B | 107.5B | -837.0B | -88.6% |
+| SPM_FEDTAX | SPM: Federal tax | 2,415.6B | 4,440.0B | +2,024.4B | +83.8% |
+| SPM_POOR | SPM: Poverty status | 24.9M | 39.8M | +14.9M | +60.1% |
+| SPM_WICVAL | SPM: WIC value | 7.5B | 11.5B | +3.9B | +52.3% |
+| SPM_BBSUBVAL | SPM: Broadband subsidy | 2.1B | 2.9B | +752.8M | +35.5% |
+| SPM_EITC | SPM: EITC | 180.7B | 152.3B | -28.3B | -15.7% |
+| SPM_WKXPNS | SPM: Work expenses | 870.5B | 735.7B | -134.8B | -15.5% |
+| SPM_CAPHOUSESUB | SPM: Housing subsidy | 74.5B | 64.3B | -10.2B | -13.7% |
+| SPM_POVTHRESHOLD | SPM: Poverty threshold | 9,024.1B | 9,920.2B | +896.0B | +9.9% |
+| SPM_CHILDCAREXPNS | SPM: Childcare expenses | 246.6B | 270.9B | +24.3B | +9.8% |
+| SPM_FICA | SPM: FICA | 2,196.9B | 2,399.5B | +202.7B | +9.2% |
+| SPM_CAPWKCCXPNS | SPM: Work/childcare (capped) | 1,060.6B | 965.8B | -94.7B | -8.9% |
+| SPM_SCHLUNCH | SPM: School lunch subsidy | 124.4B | 134.2B | +9.7B | +7.8% |
+| SPM_TOTVAL | SPM: Total income value | 37,756.6B | 40,300.2B | +2,543.7B | +6.7% |
+| SPM_MEDXPNS | SPM: Medical expenses | 1,889.9B | 1,975.4B | +85.5B | +4.5% |
+| SPM_CHILDSUPPD | SPM: Child support paid | 45.6B | 47.3B | +1.6B | +3.6% |
+| SPM_ENGVAL | SPM: Energy subsidy | 7.2B | 7.0B | -217.3M | -3.0% |
+| SPM_RESOURCES | SPM: Total resources | 29,370.9B | 29,698.1B | +327.2B | +1.1% |
+| SPM_SNAPSUB | SPM: SNAP benefits | 156.3B | 154.7B | -1.6B | -1.0% |
+| SPM_FEDTAXBC | SPM: Fed tax before credits | 4,755.4B | 4,699.8B | -55.5B | -1.2% |
+| SPM_STTAX | SPM: State tax | 1,149.3B | 1,148.7B | -624.3M | -0.1% |
+| SPM_NUMKIDS | SPM: Number of kids | 325.5M | 321.4M | -4.1M | -1.3% |
+| SPM_NUMADULTS | SPM: Number of adults | 725.6M | 730.9M | +5.3M | +0.7% |
+| SPM_NUMPER | SPM: Number of persons | 1,051.1M | 1,052.3M | +1.2M | +0.1% |
+| SPM_WEIGHT | SPM: Unit weight | 90,556.9B | 94,245.3B | +3,688.5B | +4.1% |
+
+### Source Code Variables (weighted sums of codes — interpret with caution)
+
+| Variable | Description | Wtd Sum 2021 | Wtd Sum 2022 | Change | % Change |
+|----------|-------------|-------------:|-------------:|-------:|---------:|
+| OI_OFF | Other income type code | 35.0M | 51.9M | +16.9M | +48.3% |
+| DIS_SC2 | Disability source code 2 | 177.3K | 219.3K | +42.0K | +23.7% |
+| DST_SC2 | Ret. dist. source code 2 | 2.6M | 3.2M | +603.8K | +23.3% |
+| DST_SC2_YNG | Ret. dist. source 2 (young) | 189.8K | 154.4K | -35.4K | -18.6% |
+| I_SEVAL | Self-emp imputation flag | 10.9M | 9.7M | -1.2M | -11.4% |
+| DST_SC1_YNG | Ret. dist. source 1 (young) | 5.3M | 4.8M | -457.3K | -8.6% |
+| DIS_SC1 | Disability source code 1 | 14.3M | 13.1M | -1.2M | -8.2% |
+| DST_SC1 | Ret. dist. source code 1 | 30.0M | 31.8M | +1.8M | +6.0% |
+| I_ERNVAL | Earnings imputation flag | 429.6M | 431.0M | +1.4M | +0.3% |
+
+### Key Takeaways for CPS 2022 Support
+
+1. **Largest changes are policy-driven, not data-format issues**: CTC/ACTC reversal (+1959%/-89%),
+   unemployment expiration (-81%), and capital gains market effects (-52%) are real economic changes.
+   The CPS variable *structure* is stable.
+
+2. **No missing variables**: All 63 PERSON_COLUMNS, 10 TAX_UNIT_COLUMNS, and 39 SPM_UNIT_COLUMNS
+   are present in both years. SPM_BBSUBVAL (broadband) is available in both 2021 and 2022.
+
+3. **Population stable**: Total weighted persons grew only +0.6% (327.8M → 329.7M). Sample size
+   fell from 152,732 to 146,133 records (-4.3%), but weights compensate.
+
+4. **Income growth reasonable**: Wages +10%, Social Security +9.4% (5.9% COLA), pension +6.3%,
+   retirement contributions +8.3%. These align with known economic conditions.
+
+5. **No red flags for mechanical CPS 2022 support**: The data format is compatible. The large
+   percentage changes are economically explained and don't indicate data problems.
+
+---
+
 ## Resume Instructions
 
 When resuming this session:
