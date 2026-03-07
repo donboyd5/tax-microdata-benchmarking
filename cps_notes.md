@@ -334,11 +334,34 @@ No other CPS→PUF transfer occurs — the datasets are simply concatenated (`tm
 
 **Q: Are CPS records reweighted, other than the .58 adjustment?**
 
-Yes. The .5806 is applied BEFORE reweighting (`tmd.py:45-46`). Then all records (PUF + CPS
-together) enter the Clarabel QP optimizer. The reweighter first prescales all weights to match
-the SOI filer count exactly (`reweight_clarabel.py:389-408`), then the optimizer adjusts
-individual weights to hit all 550 SOI targets. So CPS records get three adjustments:
-(1) CPS_WEIGHTS_SCALE=0.5806, (2) prescale to SOI filer count, (3) per-record optimizer weights.
+**CORRECTED ANSWER**: All 550 SOI targets are **filer-only** targets. In `build_loss_matrix()`
+(`reweight.py:124`), every target mask includes `* filer` where `filer = (DATA_SOURCE == 1)`,
+i.e., PUF records only. CPS records (`DATA_SOURCE == 0`) contribute **zero** to every target.
+
+The prescale at `reweight_clarabel.py:403` (`flat_file["s006"] *= prescale`) applies to ALL
+records including CPS, which is a design smell — it adjusts nonfiler weights for no purpose.
+Since CPS records have zero in every target column, Clarabel has no incentive to change their
+weights (any change is pure deviation cost with no target benefit).
+
+**Effective CPS weight flow:**
+```
+CPS nonfiler weights (from family weights):  38.5M
+  × CPS_WEIGHTS_SCALE (0.5806):              22,328,784 (intended nonfiler count)
+  × prescale (filer ratio, applied to ALL):  22,278,615 (unintentional distortion)
+  → Clarabel optimizer:                       ~no further change (no targets apply)
+```
+
+**The prescale is a bug for CPS records.** It applies a filer-derived ratio
+(`SOI_filer_target / current_PUF_filer_total`) to ALL records including CPS nonfilers
+(`reweight_clarabel.py:403`). This overwrites the nonfiler count that .5806 was intended
+to produce. In the current run the distortion is small (-50K, -0.2%) because PUF weights
+happened to be close to the SOI target. But if PUF weights were further off, the distortion
+would be proportionally larger.
+
+**Bottom line:** The .5806 is the only intentional nonfiler weight control. There is no
+nonfiler population target to validate it against. The prescale then unintentionally
+changes the nonfiler count. Clarabel effectively ignores CPS records (no targets apply).
+There are no total-population targets.
 
 **Q: Why the .58 adjustment? Documentation?**
 
@@ -438,9 +461,13 @@ External sources (all figures for ~2021 unless noted):
    so TMD's 22.3M may be too low. The CPS also undercounts filers (137M vs IRS 160.8M) due to
    income underreporting — many true filers look like nonfilers in CPS data.
 
-4. **PolicyEngine dependency**: Three packages provide the Dataset base class, the tax
-   calculation engine (Microsimulation), and variable metadata. PolicyEngine determines
-   filer/nonfiler status and extracts all variables from CPS/PUF into Tax-Calculator format.
+4. **PolicyEngine dependency**: Three packages provide the Dataset base class, the
+   Microsimulation class, and variable metadata. PolicyEngine does NOT compute taxes —
+   Tax-Calculator does that (`add_taxcalc_outputs` in tmd.py:40). PolicyEngine is used as a
+   data access and aggregation layer: it reads variables from h5py files, aggregates
+   person-level data to tax-unit level, and determines filer/nonfiler status (by comparing
+   income to filing thresholds). The `pe_sim.calculate("variable_name")` calls in
+   `create_tc_dataset()` are reading stored CPS/PUF data, not running tax simulations.
 
 5. **For CPS 2022 support**: Need new classes (RawCPS_2022, CPS_2022, PUF_2022) and
    TAXYEAR-aware selection in tmd.py and pension_contributions.py. PUF_2022 is critical —
