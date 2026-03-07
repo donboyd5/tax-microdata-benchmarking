@@ -16,8 +16,12 @@
 
 - `origin` = `https://github.com/donboyd5/tax-microdata-benchmarking.git` (Don's fork)
 - `upstream` = `https://github.com/PSLmodels/tax-microdata-benchmarking.git` (main PSLmodels repo)
-- **PRs must be pushed to the `upstream` remote** (PSLmodels), NOT to `origin` (your fork).
-  Push command: `git push upstream <branch-name>`
+
+### **DO NOT PUSH TO UPSTREAM OR CREATE UPSTREAM PRs WITHOUT EXPLICIT USER PERMISSION**
+
+- Push branches to `origin` (Don's fork): `git push origin <branch-name>`
+- **NEVER** push to `upstream` or create PRs against `upstream` (PSLmodels) unless the user explicitly says to do so
+- The user will decide when and how to create upstream PRs
 - **Never commit directly to local master.** Master should only be updated by pulling from upstream.
 
 ---

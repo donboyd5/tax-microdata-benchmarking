@@ -1,5 +1,7 @@
 **Read `repo_conventions_session_notes.md` first.**
 
+### **DO NOT PUSH TO UPSTREAM OR CREATE UPSTREAM PRs WITHOUT EXPLICIT USER PERMISSION**
+
 # CPS Exploration Notes
 *Branch: `cps-exploration` (based on `pr2a-parameterize-taxyear`)*
 *Created: 2026-03-06*
