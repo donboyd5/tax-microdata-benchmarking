@@ -144,6 +144,33 @@ SHARING_MAPPINGS: List[Tuple[str, str, str]] = [
     ("e18500", "18500", "State and local real estate taxes"),
 ]
 
+# --- All-shares mappings ---
+# For Phase 6b: every targeted variable uses SOI for geographic
+# distribution and TMD for national levels.
+# Format: (tmd_varname, soi_base_varname, count_type, fstatus, desc)
+#   count_type: 0=amount, 1=allcount, 2=nonzero count
+#   fstatus: 0=all, 1=single, 2=MFJ, 4=HoH
+ALL_SHARING_MAPPINGS: List[Tuple[str, str, int, int, str]] = [
+    # Amounts (count=0): TMD sum shared by SOI amounts
+    ("c00100", "00100", 0, 0, "AGI"),
+    ("e00200", "00200", 0, 0, "Wages"),
+    ("e00300", "00300", 0, 0, "Taxable interest"),
+    ("e01500", "01700", 0, 0, "Pensions total by taxable"),
+    ("e02400", "02500", 0, 0, "SS total by taxable"),
+    ("e18400", "18400", 0, 0, "SALT income/sales"),
+    ("e18500", "18500", 0, 0, "SALT real estate"),
+    ("e26270", "26270", 0, 0, "Partnership/S corp"),
+    # Nonzero counts (count=2): TMD nonzero count shared by SOI
+    ("e00200", "00200", 2, 0, "Wages nonzero count"),
+    ("e18400", "18400", 2, 0, "SALT income/sales nz count"),
+    ("e18500", "18500", 2, 0, "SALT real estate nz count"),
+    # All-return counts (count=1): TMD total count shared by SOI
+    ("c00100", "n1", 1, 0, "Total returns"),
+    ("c00100", "mars1", 1, 1, "Single returns"),
+    ("c00100", "mars2", 1, 2, "MFJ returns"),
+    ("c00100", "mars4", 1, 4, "HoH returns"),
+]
+
 
 # --- State and Congressional District information ---
 

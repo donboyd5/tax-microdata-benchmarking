@@ -1,18 +1,18 @@
 """
 Target sharing — derive area targets from TMD national totals.
 
-Replaces ``create_additional_state_targets.qmd``.
+Two modes:
 
-For variables where SOI doesn't directly match TMD definitions,
-we use SOI data as the geographic distribution and TMD as levels:
+1. **Legacy (4 vars)**: For variables where SOI doesn't directly match
+   TMD definitions, use SOI as geographic distribution and TMD as levels.
+   Called via ``build_enhanced_targets()``.
 
+2. **All-shares**: Every targeted variable uses TMD national totals
+   scaled by SOI geographic shares. Ensures area targets sum exactly
+   to national TMD totals. Called via ``build_all_shares_targets()``.
+
+Formula:
     area_target = TMD_national_sum × (area_SOI / national_SOI)
-
-Currently applied to 4 variables:
-  - e01500 (pensions total) shared by SOI 01700 (taxable pensions)
-  - e02400 (Social Security total) shared by SOI 02500 (taxable SS)
-  - e18400 (SALT income/sales) shared by SOI 18400
-  - e18500 (SALT real estate) shared by SOI 18500
 """
 
 from pathlib import Path
@@ -20,6 +20,8 @@ from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
+
+# ---- TMD national sums (legacy 3-tuple mappings) --------
 
 
 def compute_tmd_national_sums(
@@ -110,9 +112,104 @@ def compute_tmd_national_sums(
     return sums_long
 
 
+# ---- TMD national sums (all-shares 5-tuple mappings) ----
+
+
+def compute_tmd_national_sums_all(
+    cached_allvars_path: Path,
+    all_mappings: List[Tuple[str, str, int, int, str]],
+    agi_cuts: List[float],
+) -> pd.DataFrame:
+    """
+    Compute TMD national sums for ALL targeted variable combos.
+
+    Handles three count types:
+      - count=0 (amounts): sum(s006 * var) per AGI bin
+      - count=1 (allcounts): weighted count, optionally by MARS
+      - count=2 (nonzero counts): sum(s006 * (var != 0))
+
+    Parameters
+    ----------
+    cached_allvars_path : Path
+        Path to ``cached_allvars.csv``.
+    all_mappings : list of (tmdvar, soi_base, count, fstatus, desc)
+        All variable/count/fstatus combinations.
+    agi_cuts : list of float
+        AGI bin cut points.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: tmdvar, basesoivname, count, fstatus, agistub,
+        scope, tmdsum.
+    """
+    tmd = pd.read_csv(cached_allvars_path)
+    tmd = tmd.loc[tmd["data_source"] == 1].copy()
+
+    tmd["agistub"] = (
+        pd.cut(
+            tmd["c00100"],
+            bins=agi_cuts,
+            right=False,
+            labels=False,
+        ).astype(int)
+        + 1
+    )
+
+    records = []
+    stubs = sorted(tmd["agistub"].unique())
+
+    for tmdvar, soi_base, count_type, fstatus, _ in all_mappings:
+        for stub in stubs:
+            mask = tmd["agistub"] == stub
+            wts = tmd.loc[mask, "s006"]
+
+            if count_type == 0:
+                # Amount: weighted sum
+                vals = tmd.loc[mask, tmdvar]
+                tmdsum = (wts * vals).sum()
+            elif count_type == 1:
+                # Allcount: weighted count of returns
+                if fstatus == 0:
+                    tmdsum = wts.sum()
+                else:
+                    mars_mask = tmd.loc[mask, "MARS"] == fstatus
+                    tmdsum = wts[mars_mask].sum()
+            elif count_type == 2:
+                # Nonzero count
+                vals = tmd.loc[mask, tmdvar]
+                tmdsum = (wts * (vals != 0)).sum()
+            else:
+                tmdsum = 0.0
+
+            records.append(
+                {
+                    "tmdvar": tmdvar,
+                    "basesoivname": soi_base,
+                    "count": count_type,
+                    "fstatus": fstatus,
+                    "agistub": stub,
+                    "tmdsum": tmdsum,
+                }
+            )
+
+    sums_by_stub = pd.DataFrame(records)
+
+    # Add totals (agistub=0)
+    group = ["tmdvar", "basesoivname", "count", "fstatus"]
+    totals = sums_by_stub.groupby(group)[["tmdsum"]].sum().reset_index()
+    totals["agistub"] = 0
+    sums_all = pd.concat([sums_by_stub, totals], ignore_index=True)
+    sums_all["scope"] = 1
+    return sums_all
+
+
+# ---- SOI geographic shares ----------------------------
+
+
 def compute_soi_shares(
     base_targets: pd.DataFrame,
-    sharing_mappings: List[Tuple[str, str, str]],
+    sharing_mappings: List[Tuple],
 ) -> pd.DataFrame:
     """
     Compute each area's share of the US total for sharer variables.
@@ -125,7 +222,7 @@ def compute_soi_shares(
     base_targets : pd.DataFrame
         Base targets from SOI data.
     sharing_mappings : list
-        Same as SHARING_MAPPINGS.
+        Either 3-tuple or 5-tuple mappings. Element [1] is soi_base.
 
     Returns
     -------
@@ -135,7 +232,6 @@ def compute_soi_shares(
     """
     soi_bases = [m[1] for m in sharing_mappings]
     df = base_targets.loc[base_targets["basesoivname"].isin(soi_bases)].copy()
-    # Get US total for each grouping
     group_cols = [
         "basesoivname",
         "count",
@@ -153,6 +249,9 @@ def compute_soi_shares(
     return df
 
 
+# ---- Legacy shared targets (4 variables) ---------------
+
+
 def create_shared_targets(
     base_targets: pd.DataFrame,
     cached_allvars_path: Path,
@@ -160,7 +259,7 @@ def create_shared_targets(
     agi_cuts: List[float],
 ) -> pd.DataFrame:
     """
-    Create shared targets for all sharing variables.
+    Create shared targets for legacy sharing variables.
 
     Combines SOI geographic shares with TMD national sums:
       area_target = tmdsum × soi_share
@@ -169,13 +268,10 @@ def create_shared_targets(
 
     Returns DataFrame with same columns as base_targets plus tmdvar.
     """
-    # Get TMD national sums
     tmd_sums = compute_tmd_national_sums(
         cached_allvars_path, sharing_mappings, agi_cuts
     )
-    # Get SOI shares
     soi_shares = compute_soi_shares(base_targets, sharing_mappings)
-    # Join shares with TMD sums
     joined = soi_shares.merge(
         tmd_sums[
             [
@@ -198,13 +294,11 @@ def create_shared_targets(
         how="left",
     )
 
-    # Calculate targets for non-total stubs
     joined["target"] = np.where(
         joined["agistub"] != 0,
         joined["tmdsum"] * joined["soi_share"],
         np.nan,
     )
-    # Calculate totals (agistub=0) as sum of bin targets
     group_cols = [
         "stabbr",
         "tmdvar",
@@ -226,22 +320,18 @@ def create_shared_targets(
     ]
     joined = joined.drop(columns=["target_total"])
 
-    # Construct new variable names
-    # basesoivname → tmd{tmdvar_num}_shared_by_soi{soi_base}
     joined["basesoivname"] = (
         "tmd"
         + joined["tmdvar"].str[1:]
         + "_shared_by_soi"
         + joined["basesoivname"]
     )
-    # soivname: prefix a/n based on count type
     joined["soivname"] = np.where(
         joined["count"] == 0,
         "a" + joined["basesoivname"],
         "n" + joined["basesoivname"],
     )
 
-    # Select columns matching base_targets
     keep_cols = [
         "stabbr",
         "area",
@@ -257,7 +347,6 @@ def create_shared_targets(
         "agilabel",
         "tmdvar",
     ]
-    # Ensure area column exists
     if "area" not in joined.columns:
         joined["area"] = joined["stabbr"]
     result = joined[[c for c in keep_cols if c in joined.columns]]
@@ -273,12 +362,12 @@ def build_enhanced_targets(
     """
     Combine base targets with shared targets into enhanced targets.
 
-    Replaces ``combine_base_and_additional_targets.qmd``.
+    Legacy approach: base SOI targets + 4 shared variables stacked.
 
     Returns
     -------
     pd.DataFrame
-        Enhanced targets with sort column, ready for target_file_writer.
+        Enhanced targets with sort column.
     """
     shared = create_shared_targets(
         base_targets,
@@ -286,18 +375,192 @@ def build_enhanced_targets(
         sharing_mappings,
         agi_cuts,
     )
-    # Stack: base + shared (keep common columns)
     base_cols = [c for c in base_targets.columns if c != "tmdvar"]
     shared_subset = shared[[c for c in base_cols if c in shared.columns]]
     stack = pd.concat(
         [base_targets[base_cols], shared_subset], ignore_index=True
     )
-    # Add sort: XTOT first, then everything else
     is_xtot = (
         (stack["basesoivname"] == "XTOT")
         & (stack["soivname"] == "XTOT")
         & (stack["scope"] == 0)
     )
+    stack["_xtot"] = is_xtot.astype(int)
+    stack = stack.sort_values(
+        [
+            "stabbr",
+            "_xtot",
+            "scope",
+            "fstatus",
+            "basesoivname",
+            "count",
+            "agistub",
+        ],
+        ascending=[True, False, True, True, True, True, True],
+    ).reset_index(drop=True)
+    stack["sort"] = stack.groupby("stabbr").cumcount() + 1
+    stack = stack.drop(columns=["_xtot"])
+    return stack
+
+
+# ---- All-shares targets --------------------------------
+
+
+def _apply_sharing(
+    soi_shares: pd.DataFrame,
+    tmd_sums: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Join SOI shares with TMD sums and compute targets.
+
+    For non-total stubs: target = tmdsum × soi_share
+    For agistub=0: target = sum of bin targets
+    """
+    join_keys = [
+        "basesoivname",
+        "scope",
+        "fstatus",
+        "count",
+        "agistub",
+    ]
+    joined = soi_shares.merge(
+        tmd_sums[join_keys + ["tmdvar", "tmdsum"]],
+        on=join_keys,
+        how="left",
+    )
+
+    # Compute bin-level targets
+    joined["target"] = np.where(
+        joined["agistub"] != 0,
+        joined["tmdsum"] * joined["soi_share"],
+        np.nan,
+    )
+
+    # Compute totals (agistub=0) as sum of bin targets
+    group_cols = [
+        "stabbr",
+        "tmdvar",
+        "basesoivname",
+        "scope",
+        "fstatus",
+        "count",
+    ]
+    # Keep only group cols that exist
+    group_cols = [c for c in group_cols if c in joined.columns]
+
+    bin_sums = (
+        joined.loc[joined["agistub"] != 0]
+        .groupby(group_cols)["target"]
+        .sum()
+        .reset_index()
+        .rename(columns={"target": "target_total"})
+    )
+    joined = joined.merge(bin_sums, on=group_cols, how="left")
+    joined.loc[joined["agistub"] == 0, "target"] = joined.loc[
+        joined["agistub"] == 0, "target_total"
+    ]
+    joined = joined.drop(columns=["target_total"])
+    return joined
+
+
+def build_all_shares_targets(
+    base_targets: pd.DataFrame,
+    cached_allvars_path: Path,
+    all_mappings: List[Tuple[str, str, int, int, str]],
+    agi_cuts: List[float],
+) -> pd.DataFrame:
+    """
+    Build enhanced targets where ALL variables use TMD x SOI shares.
+
+    Every targeted variable (except XTOT population) uses:
+      area_target = TMD_national_sum × (area_SOI / national_SOI)
+
+    This ensures area targets sum exactly to national TMD totals.
+
+    Parameters
+    ----------
+    base_targets : pd.DataFrame
+        Base targets from SOI data (used for geographic shares).
+    cached_allvars_path : Path
+        Path to ``cached_allvars.csv``.
+    all_mappings : list of (tmdvar, soi_base, count, fstatus, desc)
+        All variable/count/fstatus combinations to share.
+    agi_cuts : list of float
+        AGI bin cut points.
+
+    Returns
+    -------
+    pd.DataFrame
+        Enhanced targets with sort column, ready for target_file_writer.
+    """
+    # 1. Compute TMD national sums for all variables
+    tmd_sums = compute_tmd_national_sums_all(
+        cached_allvars_path, all_mappings, agi_cuts
+    )
+
+    # 2. Compute SOI geographic shares for all SOI base vars
+    soi_shares = compute_soi_shares(base_targets, all_mappings)
+
+    # Filter to only the exact (basesoivname, count, fstatus) combos
+    # in all_mappings — SOI data may have extra count types
+    wanted = pd.DataFrame(
+        [
+            {"basesoivname": m[1], "count": m[2], "fstatus": m[3]}
+            for m in all_mappings
+        ]
+    ).drop_duplicates()
+    soi_shares = soi_shares.merge(
+        wanted,
+        on=["basesoivname", "count", "fstatus"],
+        how="inner",
+    )
+
+    # 3. Apply sharing formula
+    shared = _apply_sharing(soi_shares, tmd_sums)
+
+    # 4. Construct shared variable names
+    shared["basesoivname"] = (
+        "tmd"
+        + shared["tmdvar"].str[1:]
+        + "_shared_by_soi"
+        + shared["basesoivname"]
+    )
+    shared["soivname"] = np.where(
+        shared["count"] == 0,
+        "a" + shared["basesoivname"],
+        "n" + shared["basesoivname"],
+    )
+
+    # 5. Ensure area column exists
+    if "area" not in shared.columns:
+        shared["area"] = shared["stabbr"]
+
+    # 6. Extract XTOT rows from base_targets
+    xtot = base_targets.loc[base_targets["basesoivname"] == "XTOT"].copy()
+
+    # 7. Select output columns
+    out_cols = [
+        "stabbr",
+        "area",
+        "count",
+        "scope",
+        "agilo",
+        "agihi",
+        "fstatus",
+        "target",
+        "basesoivname",
+        "soivname",
+        "agistub",
+        "agilabel",
+    ]
+    shared_out = shared[[c for c in out_cols if c in shared.columns]]
+    xtot_out = xtot[[c for c in out_cols if c in xtot.columns]]
+
+    # 8. Stack XTOT + shared targets
+    stack = pd.concat([xtot_out, shared_out], ignore_index=True)
+
+    # 9. Sort: XTOT first, then everything else
+    is_xtot = (stack["basesoivname"] == "XTOT") & (stack["scope"] == 0)
     stack["_xtot"] = is_xtot.astype(int)
     stack = stack.sort_values(
         [
