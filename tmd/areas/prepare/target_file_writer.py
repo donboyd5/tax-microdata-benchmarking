@@ -163,14 +163,22 @@ def _build_match_frame(
         )
     ]
     # count=1 only for allcount_vars
+    # Handle both direct SOI names ("n1", "mars1") and shared names
+    # ("tmd00100_shared_by_soin1") by extracting the SOI part
     allcount = [v for v in ALLCOUNT_VARS if v != "n2"]
-    vmap2 = vmap2.loc[
-        ~((vmap2["count"] == 1) & (~vmap2["basesoivname"].isin(allcount)))
-    ]
+
+    def _is_allcount(name):
+        if name in allcount:
+            return True
+        if "_shared_by_soi" in str(name):
+            soi_part = str(name).rsplit("_shared_by_soi", maxsplit=1)[-1]
+            return soi_part in allcount
+        return False
+
+    is_ac = vmap2["basesoivname"].apply(_is_allcount)
+    vmap2 = vmap2.loc[~((vmap2["count"] == 1) & ~is_ac)]
     # allcount_vars can only have count=1
-    vmap2 = vmap2.loc[
-        ~(vmap2["basesoivname"].isin(allcount) & (vmap2["count"] != 1))
-    ]
+    vmap2 = vmap2.loc[~(is_ac & (vmap2["count"] != 1))]
 
     # Join target stubs with mapping to get basesoivname
     match_frame = target_stubs.merge(
