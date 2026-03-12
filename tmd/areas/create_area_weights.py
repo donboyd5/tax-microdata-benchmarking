@@ -443,6 +443,8 @@ def weight_ratio_distribution(ratio, delta, out):
 
 # -- High-level logic of the script:
 
+USE_CLARABEL = True  # set False to use original JAX L-BFGS-B solver
+
 
 def create_area_weights_file(
     area: str,
@@ -455,6 +457,12 @@ def create_area_weights_file(
     Write log file if write_log=True, otherwise log is written to stdout.
     Write weights file if write_file=True, otherwise just do calculations.
     """
+    if USE_CLARABEL:
+        from tmd.areas.create_area_weights_clarabel import (
+            create_area_weights_file_clarabel,
+        )
+
+        return create_area_weights_file_clarabel(area, write_log, write_file)
     # remove any existing log or weights files
     awpath = AREAS_FOLDER / "weights" / f"{area}_tmd_weights.csv.gz"
     awpath.unlink(missing_ok=True)
