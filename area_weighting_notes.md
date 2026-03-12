@@ -128,9 +128,14 @@ QP minimizes sum((x_i - 1)²) + M·sum(s_j²) subject to target bounds with elas
   - MN01: 124/128 targets hit, 14.1s, multiplier median=0.930, RMSE=0.463
 - **Weight comparison**: Can't match record-by-record (old TMD had 225K records vs new 212K). Aggregate comparison: weight sums differ by 3-5% (different TMD base), similar distributions. Clarabel produces more zero weights (1.5% state, 7.5% CD) vs old solver (0.1%).
 
-### In Progress / Upcoming
+### Potential Next Steps
 
-- DC should potentially be treated as a state (TBD)
+- **A. End-to-end orchestration**: Single command from raw SOI data → target files → weight files. Currently requires manual Python calls to connect `prepare_area_targets()` → `write_area_target_files()` → `batch_weights.py`.
+- **B. CD crosswalk**: CD targets are on 117th Congress boundaries; need geocorr crosswalk data to produce 118th Congress targets via `cd_crosswalk.py`.
+- **C. Full batch validation**: Generate targets for all states/CDs from the Python pipeline and solve them all; check for problem areas.
+- **D. Integration testing**: Run Tax-Calculator with Clarabel weights for real states/CDs (not just "xx").
+- **E. DC as state**: Treat DC as a state rather than CD (user suggestion).
+- **F. Upstream prep**: Clean up for eventual PR — remove R dependency, ensure raw data in-repo, documentation.
 
 ## Branch
 
@@ -152,25 +157,24 @@ New files:
 - `tmd/areas/create_area_weights_clarabel.py`
 - `tmd/areas/targets/prepare/target_recipes/state_variable_mapping_allshares.csv`
 - `tmd/areas/targets/prepare/target_recipes/cd_variable_mapping_allshares.csv`
+- `tmd/areas/batch_weights.py`
+- `tmd/areas/targets/prepare/validation/` (old R-pipeline MN/MN01 reference files)
 
 Modified files:
 - `tmd/areas/create_area_weights.py` (added USE_CLARABEL bridge)
 - `tmd/areas/prepare/constants.py` (added ALL_SHARING_MAPPINGS)
-- `tmd/areas/prepare/target_sharing.py` (added all-shares pipeline)
+- `tmd/areas/prepare/target_sharing.py` (added all-shares pipeline + orchestrator)
 - `tmd/areas/prepare/census_population.py` (moved data to JSON, added 2022)
-- `tmd/areas/batch_weights.py` (new batch processor)
+- `tmd/areas/prepare/target_file_writer.py` (fixed allcount filter for shared names)
 
 ## Open Items
 
 - Both 2021 and 2022 CD SOI data are on 117th Congress boundaries — need geocorr crosswalk for either year to produce 118th Congress targets
 - Decide on Clarabel multiplier bounds for area weights (currently [0.0, 100.0])
-
-- Batch processing strategy: ProcessPoolExecutor, warm starts, GPU acceleration
-- Consider maintaining one large DataFrame for all areas rather than per-area file I/O during optimization
 - When creating upstream PR: include only necessary source data (not spreadsheets, etc.)
 
 ## Resume Instructions
 
 To continue this work in a new session, paste the following:
 
-> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md` and the plan at the path in the plan file. Phases 1-10 are complete (module structure, Clarabel solver, state/CD SOI ingestion, target file writer, sharing pipelines, 2022 data, flexible year pairing, batch processing, validation). Validation showed target counts match exactly, values differ as expected (shared vars ~0.5%, newly shared ~5%, e26270 up to 445%). Key files are in `tmd/areas/prepare/`, `tmd/areas/create_area_weights_clarabel.py`, and `tmd/areas/batch_weights.py`. Push only to `origin`, never upstream.
+> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. All 10 original plan phases are complete: module structure, Clarabel solver, state/CD SOI ingestion, target file writer, sharing pipelines (legacy 4-var and all-shares), 2022 data, flexible year pairing, batch processing, and validation. Key files: `tmd/areas/prepare/` (Python data pipeline), `tmd/areas/create_area_weights_clarabel.py` (QP solver), `tmd/areas/batch_weights.py` (parallel runner). Potential next steps: end-to-end orchestration, CD crosswalk, full batch validation, integration testing, DC-as-state, upstream prep. Push only to `origin`, never upstream.
