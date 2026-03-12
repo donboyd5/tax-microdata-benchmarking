@@ -85,10 +85,25 @@ QP minimizes sum((x_i - 1)²) + M·sum(s_j²) subject to target bounds with elas
 - Tested: full 2022 CD pipeline produces 151 targets per CD (NY01 example)
 - All 50 existing tests pass
 
+**Phase 8: Flexible year pairing** (2026-03-12)
+- Added `prepare_area_targets()` orchestrator in `target_sharing.py`
+- Supports independent `area_data_year`, `national_data_year`, `pop_year`
+- Tested: 2022 SOI shares + 2021 TMD nationals → ~2% geographic shift for MN AGI (expected)
+- All 50 existing tests pass
+
+### Performance estimates (sequential, Clarabel solver)
+- "xx" test area (15 targets): ~9s with Clarabel
+- Real areas have ~166 targets (states) / ~151 targets (CDs) — 10x more constraints
+- ~212,000 TMD records per area
+- Estimated per-area time: 15-30 seconds
+- **50 states sequential: ~12-25 min**
+- **435 CDs sequential: ~1.5-3.5 hours**
+- **All 485 areas sequential: ~3-4 hours**
+- **With 8 workers parallel: ~25-35 min** (target for Phase 9)
+
 ### In Progress / Upcoming
 
-- **Phase 8**: Flexible year pairing (area data year != national data year)
-- **Phase 9**: Batch processing — parallel optimization for all states/CDs, warm starts, GPU support
+- **Phase 9**: Batch processing — parallel optimization for all states/CDs
 - **Phase 10**: Full validation
 
 ## Branch
@@ -130,4 +145,4 @@ Modified files:
 
 To continue this work in a new session, paste the following:
 
-> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md` and the plan at the path in the plan file. Phases 1-7 are complete (module structure, Clarabel solver, state SOI ingestion, target file writer, CD SOI ingestion, target sharing for 4 vars, all-shares pipeline, 2022 data with population in JSON files). The next task is Phase 8: flexible year pairing (area_data_year != national_data_year). After that: Phase 9 (batch processing), Phase 10 (validation). Key files are in `tmd/areas/prepare/` and `tmd/areas/create_area_weights_clarabel.py`. Push only to `origin`, never upstream.
+> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md` and the plan at the path in the plan file. Phases 1-8 are complete (module structure, Clarabel solver, state/CD SOI ingestion, target file writer, sharing pipelines, 2022 data, flexible year pairing). The next task is Phase 9: batch processing (parallel optimization for all states/CDs using ProcessPoolExecutor or multiprocessing). After that: Phase 10 (validation). Key files are in `tmd/areas/prepare/` and `tmd/areas/create_area_weights_clarabel.py`. Push only to `origin`, never upstream.
