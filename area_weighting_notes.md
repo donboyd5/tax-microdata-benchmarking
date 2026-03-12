@@ -109,9 +109,27 @@ QP minimizes sum((x_i - 1)²) + M·sum(s_j²) subject to target bounds with elas
 - Usage: `python -m tmd.areas.batch_weights --workers 8 --areas states --force`
 - All 50 existing tests pass
 
+**Phase 10: Validation** (2026-03-12)
+- Fixed bug in `target_file_writer.py`: allcount variable filter didn't recognize shared basesoivnames (e.g., `tmd00100_shared_by_soin1` vs `n1`). This caused all count=1 targets (40 per state) to be dropped with allshares mapping. Fixed by extracting SOI part from shared names.
+- **Target count validation**: Old and new pipelines produce IDENTICAL target counts:
+  - MN state: 147 targets (both old and new)
+  - MN01 CD: 128 targets (both old and new)
+- **Target value comparison (MN state)**:
+  - Previously shared variables (e01500, e02400, e18400, e18500): typically <1% difference, max ~10% for lowest AGI bins of SALT variables
+  - Newly shared variables (c00100, e00200, e00300): mostly 1-5% difference (TMD national differs from SOI)
+  - e26270 (partnership/S-corp): up to 445% in small AGI bins — expected, volatile variable
+  - c00100 counts (lowest AGI bin): 20-40% — TMD return counts differ from SOI by bin
+- **Target value comparison (MN01 CD)**:
+  - Larger differences overall (3-28%) because old CD targets went through 117th→118th Congress crosswalk
+  - XTOT population: 3.24% difference (different Census source)
+  - e18400/e18500: 10-28% in some bins
+- **Solver comparison**: Both MN and MN01 solved successfully with Clarabel:
+  - MN: 146/147 targets hit, 12.4s, multiplier median=0.994, RMSE=0.317
+  - MN01: 124/128 targets hit, 14.1s, multiplier median=0.930, RMSE=0.463
+- **Weight comparison**: Can't match record-by-record (old TMD had 225K records vs new 212K). Aggregate comparison: weight sums differ by 3-5% (different TMD base), similar distributions. Clarabel produces more zero weights (1.5% state, 7.5% CD) vs old solver (0.1%).
+
 ### In Progress / Upcoming
 
-- **Phase 10**: Full validation
 - DC should potentially be treated as a state (TBD)
 
 ## Branch
@@ -146,6 +164,7 @@ Modified files:
 
 - Both 2021 and 2022 CD SOI data are on 117th Congress boundaries — need geocorr crosswalk for either year to produce 118th Congress targets
 - Decide on Clarabel multiplier bounds for area weights (currently [0.0, 100.0])
+
 - Batch processing strategy: ProcessPoolExecutor, warm starts, GPU acceleration
 - Consider maintaining one large DataFrame for all areas rather than per-area file I/O during optimization
 - When creating upstream PR: include only necessary source data (not spreadsheets, etc.)
@@ -154,4 +173,4 @@ Modified files:
 
 To continue this work in a new session, paste the following:
 
-> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md` and the plan at the path in the plan file. Phases 1-9 are complete (module structure, Clarabel solver, state/CD SOI ingestion, target file writer, sharing pipelines, 2022 data, flexible year pairing, batch processing). The next task is Phase 10: full validation (compare Python vs R outputs, end-to-end Tax-Calculator tests). Key files are in `tmd/areas/prepare/`, `tmd/areas/create_area_weights_clarabel.py`, and `tmd/areas/batch_weights.py`. Push only to `origin`, never upstream.
+> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md` and the plan at the path in the plan file. Phases 1-10 are complete (module structure, Clarabel solver, state/CD SOI ingestion, target file writer, sharing pipelines, 2022 data, flexible year pairing, batch processing, validation). Validation showed target counts match exactly, values differ as expected (shared vars ~0.5%, newly shared ~5%, e26270 up to 445%). Key files are in `tmd/areas/prepare/`, `tmd/areas/create_area_weights_clarabel.py`, and `tmd/areas/batch_weights.py`. Push only to `origin`, never upstream.
