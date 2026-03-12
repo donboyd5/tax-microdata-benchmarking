@@ -19,7 +19,6 @@ import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-import numpy as np
 import pandas as pd
 import yaml
 
@@ -37,13 +36,11 @@ def _init_worker():
     if _WORKER_VDF is not None:
         return
     from tmd.areas.create_area_weights_clarabel import (
-        INFILE_PATH,
         POPFILE_PATH,
-        TAXCALC_AGI_CACHE,
+        _load_taxcalc_data,
     )
 
-    _WORKER_VDF = pd.read_csv(INFILE_PATH)
-    _WORKER_VDF["c00100"] = np.load(TAXCALC_AGI_CACHE)
+    _WORKER_VDF = _load_taxcalc_data()
     with open(POPFILE_PATH, "r", encoding="utf-8") as pf:
         _WORKER_POP = yaml.safe_load(pf.read())
 

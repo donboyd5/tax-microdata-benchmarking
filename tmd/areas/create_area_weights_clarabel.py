@@ -47,6 +47,10 @@ LAST_YEAR = 2034
 INFILE_PATH = STORAGE_FOLDER / "output" / "tmd.csv.gz"
 POPFILE_PATH = STORAGE_FOLDER / "input" / "cbo_population_forecast.yaml"
 TAXCALC_AGI_CACHE = STORAGE_FOLDER / "output" / "cached_c00100.npy"
+CACHED_ALLVARS_PATH = STORAGE_FOLDER / "output" / "cached_allvars.csv"
+
+# Tax-Calculator output variables to load from cached_allvars for targeting
+CACHED_TC_OUTPUTS = ["c18300", "c04470"]
 
 # Default solver parameters
 AREA_CONSTRAINT_TOL = 0.004
@@ -57,9 +61,16 @@ AREA_MULTIPLIER_MAX = 100.0
 
 
 def _load_taxcalc_data():
-    """Load TMD data with cached AGI."""
+    """Load TMD data with cached AGI and selected Tax-Calculator outputs."""
     vdf = pd.read_csv(INFILE_PATH)
     vdf["c00100"] = np.load(TAXCALC_AGI_CACHE)
+    if CACHED_ALLVARS_PATH.exists():
+        allvars = pd.read_csv(
+            CACHED_ALLVARS_PATH, usecols=CACHED_TC_OUTPUTS
+        )
+        for col in CACHED_TC_OUTPUTS:
+            if col in allvars.columns:
+                vdf[col] = allvars[col].values
     assert np.all(vdf.s006 > 0), "Not all weights are positive"
     return vdf
 
