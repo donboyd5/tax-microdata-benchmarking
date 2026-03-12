@@ -91,20 +91,28 @@ QP minimizes sum((x_i - 1)²) + M·sum(s_j²) subject to target bounds with elas
 - Tested: 2022 SOI shares + 2021 TMD nationals → ~2% geographic shift for MN AGI (expected)
 - All 50 existing tests pass
 
-### Performance estimates (sequential, Clarabel solver)
-- "xx" test area (15 targets): ~9s with Clarabel
-- Real areas have ~166 targets (states) / ~151 targets (CDs) — 10x more constraints
+### Performance (measured, Clarabel solver with all-shares targets)
 - ~212,000 TMD records per area
-- Estimated per-area time: 15-30 seconds
-- **50 states sequential: ~12-25 min**
-- **435 CDs sequential: ~1.5-3.5 hours**
-- **All 485 areas sequential: ~3-4 hours**
-- **With 8 workers parallel: ~25-35 min** (target for Phase 9)
+- **Per state: 25-35 seconds** (107 targets), ~30s average
+- **DC: 203 seconds** (InsufficientProgress, 13 violated targets — special case)
+- **50 states + DC + xx = 52 areas with 8 workers: 3.7 minutes total**
+- **Estimated 435 CDs with 8 workers: ~35 minutes**
+- **Estimated all 485 areas with 8 workers: ~40 minutes**
+- 13 of 52 states had some violated targets (mostly small states: AK, ND, SD, VT, WV, WY)
+
+**Phase 9: Batch processing** (2026-03-12)
+- Created `tmd/areas/batch_weights.py` with ProcessPoolExecutor
+- TMD data loaded once per worker process (not once per area) via `_init_worker()`
+- Progress reporting with ETA, violated target tracking
+- Area filtering: `--areas states`, `--areas cds`, `--areas all`, or comma-separated
+- `--force` flag to recompute all areas even if up-to-date
+- Usage: `python -m tmd.areas.batch_weights --workers 8 --areas states --force`
+- All 50 existing tests pass
 
 ### In Progress / Upcoming
 
-- **Phase 9**: Batch processing — parallel optimization for all states/CDs
 - **Phase 10**: Full validation
+- DC should potentially be treated as a state (TBD)
 
 ## Branch
 
@@ -132,6 +140,7 @@ Modified files:
 - `tmd/areas/prepare/constants.py` (added ALL_SHARING_MAPPINGS)
 - `tmd/areas/prepare/target_sharing.py` (added all-shares pipeline)
 - `tmd/areas/prepare/census_population.py` (moved data to JSON, added 2022)
+- `tmd/areas/batch_weights.py` (new batch processor)
 
 ## Open Items
 
@@ -145,4 +154,4 @@ Modified files:
 
 To continue this work in a new session, paste the following:
 
-> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md` and the plan at the path in the plan file. Phases 1-8 are complete (module structure, Clarabel solver, state/CD SOI ingestion, target file writer, sharing pipelines, 2022 data, flexible year pairing). The next task is Phase 9: batch processing (parallel optimization for all states/CDs using ProcessPoolExecutor or multiprocessing). After that: Phase 10 (validation). Key files are in `tmd/areas/prepare/` and `tmd/areas/create_area_weights_clarabel.py`. Push only to `origin`, never upstream.
+> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md` and the plan at the path in the plan file. Phases 1-9 are complete (module structure, Clarabel solver, state/CD SOI ingestion, target file writer, sharing pipelines, 2022 data, flexible year pairing, batch processing). The next task is Phase 10: full validation (compare Python vs R outputs, end-to-end Tax-Calculator tests). Key files are in `tmd/areas/prepare/`, `tmd/areas/create_area_weights_clarabel.py`, and `tmd/areas/batch_weights.py`. Push only to `origin`, never upstream.
