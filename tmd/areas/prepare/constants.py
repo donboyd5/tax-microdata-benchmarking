@@ -80,19 +80,19 @@ def build_agi_labels(area_type: AreaType) -> pd.DataFrame:
     for i in range(len(cuts) - 1):
         lo = cuts[i]
         hi = cuts[i + 1]
+        agilo = -9e99 if np.isneginf(lo) else lo
+        agihi = 9e99 if np.isposinf(hi) else hi
         if np.isneginf(lo):
             label = f"Under ${hi:,.0f}"
-            agilo = -9e99
         elif np.isposinf(hi):
             label = f"${lo:,.0f} or more"
-            agihi = 9e99
         else:
             label = f"${lo:,.0f} under ${hi:,.0f}"
         rows.append(
             {
                 "agistub": i + 1,
-                "agilo": agilo if np.isneginf(lo) else lo,
-                "agihi": agihi if np.isposinf(hi) else hi,
+                "agilo": agilo,
+                "agihi": agihi,
                 "agilabel": label,
             }
         )
