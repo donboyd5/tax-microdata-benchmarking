@@ -128,13 +128,118 @@ QP minimizes sum((x_i - 1)²) + M·sum(s_j²) subject to target bounds with elas
   - MN01: 124/128 targets hit, 14.1s, multiplier median=0.930, RMSE=0.463
 - **Weight comparison**: Can't match record-by-record (old TMD had 225K records vs new 212K). Aggregate comparison: weight sums differ by 3-5% (different TMD base), similar distributions. Clarabel produces more zero weights (1.5% state, 7.5% CD) vs old solver (0.1%).
 
+**Phase 11: CD crosswalk (117th→118th Congress)** (2026-03-12)
+- User created new Geocorr 2022 crosswalk from MCDC (https://mcdc.missouri.edu/applications/geocorr2022.html): source=118th Congress, target=117th Congress, population-weighted, 0-weighted blocks ignored
+- Crosswalk CSV saved to `tmd/areas/prepare/data/geocorr2022_cd117_to_cd118.csv` (1,447 rows including labels)
+- Existing `load_geocorr_crosswalk()` worked with new data: cleans PR, DC98→DC00, pads NC codes, computes pop-weighted shares
+- `allocate_117_to_118()` correctly allocates: MT00→{MT01,MT02}, OR 5→6 CDs, CO 7→8, TX 36→38
+- Allocation factor sums verified: all sum to exactly 1.0 per cd117
+- Target conservation verified: MN totals identical before/after crosswalk (0.000000% diff)
+- Integrated into `prepare_area_targets()`: new `apply_cd_crosswalk` (default True) and `crosswalk_path` parameters
+- Result: 436 areas on 118th Congress boundaries (435 CDs + DC)
+- Fixed incorrect docstring in `cd_crosswalk.py` that claimed 2022 data was on 118th boundaries
+- All 50 existing tests pass
+
+**Phase 12: End-to-end orchestration** (2026-03-12)
+- Created `tmd/areas/prepare_and_solve.py` — single CLI for full pipeline
+- Usage: `python -m tmd.areas.prepare_and_solve --scope states --workers 8`
+- Three stages: `targets` (prepare+write), `solve` (Clarabel), or `all` (both)
+- Scopes: `states`, `cds`, `all`, or comma-separated area codes (e.g., `MN,MN01`)
+- Supports `--year`, `--national-year`, `--pop-year` for flexible year pairing
+- **All 52 state areas tested** (8 workers, 5.3 min total):
+  - 47 solved; 22 with 0 violated targets
+  - 4 PrimalInfeasible (CA, DC, MD, UT, VA) — needs parameter tuning
+  - 1 InsufficientProgress (GA, 287s, 6 violated)
+- **CD pipeline tested**: MN01, MN02, TX37, OR06 (new 118th districts) — all solved
+- All 50 existing tests pass
+
+**Phase 13: Variable alignment analysis and safe recipe** (2026-03-12)
+
+Investigated why 5 states (CA, DC, MD, UT, VA) returned PrimalInfeasible with the full 147-target recipe. Root cause: badly misaligned SOI↔TMD variable definitions for several targets.
+
+**SOI vs TMD national total comparison** (% diff = (TMD/SOI - 1) × 100):
+
+Well-aligned (<2%):
+- c00100 (AGI): +0.5%
+- e00200 (wages): -0.3%
+- e00300 (interest): -0.0%
+- e26270 (partnership/S-corp): +0.0%
+- Return counts (n1, mars1, mars2, mars4): +0.8% to +1.8%
+- e00200 nonzero count: +0.6%
+
+Badly misaligned (>10%):
+- e01500 (TMD total pensions) vs a01700 (SOI taxable pensions): +76.7%
+- e02400 (TMD total SS) vs a02500 (SOI taxable SS): +93.2%
+- e18400 (TMD SALT all filers) vs a18400 (SOI SALT itemizers only): +70.0%
+- e18500 (TMD SALT RE all filers) vs a18500 (SOI SALT RE itemizers only): +125.3%
+- e18400 nonzero count: +211.8%, e18500 nonzero count: +208.4%
+
+**SOI does NOT have total pension (a01500) or total SS (a02400) variables** — only taxable versions (a01700, a02500). Cannot fix alignment by switching SOI variables.
+
+**"Safe" minimal recipe** created with only well-aligned variables:
+- Files: `states_safe.json`, `state_variable_mapping_safe.csv` in target_recipes/
+- 91 targets per state (vs 147 with full recipe)
+- **All 52 state areas solved** (no PrimalInfeasible!) — 2.8 min with 8 workers
+- CA: 91/91 targets hit (was PrimalInfeasible with full recipe)
+- 25 states had some violated targets (small states mostly), but all solved
+
+**Phase 14: SALT geographic distribution analysis** (2026-03-12)
+
+Compared e18400 (SALT) geographic shares across three data sources using safe-recipe weights (which do NOT target SALT):
+
+| Correlation pair | r |
+|---|---|
+| TMD (safe weights) vs Census (actual S&L tax collections) | **0.973** |
+| TMD (safe weights) vs SOI (itemizer SALT deductions) | 0.882 |
+| SOI vs Census | 0.783 |
+
+Key insight: **TMD's SALT distribution from safe weights is much closer to Census actual tax collections than SOI is.** This is because:
+- TMD e18400 = taxes *available* to deduct (all filers, no cap)
+- SOI a18400 = taxes *actually deducted* (itemizers only, subject to $10K SALT cap)
+- Census = actual S&L tax collections
+- Post-TCJA, the $10K SALT cap and reduced itemization rates distort SOI's geographic distribution
+
+Pattern: High-tax states (CA, NY, NJ, MD) are overstated in SOI shares (because they have more itemizers); no-income-tax states (TX, FL, WA, TN) are understated in SOI shares.
+
+**Tax-Calculator SALT deduction simulation**:
+- Used Tax-Calculator's computed c18300 (SALT after $10K cap) and c04470 (itemization indicator)
+- TMD national SALT deducted: $131B vs SOI reported: $261B (TMD is about half of SOI — level mismatch)
+- TMD-deducted vs SOI shares: r=0.864 (only modestly better than crude simulation)
+- TMD-deducted vs TMD-available: r=0.999 (cap barely changes geographic distribution)
+- Key: every PUF record with nonzero c18300 also itemizes (itemization bite = 0%)
+- Note: TMD's PUF base starts from 2015, when there were many more itemizers (pre-TCJA). Available SALT for 2015 nonitemizers is not in the data — a bigger project.
+
+**Census 2022 Census of Governments data** downloaded:
+- Source: `https://www2.census.gov/programs-surveys/gov-finances/tables/2022/22slsstab1.xlsx`
+- S&L general sales tax + property tax by state
+- Saved to `/tmp/22slsstab1.xlsx` (needs permanent home if used for targets)
+- Caveats: Census includes business-paid sales tax (not in individual TMD); fiscal year vs tax year mismatch; doesn't include nonfilers' taxes
+
+### Strategy for SALT targets
+
+The SOI SALT geographic distribution is distorted by TCJA (itemizer-only, $10K cap). Better alternatives for computing SALT share targets:
+
+**A. Census shares approach** (next to implement):
+- Use Census S&L tax collections as the share basis for SALT amount targets
+- `area_target = TMD_national_SALT × Census_state_share`
+- Pro: captures "taxes available to deduct" concept; r=0.973 with TMD available
+- Con: includes business taxes; fiscal year mismatch; doesn't break down by AGI bin
+
+**B. Reverse-engineering approach** (future):
+- Find shares such that, after applying SALT cap + itemization logic via Tax-Calculator, the resulting deducted amounts approximate SOI reported amounts
+- This would require iterative calibration
+
+**C. Hybrid approach** (future):
+- Use Census for total-level shares, SOI for AGI-bin distribution within states
+- Combine the better total geographic distribution of Census with the income-gradient information in SOI
+
 ### Potential Next Steps
 
-- **A. End-to-end orchestration**: Single command from raw SOI data → target files → weight files. Currently requires manual Python calls to connect `prepare_area_targets()` → `write_area_target_files()` → `batch_weights.py`.
-- **B. CD crosswalk**: CD targets are on 117th Congress boundaries; need geocorr crosswalk data to produce 118th Congress targets via `cd_crosswalk.py`.
-- **C. Full batch validation**: Generate targets for all states/CDs from the Python pipeline and solve them all; check for problem areas.
-- **D. Integration testing**: Run Tax-Calculator with Clarabel weights for real states/CDs (not just "xx").
-- **E. DC as state**: Treat DC as a state rather than CD (user suggestion).
+- **A. Census-share SALT targets**: Build SALT targets using Census geographic shares instead of SOI. Test whether this improves solver feasibility and target accuracy.
+- **B. Investigate pension/SS targets**: e01500 and e02400 are badly misaligned with SOI. Consider dropping these targets or finding alternative share sources.
+- **C. Full CD batch**: Run all 436 CDs through the pipeline with safe recipe; identify problem districts.
+- **D. DC as state**: Treat DC as a state (10 AGI bins, state recipe) rather than CD.
+- **E. Reverse-engineer SALT shares**: Find shares that, after cap + itemization, approximate SOI deducted amounts.
 - **F. Upstream prep**: Clean up for eventual PR — remove R dependency, ensure raw data in-repo, documentation.
 
 ## Branch
@@ -154,27 +259,35 @@ New files:
 - `tmd/areas/prepare/cd_crosswalk.py`
 - `tmd/areas/prepare/data/state_populations.json`
 - `tmd/areas/prepare/data/cd_populations.json`
+- `tmd/areas/prepare/data/geocorr2022_cd117_to_cd118.csv`
 - `tmd/areas/create_area_weights_clarabel.py`
 - `tmd/areas/targets/prepare/target_recipes/state_variable_mapping_allshares.csv`
 - `tmd/areas/targets/prepare/target_recipes/cd_variable_mapping_allshares.csv`
+- `tmd/areas/targets/prepare/target_recipes/states_safe.json` (minimal safe recipe)
+- `tmd/areas/targets/prepare/target_recipes/state_variable_mapping_safe.csv` (safe variable mapping)
 - `tmd/areas/batch_weights.py`
+- `tmd/areas/prepare_and_solve.py`
 - `tmd/areas/targets/prepare/validation/` (old R-pipeline MN/MN01 reference files)
 
 Modified files:
 - `tmd/areas/create_area_weights.py` (added USE_CLARABEL bridge)
 - `tmd/areas/prepare/constants.py` (added ALL_SHARING_MAPPINGS)
-- `tmd/areas/prepare/target_sharing.py` (added all-shares pipeline + orchestrator)
+- `tmd/areas/prepare/target_sharing.py` (added all-shares pipeline + orchestrator + crosswalk integration)
 - `tmd/areas/prepare/census_population.py` (moved data to JSON, added 2022)
 - `tmd/areas/prepare/target_file_writer.py` (fixed allcount filter for shared names)
+- `tmd/areas/prepare/cd_crosswalk.py` (fixed incorrect docstring re: 2022 boundaries)
 
 ## Open Items
 
-- Both 2021 and 2022 CD SOI data are on 117th Congress boundaries — need geocorr crosswalk for either year to produce 118th Congress targets
+- Both 2021 and 2022 CD SOI data are on 117th Congress boundaries. Crosswalk now integrated into pipeline (Phase 11) — `prepare_area_targets()` applies it by default for CDs.
 - Decide on Clarabel multiplier bounds for area weights (currently [0.0, 100.0])
 - When creating upstream PR: include only necessary source data (not spreadsheets, etc.)
+- SALT targets: SOI shares are distorted by TCJA. Census S&L tax collections (r=0.973 with TMD) are a better share source. Need to build Census-share SALT targets and test. Census data at `/tmp/22slsstab1.xlsx` — needs permanent location.
+- Pension/SS targets: SOI has only taxable versions (a01700, a02500), not total (a01500, a02400). TMD total is 77-93% larger than SOI taxable. Need alternative approach.
+- TMD national SALT deducted ($131B) is about half of SOI ($261B). Level mismatch needs investigation — may be related to PUF base year (2015) or Tax-Calculator parameters.
 
 ## Resume Instructions
 
 To continue this work in a new session, paste the following:
 
-> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. All 10 original plan phases are complete: module structure, Clarabel solver, state/CD SOI ingestion, target file writer, sharing pipelines (legacy 4-var and all-shares), 2022 data, flexible year pairing, batch processing, and validation. Key files: `tmd/areas/prepare/` (Python data pipeline), `tmd/areas/create_area_weights_clarabel.py` (QP solver), `tmd/areas/batch_weights.py` (parallel runner). Potential next steps: end-to-end orchestration, CD crosswalk, full batch validation, integration testing, DC-as-state, upstream prep. Push only to `origin`, never upstream.
+> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-14 are complete. Key findings: (1) "Safe" recipe with 91 well-aligned targets solves all 52 states (no PrimalInfeasible). (2) TMD SALT distribution from safe weights correlates r=0.973 with Census actual tax collections but only r=0.882 with SOI (distorted by TCJA itemization). (3) Census S&L tax data downloaded to `/tmp/22slsstab1.xlsx`. Next task: build SALT targets using Census geographic shares instead of SOI, then retest. Key files: `tmd/areas/prepare/` (data pipeline), `tmd/areas/prepare_and_solve.py` (orchestrator), `tmd/areas/create_area_weights_clarabel.py` (solver), `tmd/areas/batch_weights.py` (parallel runner), `tmd/areas/targets/prepare/target_recipes/states_safe.json` (safe recipe). Push only to `origin`, never upstream.
