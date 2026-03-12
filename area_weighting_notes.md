@@ -45,8 +45,8 @@ QP minimizes sum((x_i - 1)²) subject to target bounds.
 - All 50 existing tests pass
 
 **Phase 3: State SOI data ingestion** (2026-03-12)
-- Created `tmd/areas/prepare/soi_state_data.py` — reads raw SOI CSVs, pivots to long format, classifies variables, creates derived vars (18400 = 18425 + 18450), scales amounts ×1000, adds AGI labels, produces base_targets
-- Created `tmd/areas/prepare/census_population.py` — embedded 2021 Census PEP population data for all 53 areas (50 states + DC + PR + US), with fallback to user-supplied CSV
+- Created `tmd/areas/prepare/soi_state_data.py` — reads raw SOI CSVs, pivots to long format, classifies variables, creates derived vars (18400 = 18425 + 18450), scales amounts x1000, adds AGI labels, produces base_targets
+- Created `tmd/areas/prepare/census_population.py` — embedded 2021 Census PEP state populations + ACS 1-year CD populations (436 CDs + US)
 - Tested: 8 years (2015-2022) loaded, ~98K rows per year, all 54 areas (incl OA), verified NY values
 
 **Phase 4: Target file writer** (2026-03-12)
@@ -55,17 +55,23 @@ QP minimizes sum((x_i - 1)²) subject to target bounds.
 - Tested: generates 144-147 targets per state across all 53 areas
 
 **Phase 6a: Target sharing pipeline** (2026-03-12)
-- Created `tmd/areas/prepare/target_sharing.py` — computes TMD national sums by AGI bin, SOI geographic shares, derives area targets = TMD_sum × SOI_share
-- 4 shared variables: e01500←01700, e02400←02500, e18400←18400, e18500←18500
+- Created `tmd/areas/prepare/target_sharing.py` — computes TMD national sums by AGI bin, SOI geographic shares, derives area targets = TMD_sum x SOI_share
+- 4 shared variables: e01500<-01700, e02400<-02500, e18400<-18400, e18500<-18500
 - `build_enhanced_targets()` combines base + shared targets with sort ordering
-- Full pipeline tested end-to-end: SOI → base_targets → enhanced_targets → target files for all 53 areas
+- Full pipeline tested end-to-end: SOI -> base_targets -> enhanced_targets -> target files for all 53 areas
+
+**Phase 5: CD SOI data ingestion** (2026-03-12)
+- Created `tmd/areas/prepare/soi_cd_data.py` — reads SOI CD CSV from ZIP, classifies record types (US, DC, cdstate, state, cd), pivots to long, creates derived vars, adds AGI labels, builds base_targets with area codes
+- Created `tmd/areas/prepare/cd_crosswalk.py` — 117th-to-118th Congress boundary crosswalk module using geocorr data (ready for crosswalk file when provided)
+- Updated `census_population.py` with embedded 2021 ACS 1-year CD populations (436 CDs + US total)
+- Key finding: BOTH 2021 and 2022 SOI CD data use 117th Congress boundaries. MT=1 CD (not 2), OR=5 CDs (not 6), TX=36 (not 38) in both years. Crosswalk needed for both years to get 118th Congress targets.
+- Tested: 2021 data produces 437 areas (436 CDs + US), 721K base_target rows. 2022 data also reads successfully.
 
 ### In Progress / Upcoming
 
-- **Phase 5**: CD SOI data ingestion (zip files, 9 AGI stubs, Congress crosswalk)
 - **Phase 6b**: Convert ALL targets to share-based (not just 4 vars)
-- **Phase 7**: 2022 data extension
-- **Phase 8**: Flexible year pairing (area data year ≠ national data year)
+- **Phase 7**: 2022 data extension (2022 population data, full pipeline for 2022)
+- **Phase 8**: Flexible year pairing (area data year != national data year)
 - **Phase 9**: Batch processing — parallel optimization for all states/CDs, warm starts, GPU support
 - **Phase 10**: Full validation
 
@@ -82,6 +88,8 @@ New files:
 - `tmd/areas/prepare/soi_state_data.py`
 - `tmd/areas/prepare/target_file_writer.py`
 - `tmd/areas/prepare/target_sharing.py`
+- `tmd/areas/prepare/soi_cd_data.py`
+- `tmd/areas/prepare/cd_crosswalk.py`
 - `tmd/areas/create_area_weights_clarabel.py`
 
 Modified files:
@@ -89,8 +97,15 @@ Modified files:
 
 ## Open Items
 
-- Verify 2022 SOI CSV file format matches 2021 (column names, AGI stubs)
+- Both 2021 and 2022 CD SOI data are on 117th Congress boundaries — need geocorr crosswalk for either year to produce 118th Congress targets
 - 2022 Census population data needed (not yet embedded)
 - Decide on Clarabel multiplier bounds for area weights (currently [0.0, 100.0])
 - Batch processing strategy: ProcessPoolExecutor, warm starts, GPU acceleration
 - Consider maintaining one large DataFrame for all areas rather than per-area file I/O during optimization
+- When creating upstream PR: include only necessary source data (not spreadsheets, etc.)
+
+## Resume Instructions
+
+To continue this work in a new session, paste the following:
+
+> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md` and the plan at the path in the plan file. Phases 1-5 and 6a are complete (module structure, Clarabel solver, state SOI ingestion, target file writer, CD SOI ingestion, target sharing for 4 vars). The next task is Phase 6b: convert ALL targets to share-based approach (not just the 4 currently shared variables). After that: Phase 7 (2022 data), Phase 8 (flexible year pairing), Phase 9 (batch processing), Phase 10 (validation). Key files are in `tmd/areas/prepare/` and `tmd/areas/create_area_weights_clarabel.py`. Push only to `origin`, never upstream.
