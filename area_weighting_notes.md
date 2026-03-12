@@ -217,30 +217,55 @@ Pattern: High-tax states (CA, NY, NJ, MD) are overstated in SOI shares (because 
 
 ### Strategy for SALT targets
 
-The SOI SALT geographic distribution is distorted by TCJA (itemizer-only, $10K cap). Better alternatives for computing SALT share targets:
+The SOI SALT geographic distribution is distorted by TCJA (itemizer-only, $10K cap). We investigated multiple approaches:
 
-**A. Census shares approach** (next to implement):
-- Use Census S&L tax collections as the share basis for SALT amount targets
-- `area_target = TMD_national_SALT × Census_state_share`
-- Pro: captures "taxes available to deduct" concept; r=0.973 with TMD available
-- Con: includes business taxes; fiscal year mismatch; doesn't break down by AGI bin
+**Phase 15: Census-share SALT targeting (e18400 available)**
+- Used Census S&L tax collections (property + general sales) as share basis for e18400 targets
+- `area_target = TMD_national_e18400 × Census_state_share`
+- Result: r=1.000 for e18400 vs Census (perfect — targeted directly)
+- But c18300 (deducted, post-cap) vs SOI a18300: r=0.918, CA still -7.2pp
+- Problem: targeting "available" SALT can't fix the "deducted" distribution due to nonlinear $10K cap
 
-**B. Reverse-engineering approach** (future):
-- Find shares such that, after applying SALT cap + itemization logic via Tax-Calculator, the resulting deducted amounts approximate SOI reported amounts
-- This would require iterative calibration
+**Phase 16: Hybrid Census/SOI shares for e18400**
+- Blended Census and SOI shares: `hybrid = α×Census + (1-α)×SOI_a18300`
+- Tested α = 0.50, 0.25, 0.00, 0.10 (4 runs, semi-binary search)
+- Results: α=0.00 (100% SOI) was best but CA still -5.24pp
+- Root cause: targeting the input variable (e18400, available) with output-concept shares (a18300, deducted) is a concept mismatch — the $10K cap changes geographic distribution nonlinearly
 
-**C. Hybrid approach** (future):
-- Use Census for total-level shares, SOI for AGI-bin distribution within states
-- Combine the better total geographic distribution of Census with the income-gradient information in SOI
+**Phase 17: Direct c18300 targeting — BREAKTHROUGH**
+- Added c18300 (Tax-Calculator SALT after cap) and c04470 (itemized deductions) to solver data
+  - Modified `_load_taxcalc_data()` in `create_area_weights_clarabel.py` to load from `cached_allvars.csv`
+  - Fixed `_init_worker()` in `batch_weights.py` to use `_load_taxcalc_data()` instead of duplicating logic
+- Targeted c18300 directly with SOI a18300 shares, AGI stubs 5-10 ($50K+)
+- **Result: r=0.9999, mean|diff|=0.063pp, ALL states within 1pp!**
+  - CA: -0.87pp (was -5.24pp with hybrid, -7.2pp with Census)
+  - TX: -0.16pp, MD: -0.21pp, NY: -0.27pp
+- Adding c18300 counts caused PrimalInfeasible for CA, NY, MA — amounts-only is the winner
+- 97 targets per state (91 safe + 6 c18300 amount targets for stubs 5-10)
+- NY had InsufficientProgress but still produced usable weights
+
+**National level comparison (TMD Tax-Calculator outputs vs SOI)**:
+- c18300 amount: TMD $131.1B vs SOI $120.3B (ratio 1.09, 9% high)
+- c18300 count: TMD 16.48M vs SOI 14.70M (ratio 1.12)
+- c04470 (total itemized): TMD $620.8B vs SOI $658.1B (ratio 0.94, 6% low)
+- c04470 count: TMD 16.63M vs SOI 14.89M (ratio 1.12)
+
+### Current Best Recipe: Safe + c18300 Direct
+
+- **91 safe targets**: c00100 (AGI amounts + counts by filing status), e00200 (wages amt + nz count), e00300 (interest amt), e26270 (partnership/S-corp amt)
+- **6 c18300 targets**: SALT after cap, amounts only, AGI stubs 5-10 ($50K+), SOI a18300 shares
+- **Total: 97 targets per state**
+- All 51 states solve (NY with InsufficientProgress)
+- c18300 geographic distribution matches SOI within 1pp for every state
 
 ### Potential Next Steps
 
-- **A. Census-share SALT targets**: Build SALT targets using Census geographic shares instead of SOI. Test whether this improves solver feasibility and target accuracy.
-- **B. Investigate pension/SS targets**: e01500 and e02400 are badly misaligned with SOI. Consider dropping these targets or finding alternative share sources.
-- **C. Full CD batch**: Run all 436 CDs through the pipeline with safe recipe; identify problem districts.
-- **D. DC as state**: Treat DC as a state (10 AGI bins, state recipe) rather than CD.
-- **E. Reverse-engineer SALT shares**: Find shares that, after cap + itemization, approximate SOI deducted amounts.
-- **F. Upstream prep**: Clean up for eventual PR — remove R dependency, ensure raw data in-repo, documentation.
+- **A. Pension/SS targets**: e01500 and e02400 are badly misaligned with SOI. Consider dropping or finding alternative share sources.
+- **B. Full CD batch**: Run all 436 CDs with safe + c18300 recipe; identify problem districts.
+- **C. DC as state**: Treat DC as a state (10 AGI bins, state recipe) rather than CD.
+- **D. Clarabel vs L-BFGS-B timing comparison**: Run same targets on both solvers, compare speed and accuracy.
+- **E. Upstream prep**: Clean up for eventual PR — remove R dependency, ensure raw data in-repo, documentation.
+- **F. Consider c04470 targets**: Total itemized deductions — TMD/SOI are within 6%, good candidate for targeting.
 
 ## Branch
 
@@ -276,18 +301,23 @@ Modified files:
 - `tmd/areas/prepare/census_population.py` (moved data to JSON, added 2022)
 - `tmd/areas/prepare/target_file_writer.py` (fixed allcount filter for shared names)
 - `tmd/areas/prepare/cd_crosswalk.py` (fixed incorrect docstring re: 2022 boundaries)
+- `tmd/areas/create_area_weights_clarabel.py` (load c18300, c04470 from cached_allvars for targeting)
+- `tmd/areas/batch_weights.py` (use `_load_taxcalc_data()` in workers instead of duplicated loading)
 
 ## Open Items
 
 - Both 2021 and 2022 CD SOI data are on 117th Congress boundaries. Crosswalk now integrated into pipeline (Phase 11) — `prepare_area_targets()` applies it by default for CDs.
 - Decide on Clarabel multiplier bounds for area weights (currently [0.0, 100.0])
 - When creating upstream PR: include only necessary source data (not spreadsheets, etc.)
-- SALT targets: SOI shares are distorted by TCJA. Census S&L tax collections (r=0.973 with TMD) are a better share source. Need to build Census-share SALT targets and test. Census data at `/tmp/22slsstab1.xlsx` — needs permanent location.
+- SALT targets: **RESOLVED** — direct c18300 targeting works excellently (r=0.9999 vs SOI). Census data saved to `tmd/areas/prepare/data/census_2022_state_local_finance.xlsx` for reference but not currently used in the best recipe.
 - Pension/SS targets: SOI has only taxable versions (a01700, a02500), not total (a01500, a02400). TMD total is 77-93% larger than SOI taxable. Need alternative approach.
-- TMD national SALT deducted ($131B) is about half of SOI ($261B). Level mismatch needs investigation — may be related to PUF base year (2015) or Tax-Calculator parameters.
+- TMD national c18300 ($131.1B) vs SOI a18300 ($120.3B): 9% gap is acceptable for share-based targeting.
+- NY InsufficientProgress with 97 targets: produces usable weights, may need tuning.
+- Clarabel vs L-BFGS-B timing/accuracy comparison: requested but not yet done.
+- c18300 count targets cause infeasibility for CA, NY, MA — amounts-only is the current approach.
 
 ## Resume Instructions
 
 To continue this work in a new session, paste the following:
 
-> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-14 are complete. Key findings: (1) "Safe" recipe with 91 well-aligned targets solves all 52 states (no PrimalInfeasible). (2) TMD SALT distribution from safe weights correlates r=0.973 with Census actual tax collections but only r=0.882 with SOI (distorted by TCJA itemization). (3) Census S&L tax data downloaded to `/tmp/22slsstab1.xlsx`. Next task: build SALT targets using Census geographic shares instead of SOI, then retest. Key files: `tmd/areas/prepare/` (data pipeline), `tmd/areas/prepare_and_solve.py` (orchestrator), `tmd/areas/create_area_weights_clarabel.py` (solver), `tmd/areas/batch_weights.py` (parallel runner), `tmd/areas/targets/prepare/target_recipes/states_safe.json` (safe recipe). Push only to `origin`, never upstream.
+> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-17 are complete. Key breakthrough: targeting c18300 (Tax-Calculator SALT after $10K cap) directly with SOI a18300 shares achieves r=0.9999 vs SOI with all states within 1pp — far better than targeting e18400 (SALT available). Current best recipe: 97 targets = 91 safe + 6 c18300 amounts (stubs 5-10, $50K+). Solver loads c18300 from cached_allvars.csv via modified `_load_taxcalc_data()`. Census data saved to `tmd/areas/prepare/data/census_2022_state_local_finance.xlsx`. Next steps: (A) consider c04470 (total itemized) targets, (B) pension/SS alignment, (C) extend to CDs, (D) Clarabel vs L-BFGS-B timing comparison. Key files: `tmd/areas/create_area_weights_clarabel.py` (solver + data loader), `tmd/areas/batch_weights.py` (parallel runner), `tmd/areas/targets/prepare/target_recipes/states_safe.json` (safe recipe). Push only to `origin`, never upstream.
