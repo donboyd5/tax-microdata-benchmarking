@@ -13,6 +13,12 @@ Two modes:
 
 Formula:
     area_target = TMD_national_sum × (area_SOI / national_SOI)
+
+Year flexibility:
+    The area_data_year (SOI geographic shares) and national_data_year
+    (TMD levels from cached_allvars.csv) can differ. The convenience
+    function ``prepare_area_targets()`` handles path resolution and
+    loading for both years.
 """
 
 from pathlib import Path
@@ -577,3 +583,127 @@ def build_all_shares_targets(
     stack["sort"] = stack.groupby("stabbr").cumcount() + 1
     stack = stack.drop(columns=["_xtot"])
     return stack
+
+
+# ---- Convenience orchestrator ----------------------------
+
+
+def prepare_area_targets(
+    area_type: "AreaType",
+    area_data_year: int,
+    national_data_year: int = 0,
+    pop_year: int = 0,
+    cached_allvars_path: Path = None,
+    soi_raw_data_dir: Path = None,
+) -> pd.DataFrame:
+    """
+    End-to-end pipeline: SOI data -> base targets -> all-shares targets.
+
+    Supports flexible year pairing: the SOI year (geographic shares),
+    the TMD year (national levels), and the population year can
+    each be set independently.
+
+    Parameters
+    ----------
+    area_type : AreaType
+        STATE or CD.
+    area_data_year : int
+        Year for SOI data (geographic distribution).
+    national_data_year : int, optional
+        Year for TMD national data.  Defaults to area_data_year.
+    pop_year : int, optional
+        Year for population data.  Defaults to area_data_year.
+        For CDs on 117th Congress boundaries, use 2021 regardless
+        of area_data_year (see census_population.py docstring).
+    cached_allvars_path : Path, optional
+        Path to cached_allvars.csv.  Defaults to
+        ``tmd/storage/output/cached_allvars.csv``.
+    soi_raw_data_dir : Path, optional
+        Directory containing raw SOI files.  Defaults based on
+        area_type (state or CD raw data directory).
+
+    Returns
+    -------
+    pd.DataFrame
+        Enhanced targets ready for target_file_writer.
+    """
+    from tmd.areas.prepare.constants import (
+        ALL_SHARING_MAPPINGS,
+        CD_AGI_CUTS,
+        STATE_AGI_CUTS,
+        AreaType,
+    )
+
+    if national_data_year == 0:
+        national_data_year = area_data_year
+    if pop_year == 0:
+        pop_year = area_data_year
+
+    # Resolve default paths
+    repo_root = Path(__file__).parent.parent.parent.parent
+    if cached_allvars_path is None:
+        cached_allvars_path = (
+            repo_root / "tmd" / "storage" / "output" / "cached_allvars.csv"
+        )
+
+    if area_type == AreaType.STATE:
+        agi_cuts = STATE_AGI_CUTS
+        if soi_raw_data_dir is None:
+            soi_raw_data_dir = (
+                repo_root
+                / "tmd"
+                / "areas"
+                / "targets"
+                / "prepare"
+                / "prepare_states"
+                / "data"
+                / "data_raw"
+            )
+        from tmd.areas.prepare.census_population import (
+            get_state_population,
+        )
+        from tmd.areas.prepare.soi_state_data import (
+            create_soilong,
+            create_state_base_targets,
+        )
+
+        soilong = create_soilong(soi_raw_data_dir, years=[area_data_year])
+        pop_df = get_state_population(pop_year)
+        base_targets = create_state_base_targets(
+            soilong, pop_df, area_data_year
+        )
+
+    elif area_type == AreaType.CD:
+        agi_cuts = CD_AGI_CUTS
+        if soi_raw_data_dir is None:
+            soi_raw_data_dir = (
+                repo_root
+                / "tmd"
+                / "areas"
+                / "targets"
+                / "prepare"
+                / "prepare_cds"
+                / "data"
+                / "data_raw"
+            )
+        from tmd.areas.prepare.census_population import (
+            get_cd_population,
+        )
+        from tmd.areas.prepare.soi_cd_data import (
+            create_cd_base_targets,
+            create_cd_soilong,
+        )
+
+        soilong = create_cd_soilong(soi_raw_data_dir, year=area_data_year)
+        pop_df = get_cd_population(pop_year)
+        base_targets = create_cd_base_targets(soilong, pop_df)
+
+    else:
+        raise ValueError(f"Unknown area_type: {area_type}")
+
+    return build_all_shares_targets(
+        base_targets=base_targets,
+        cached_allvars_path=cached_allvars_path,
+        all_mappings=ALL_SHARING_MAPPINGS,
+        agi_cuts=agi_cuts,
+    )
