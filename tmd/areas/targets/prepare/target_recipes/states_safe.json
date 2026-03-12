@@ -1,0 +1,64 @@
+// Minimal "safe" recipe: only well-aligned variables (<2% SOI-TMD diff)
+// Excludes: e01500 (pensions), e02400 (SS), e18400/e18500 (SALT)
+{
+  "areatype": "state",
+  "arealist": "all",
+  "notzero": true,
+  "notnegative": false,
+  "targets": [
+    {
+      "varname": "c00100",
+      "scope": 1,
+      "count": 0,
+      "fstatus": 0
+    },
+    {
+      "varname": "c00100",
+      "scope": 1,
+      "count": 1,
+      "fstatus": 0
+    },
+    {
+      "varname": "c00100",
+      "scope": 1,
+      "count": 1,
+      "fstatus": 1
+    },
+    {
+      "varname": "c00100",
+      "scope": 1,
+      "count": 1,
+      "fstatus": 2
+    },
+    {
+      "varname": "c00100",
+      "scope": 1,
+      "count": 1,
+      "fstatus": 4
+    },
+    {
+      "varname": "e00200",
+      "scope": 1,
+      "count": 0,
+      "fstatus": 0
+    },
+    {
+      "varname": "e00200",
+      "scope": 1,
+      "count": 2,
+      "fstatus": 0
+    },
+    {
+      "varname": "e00300",
+      "scope": 1,
+      "count": 0,
+      "fstatus": 0
+    },
+    {
+      "varname": "e26270",
+      "scope": 1,
+      "count": 0,
+      "fstatus": 0
+    }
+  ]
+}

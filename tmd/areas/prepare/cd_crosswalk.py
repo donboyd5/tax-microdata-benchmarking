@@ -1,13 +1,15 @@
 """
 Congressional district crosswalk: 117th → 118th session boundaries.
 
-The 2021 SOI CD data uses 117th Congress boundaries (2010 Census).
+Both 2021 and 2022 SOI CD data use 117th Congress boundaries
+(2010 Census), as confirmed by IRS documentation and by checking
+the actual CD counts per state (e.g., OR=5 not 6, TX=36 not 38).
+
 The 118th Congress boundaries (2020 Census) differ significantly
 in some states. This module allocates 117th targets to 118th
 districts using population-weighted shares from a geocorr crosswalk.
 
-The 2022 SOI CD data already uses 118th Congress boundaries, so
-the crosswalk is only needed for 2021 data.
+The crosswalk is needed for BOTH 2021 and 2022 SOI CD data.
 
 Crosswalk source: Missouri Census Data Center, Geocorr 2022.
 """

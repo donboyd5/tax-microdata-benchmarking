@@ -595,6 +595,8 @@ def prepare_area_targets(
     pop_year: int = 0,
     cached_allvars_path: Path = None,
     soi_raw_data_dir: Path = None,
+    apply_cd_crosswalk: bool = True,
+    crosswalk_path: Path = None,
 ) -> pd.DataFrame:
     """
     End-to-end pipeline: SOI data -> base targets -> all-shares targets.
@@ -602,6 +604,10 @@ def prepare_area_targets(
     Supports flexible year pairing: the SOI year (geographic shares),
     the TMD year (national levels), and the population year can
     each be set independently.
+
+    For CDs, both 2021 and 2022 SOI data use 117th Congress boundaries.
+    When ``apply_cd_crosswalk`` is True (default), the crosswalk is
+    applied to convert targets to 118th Congress boundaries.
 
     Parameters
     ----------
@@ -621,6 +627,12 @@ def prepare_area_targets(
     soi_raw_data_dir : Path, optional
         Directory containing raw SOI files.  Defaults based on
         area_type (state or CD raw data directory).
+    apply_cd_crosswalk : bool, optional
+        If True (default), apply 117th→118th Congress crosswalk to
+        CD targets.  Ignored for states.
+    crosswalk_path : Path, optional
+        Path to Geocorr crosswalk CSV.  Defaults to
+        ``tmd/areas/prepare/data/geocorr2022_cd117_to_cd118.csv``.
 
     Returns
     -------
@@ -701,9 +713,27 @@ def prepare_area_targets(
     else:
         raise ValueError(f"Unknown area_type: {area_type}")
 
-    return build_all_shares_targets(
+    enhanced = build_all_shares_targets(
         base_targets=base_targets,
         cached_allvars_path=cached_allvars_path,
         all_mappings=ALL_SHARING_MAPPINGS,
         agi_cuts=agi_cuts,
     )
+
+    # Apply 117th→118th Congress crosswalk for CD targets
+    if area_type == AreaType.CD and apply_cd_crosswalk:
+        from tmd.areas.prepare.cd_crosswalk import (
+            allocate_117_to_118,
+            load_geocorr_crosswalk,
+        )
+
+        if crosswalk_path is None:
+            crosswalk_path = (
+                Path(__file__).parent
+                / "data"
+                / "geocorr2022_cd117_to_cd118.csv"
+            )
+        crosswalk = load_geocorr_crosswalk(crosswalk_path)
+        enhanced = allocate_117_to_118(enhanced, crosswalk)
+
+    return enhanced
