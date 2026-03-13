@@ -50,7 +50,7 @@ TAXCALC_AGI_CACHE = STORAGE_FOLDER / "output" / "cached_c00100.npy"
 CACHED_ALLVARS_PATH = STORAGE_FOLDER / "output" / "cached_allvars.csv"
 
 # Tax-Calculator output variables to load from cached_allvars for targeting
-CACHED_TC_OUTPUTS = ["c18300", "c04470"]
+CACHED_TC_OUTPUTS = ["c18300", "c04470", "c02500"]
 
 # Default solver parameters
 AREA_CONSTRAINT_TOL = 0.004
