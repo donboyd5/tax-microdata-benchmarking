@@ -497,14 +497,101 @@ Modified files:
 - Capital gains: **RESOLVED** — synthetic `capgains_net = p22250 + p23250`, targeted with SOI A01000 shares.
 - Dividends and business income: **RESOLVED** — e00600 with SOI A00600, e00900 with SOI A00900. All 51 states solve.
 - Mortgage interest and charitable contributions: not yet targeted. Available vs deducted mismatch (e19200 $356B vs SOI a19300 $136B; e19800 $193B vs SOI a19700 $262B). Could target deducted amounts with SOI shares similar to SALT approach if Tax-Calculator outputs them separately.
-- EITC and child care credits: geographic distribution important for policy analysis. To be addressed in future phase.
+- EITC and CTC credit targeting: explored in Phase 21 — see findings below. Next step is to test geographic share targeting.
 - c18300/c02500 count targets cause infeasibility — amounts-only for all Tax-Calculator output variables.
 - Pipeline flexibility: confirmed that all targets recompute from TMD when tmd.csv.gz changes (share-based: TMD_national × SOI_share). Prerequisite: cached_allvars.csv and cached_c00100.npy must be regenerated if tmd.csv.gz changes.
 - 2022 SOI state data: **TESTED** — all 51 states solve with 2022 shares. Pipeline supports `--year 2022`.
 - Target-building logic: **FORMALIZED** — `tmd/areas/prepare/extended_targets.py` replaces `/tmp` test scripts.
 
+**Phase 21: Credit targeting exploration (EITC + CTC)** (2026-03-13)
+
+Investigated whether EITC and CTC can be targeted in area weighting. Focused on national-level alignment first.
+
+**Credits covered**: EITC (Earned Income Tax Credit), CTC (Child Tax Credit) including nonrefundable and ACTC (Additional CTC, refundable). Dropped CDCC (too small at $3.5B). "Working Families Tax Credit" is a broad congressional concept covering EITC+CTC expansions.
+
+**Law changes across years**:
+- 2015 (pre-TCJA): CTC $1,000/child, partially refundable; EITC stable
+- 2018-2020 (TCJA): CTC $2,000/child, phase-out $200K/$400K, ACTC up to $1,400-1,500
+- 2021 (ARPA, one year only): CTC $3,000-3,600/child, fully refundable, no earned income req; EITC childless tripled
+- 2022-2025 (TCJA): back to $2,000 CTC; ACTC up to $1,500-1,700
+- 2026+ (OBBBA, signed July 2025): TCJA made permanent, CTC possibly ~$2,000-2,500
+- Latest SOI data available: **2022** (SOI lags ~3 years)
+
+**SOI state-level credit data availability**:
+- EITC (a59660/n59660): all years 2015-2022, all AGI stubs — **available**
+- CTC nonrefundable: a07220 (2015 only, pre-TCJA) → a07225 (2018+, post-TCJA, includes "other dependent credit")
+- ACTC refundable (a11070/n11070): all years — **available**
+- All credit variables already ingested by `soi_state_data.py` (generic CSV reader), just not wired as targets
+
+**National alignment — PUF 2015 vs SOI 2015** (excellent):
+
+| Credit | Item | PUF | SOI | Ratio |
+|---|---|---|---|---|
+| EITC | refundable amount | $59.0B | $58.5B | 1.01 |
+| EITC | refundable count | 24.23M | 23.98M | 1.01 |
+| CTC | nonrefundable amount | $27.2B | $26.9B | 1.01 |
+| CTC | refundable (ACTC) amount | $26.7B | $26.1B | 1.02 |
+| CTC | total amount | $53.9B | $53.1B | 1.01 |
+
+**National alignment — TMD 2021 vs SOI 2021** (badly misaligned due to ARPA):
+
+| Credit | Item | TMD | SOI | Ratio |
+|---|---|---|---|---|
+| EITC | total amount | $59.7B | $65.2B | 0.91 |
+| EITC | total count | 15.45M | 32.07M | **0.48** |
+| CTC | total amount | $249.2B | $122.9B | **2.03** |
+
+TMD under ARPA law computes double the actual CTC and misses half the EITC claimants.
+
+**National alignment — TMD 2022 vs SOI 2022** (rebuilt with TAXYEAR=2022, much better):
+
+| Credit | Item | TMD | SOI | Ratio |
+|---|---|---|---|---|
+| EITC | total amount | $70.7B | $59.2B | 1.19 |
+| EITC | total count | 33.62M | 23.69M | 1.42 |
+| EITC | total average | $2,104 | $2,499 | 0.84 |
+| CTC | nonrefundable amount | $92.7B | $82.9B | 1.12 |
+| CTC | nonrefundable average | $2,207 | $2,177 | 1.01 |
+| CTC | refundable (ACTC) amount | $36.3B | $33.9B | 1.07 |
+| CTC | total amount | $129.0B | $116.7B | 1.11 |
+
+Under 2022 TCJA law: CTC alignment greatly improved (1.11x vs 2.03x). EITC still 19% high on amount, 42% high on count.
+
+**PUF vs CPS breakdown** (critical finding):
+- Under **2022 TCJA**: 100% of all credits come from PUF records. CPS contributes $0. CPS records have median AGI=$0, no earned income.
+- Under **2021 ARPA**: CPS contributes $20.0B CTC (8% of total) because ARPA CTC required no earned income. CPS EITC still $0.
+- All 7,599 CPS records have `iitax` computed by Tax-Calculator. Under 2021, all get negative iitax (-$69.3B total) and refunds ($69.3B).
+
+**Filer/nonfiler determination**:
+- `is_tax_filer = (DATA_SOURCE == 1)` — defined in `tmd/utils/soi_replication.py` line 60
+- This is used in **production** (imported by `reweight.py` at line 44, used at line 138)
+- Perfect diagonal: PUF=filer, CPS=nonfiler. No income-based filer test applied post-construction.
+- Tax-Calculator runs on ALL records regardless of filer status. CPS "nonfilers" get full tax calculations.
+- Under policies that give refundable credits to zero-income households (like ARPA CTC), CPS records would receive credits — real people in that situation would file returns to claim refunds.
+
+**National reweighting infrastructure**:
+- `tmd/utils/reweight.py` targets 47 SOI variables — income, deductions, taxes. **No credit targets.**
+- Only PUF records (filers) are constrained (line 138: `mask *= filer`)
+- CPS records pass through unconstrained
+- To target credits nationally: add credit targets to `tmd/storage/input/soi.csv`. Since all credits (under non-ARPA law) come from PUF records, the filer-only constraint works fine.
+
+**Area weighting infrastructure for credits**:
+- Solver already supports `scope=0` (all records), `scope=1` (PUF), `scope=2` (CPS) per target
+- Current 144 of 145 targets use scope=1 (PUF only); 1 uses scope=0 (XTOT population)
+- Credit targets would use scope=1, same as everything else
+- Credit variables (`eitc`, `ctc_total`, `c11070`) are in `cached_allvars.csv` — just need to add to `CACHED_TC_OUTPUTS` in solver and add SOI share specs in `extended_targets.py`
+
+**Assessment for area weighting**:
+- EITC targeting (amounts, not counts) is promising: 2022 TMD amount 1.19x SOI, SOI has state-level data by AGI stub
+- CTC targeting is feasible: 2022 TMD total 1.11x SOI (good), nonrefundable average essentially perfect (1.01x)
+- Share-based targeting should work despite 10-20% level overstatement — same principle as c18300 (9% high nationally, r=0.9998 geographically)
+- Use 2022 SOI shares to avoid ARPA distortions (even with 2021 TMD base)
+- Don't target credit counts — count misalignment is worse than amount misalignment
+
+**Open question**: Should credit targets be added to national reweighting first (so `tmd.csv.gz` starts with better credit totals), or only at area weighting stage? Adding nationally would benefit all downstream uses.
+
 ## Resume Instructions
 
 To continue this work in a new session, paste the following:
 
-> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-20E are complete. **145-target recipe fully confirmed** — all 51 states solve, 0 failures. Clean pipeline: `python -m tmd.areas.prepare_and_solve --scope states --workers 8` (230s). Quality report: `python -m tmd.areas.quality_report`. Key modules: `tmd/areas/create_area_weights_clarabel.py` (solver, creates `capgains_net`), `tmd/areas/prepare/extended_targets.py` (SOI-shared + Census-shared targets), `tmd/areas/batch_weights.py` (parallel runner), `tmd/areas/quality_report.py`. Diagnostic utility at `/tmp/area_diagnostic.py`. Next steps: (A) extend to CDs (all 436 districts), (B) mortgage/charitable targeting, (C) EITC/child care credits, (D) upstream prep. Push only to `origin`, never upstream.
+> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-20E are complete. **145-target recipe fully confirmed** — all 51 states solve, 0 failures. Phase 21 explored EITC+CTC credit targeting: national alignment analyzed (2015 PUF excellent, 2021 TMD badly misaligned due to ARPA, 2022 TMD rebuild shows CTC 1.11x and EITC 1.19x — workable). Key finding: 100% of credits from PUF records, CPS contributes $0 under non-ARPA law. `is_tax_filer = (DATA_SOURCE == 1)` is a tautology, not income-based. SOI has state-level credit data (a59660, a07225, a11070) for all years. Next: test EITC+CTC geographic share targeting at area level, decide whether to add credit targets to national reweighting first. Also pending: (A) extend to CDs, (B) mortgage/charitable, (D) upstream prep. Key modules: `create_area_weights_clarabel.py` (solver), `extended_targets.py` (target specs), `batch_weights.py` (parallel runner), `quality_report.py`. Push only to `origin`, never upstream.
