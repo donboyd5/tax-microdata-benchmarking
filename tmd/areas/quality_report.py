@@ -75,6 +75,7 @@ def parse_log(logpath: Path) -> dict:
         result["w_rmse"] = float(m.group(1))
 
     # Violated target details — lines after "VIOLATED: N targets"
+    # Each line: "  0.400% | target=  29 | achieved=  29 | varname/cnt=.../..."
     violated = []
     in_violated = False
     for line in log.splitlines():
@@ -82,11 +83,21 @@ def parse_log(logpath: Path) -> dict:
             in_violated = True
             continue
         if in_violated:
-            m_det = re.search(
-                r"\| (\S+/cnt=\d+/scope=\d+/agi=.*?/fs=\d+)", line
+            m_det = re.match(
+                r"\s+([\d.]+)%\s*\|\s*target=\s*([\d.]+)\s*\|"
+                r"\s*achieved=\s*([\d.]+)\s*\|"
+                r"\s*(\S+/cnt=\d+/scope=\d+/agi=.*?/fs=\d+)",
+                line,
             )
             if m_det:
-                violated.append(m_det.group(1))
+                violated.append(
+                    {
+                        "pct_err": float(m_det.group(1)),
+                        "target": float(m_det.group(2)),
+                        "achieved": float(m_det.group(3)),
+                        "desc": m_det.group(4),
+                    }
+                )
             else:
                 in_violated = False
     result["violated_details"] = violated
@@ -214,9 +225,22 @@ def generate_report(areas=None):
     all_violated = []
     for _, row in df.iterrows():
         for v in row.get("violated_details", []):
-            varname = v.split("/")[0]
+            desc = v["desc"]
+            varname = desc.split("/")[0]
+            cnt_m = re.search(r"cnt=(\d+)", desc)
+            cnt_type = int(cnt_m.group(1)) if cnt_m else -1
+            abs_miss = abs(v["achieved"] - v["target"])
             all_violated.append(
-                {"state": row["state"], "varname": varname, "detail": v}
+                {
+                    "state": row["state"],
+                    "varname": varname,
+                    "cnt_type": cnt_type,
+                    "pct_err": v["pct_err"],
+                    "target": v["target"],
+                    "achieved": v["achieved"],
+                    "abs_miss": abs_miss,
+                    "desc": desc,
+                }
             )
     if all_violated:
         vdf = pd.DataFrame(all_violated)
@@ -237,6 +261,42 @@ def generate_report(areas=None):
         lines.append("STATES WITH MOST VIOLATIONS:")
         for st, cnt in state_counts.items():
             lines.append(f"  {st}: {cnt} violated")
+        lines.append("")
+
+        # Worst 5 amount violations (cnt=0)
+        amt_viol = vdf[vdf["cnt_type"] == 0].sort_values(
+            ["pct_err", "abs_miss"], ascending=[False, False]
+        )
+        lines.append("WORST 5 AMOUNT TARGET VIOLATIONS:")
+        if amt_viol.empty:
+            lines.append("  (none — all amount targets met)")
+        else:
+            for _, r in amt_viol.head(5).iterrows():
+                lines.append(
+                    f"  {r['state']:<4} {r['pct_err']:.3f}% "
+                    f"target=${r['target']:>15,.0f}  "
+                    f"achieved=${r['achieved']:>15,.0f}  "
+                    f"miss=${r['abs_miss']:>12,.0f}  "
+                    f"{r['desc']}"
+                )
+        lines.append("")
+
+        # Worst 5 count violations (cnt=1 or cnt=2)
+        cnt_viol = vdf[vdf["cnt_type"].isin([1, 2])].sort_values(
+            ["pct_err", "abs_miss"], ascending=[False, False]
+        )
+        lines.append("WORST 5 COUNT TARGET VIOLATIONS:")
+        if cnt_viol.empty:
+            lines.append("  (none — all count targets met)")
+        else:
+            for _, r in cnt_viol.head(5).iterrows():
+                lines.append(
+                    f"  {r['state']:<4} {r['pct_err']:.3f}% "
+                    f"target={r['target']:>12,.0f}  "
+                    f"achieved={r['achieved']:>12,.0f}  "
+                    f"miss={r['abs_miss']:>8,.0f}  "
+                    f"{r['desc']}"
+                )
         lines.append("")
 
     report = "\n".join(lines)
