@@ -282,25 +282,92 @@ Key insight: the optimizer has enough degrees of freedom (~290K records × multi
 
 For 52 states at 8 workers: Clarabel batch ~186s (3.1 min) vs projected L-BFGS-B ~20 min.
 
-### Current Best Recipe: Safe + Census SALT + SOI c18300
+### Current Best Recipe: Safe + SALT + Pension/IRA + SS (127 targets)
 
 - **91 safe targets**: c00100 (AGI amounts + counts by filing status), e00200 (wages amt + nz count), e00300 (interest amt), e26270 (partnership/S-corp amt)
 - **6 e18400 targets**: income/sales tax available, Census combined S&L shares, stubs 5-10
 - **6 e18500 targets**: real estate tax available, Census property shares, stubs 5-10
 - **6 c18300 targets**: SALT after $10K cap (Tax-Calculator output), SOI a18300 shares, stubs 5-10
-- **Total: 109 targets per state**
-- All 51 states solve; c18300 matches SOI within 0.4pp for every state; e18400 matches Census within 0.07pp
+- **6 e01700 targets**: taxable pensions, SOI a01700 shares, stubs 5-10
+- **6 e01400 targets**: taxable IRA distributions, SOI a01400 shares, stubs 5-10
+- **6 c02500 targets**: taxable SS (Tax-Calculator output), SOI a02500 shares, stubs 5-10
+- **Total: 127 targets per state**
+- All 51 states solve; no degradation from 109-target recipe
 - Census data: `tmd/areas/prepare/data/census_2022_state_local_finance.xlsx`
-- Target-building script: `/tmp/target_both_salt.py`
+- SSA data (downloaded, for analysis): `/tmp/oasdi_sc21.xlsx`
+- Target-building scripts: `/tmp/target_both_salt.py` (Phase 18), `/tmp/target_ira_test.py` (Phase 19F)
+
+| Variable | Reference | r | mean|diff| | max|diff| (worst) |
+|---|---|---|---|---|
+| c18300 (SALT deducted) | SOI A18300 | 0.9998 | 0.054pp | 0.353pp (CA) |
+| e18400 (SALT available) | Census S&L | 1.0000 | 0.009pp | 0.064pp (NY) |
+| e18500 (RE tax available) | Census property | 0.9997 | 0.049pp | 0.304pp (NY) |
+| e01700 (taxable pension) | SOI A01700 | 0.9991 | 0.059pp | 0.739pp (CA) |
+| e01400 (taxable IRA) | SOI A01400 | 0.9991 | 0.047pp | 0.530pp (CA) |
+| c02500 (taxable SS) | SOI A02500 | 0.9994 | 0.040pp | 0.483pp (CA) |
 
 ### Potential Next Steps
 
-- **A. Pension/SS targets**: e01500 and e02400 are badly misaligned with SOI. Consider dropping or finding alternative share sources.
-- **B. Full CD batch**: Run all 436 CDs with combined recipe; identify problem districts.
-- **C. DC as state**: Treat DC as a state (10 AGI bins, state recipe) rather than CD.
-- **D. Consider c04470 targets**: Total itemized deductions — TMD/SOI are within 6%, good candidate.
-- **E. Upstream prep**: Clean up for eventual PR — remove R dependency, ensure raw data in-repo, documentation.
-- **F. Formalize target builder**: Turn `/tmp/target_both_salt.py` into a proper pipeline module that the batch solver can call.
+- **A. Full CD batch**: Run all 436 CDs with 127-target recipe; identify problem districts.
+- **B. DC as state**: Treat DC as a state (10 AGI bins, state recipe) rather than CD.
+- **C. Consider c04470 targets**: Total itemized deductions — TMD/SOI are within 6%, good candidate.
+- **D. Upstream prep**: Clean up for eventual PR — remove R dependency, ensure raw data in-repo, documentation.
+- **E. Formalize target builder**: Turn `/tmp/target_ira_test.py` into a proper pipeline module that the batch solver can call.
+- **F. Explore total pension/SS proxies further**: CPS pension too noisy/narrow; SSA total SS caused PrimalInfeasible (non-filer mismatch). Could explore BEA REIS data or other sources.
+
+**Phase 19: Pension and Social Security targeting** (2026-03-13)
+
+**19A-B: Taxable targeting (e01700 + c02500)**
+- Added `c02500` to `CACHED_TC_OUTPUTS` in `create_area_weights_clarabel.py` (joins c18300, c04470)
+- `e01700` (taxable pensions) already in `tmd.csv.gz` — no loader change needed
+- TMD vs SOI alignment: e01700 +0.0%, c02500 -0.5% (excellent)
+- 121-target recipe (91 safe + 18 SALT + 6 e01700 + 6 c02500): all 51 states solve
+- e01700 r=0.9991 vs SOI, c02500 r=0.9994 vs SOI
+
+**19C: SSA total SS proxy**
+- Downloaded SSA OASDI by State and County 2021 (`/tmp/oasdi_sc21.xlsx`, Table 3, monthly Dec 2021 benefits)
+- SSA total OASDI ~$1,198B/yr vs TMD e02400 $799B (ratio 0.667 — TMD only has filers)
+- SSA vs SOI taxable shares: r=0.9927 (high correlation — total and taxable SS have similar geographic distribution)
+
+**19D: CPS total pension proxy**
+- CPS ASEC 2022 (raw_cps_2022.h5): PNSN_VAL + ANN_VAL = $517B (only ~34% of TMD e01500 $1,508B)
+- CPS misses IRA distributions, 401(k) withdrawals — conceptually much narrower than IRS "pensions and annuities"
+- CPS pension state shares: r=0.9747 vs SOI, noisy (CA off by 2.76pp)
+- EBRI: no downloadable state-level pension income data
+- **Conclusion**: CPS pension is too noisy and conceptually mismatched to serve as a total pension proxy
+
+**19E: SSA-based e02400 targeting — FAILED**
+- Added 6 e02400 targets (SSA total shares, stubs 5-10) to 121-target recipe → 127 targets
+- **Result: 50 of 51 states PrimalInfeasible** (only AZ solved)
+- Root cause: SSA geographic distribution includes non-filers (~33% of SS recipients don't file tax returns). Non-filers are disproportionately concentrated in certain states. TMD only has filer records to reweight, so the SSA distribution is unachievable.
+- This differs from SALT/Census: Census tax collections and SOI SALT both relate to the same filer/resident population, so their geographic patterns are compatible with filer-based reweighting.
+- SSA targeting is unnecessary: c02500 targeting alone produces e02400 r=0.9928 vs SSA (untargeted total tracks well)
+
+**19F: IRA distribution targeting (e01400) — SUCCESS**
+- Key discovery: `e01400` (taxable IRA distributions) is separately identified in both TMD and SOI
+  - TMD e01400: $406.3B vs SOI A01400: $407.5B (alignment: -0.3%)
+  - IRS e01500 (total pensions $1,508B) = e01700 ($854B, taxable pensions) + e01400 ($406B, taxable IRA) + $249B nontaxable
+  - IRA and pension geographic distributions differ meaningfully (r=0.984): FL has proportionally more IRA activity, CA/NY/VA have more employer pensions
+- Added 6 e01400 targets (SOI A01400 shares, stubs 5-10) → 127-target recipe
+- **Result: all 51 states solve, no degradation of any existing metric**
+
+| Metric | 121 targets | 127 targets |
+|---|---|---|
+| e01400 vs SOI A01400 | r=0.9888, max 1.48pp | **r=0.9991, max 0.53pp** |
+| Pension combined (e01400+e01700) | r=0.9973, max 1.06pp | **r=0.9992, max 0.71pp** |
+| e01700, c02500, SALT metrics | unchanged | unchanged |
+
+- Biggest IRA improvements: CA +1.48→+0.53pp, FL -1.09→-0.19pp, NY +1.13→+0.36pp
+- 127 targets is the new best recipe
+
+**National totals comparison (pension/SS variables):**
+
+| Source | Pensions | IRA | Taxable SS | Total SS |
+|---|---|---|---|---|
+| TMD (PUF filers) | e01700: $854B | e01400: $406B | c02500: $412B | e02400: $799B |
+| SOI | A01700: $854B | A01400: $408B | A02500: $414B | — |
+| CPS (all persons) | PNSN+ANN: $517B | — | — | SS_VAL: $1,043B |
+| SSA (all beneficiaries) | — | — | — | $1,198B |
 
 ## Branch
 
@@ -336,7 +403,7 @@ Modified files:
 - `tmd/areas/prepare/census_population.py` (moved data to JSON, added 2022)
 - `tmd/areas/prepare/target_file_writer.py` (fixed allcount filter for shared names)
 - `tmd/areas/prepare/cd_crosswalk.py` (fixed incorrect docstring re: 2022 boundaries)
-- `tmd/areas/create_area_weights_clarabel.py` (load c18300, c04470 from cached_allvars for targeting)
+- `tmd/areas/create_area_weights_clarabel.py` (load c18300, c04470, c02500 from cached_allvars for targeting)
 - `tmd/areas/batch_weights.py` (use `_load_taxcalc_data()` in workers instead of duplicated loading)
 
 ## Open Items
@@ -344,15 +411,18 @@ Modified files:
 - Both 2021 and 2022 CD SOI data are on 117th Congress boundaries. Crosswalk now integrated into pipeline (Phase 11) — `prepare_area_targets()` applies it by default for CDs.
 - Decide on Clarabel multiplier bounds for area weights (currently [0.0, 100.0])
 - When creating upstream PR: include only necessary source data (not spreadsheets, etc.)
-- SALT targets: **RESOLVED** — combined targeting of e18400 (Census shares) + c18300 (SOI shares) + e18500 (Census shares) works perfectly. No degradation in c18300 accuracy when adding Census e18400/e18500 targets. Census data at `tmd/areas/prepare/data/census_2022_state_local_finance.xlsx`.
-- Pension/SS targets: SOI has only taxable versions (a01700, a02500), not total (a01500, a02400). TMD total is 77-93% larger than SOI taxable. Need alternative approach.
-- TMD national c18300 ($131.1B) vs SOI a18300 ($120.3B): 9% gap is acceptable for share-based targeting.
-- Clarabel vs L-BFGS-B: **DONE** — Clarabel is 6.5x faster (10.6s vs 69.3s for MN). Clarabel pushes to tolerance boundary (0.4%) by design; L-BFGS-B gets closer to zero error but takes much longer.
-- c18300 count targets cause infeasibility for CA, NY, MA — amounts-only is the current approach.
-- The target-building logic for the combined recipe is in `/tmp/target_both_salt.py` — needs to be formalized into a proper pipeline module.
+- SALT targets: **RESOLVED** — combined targeting of e18400 (Census shares) + c18300 (SOI shares) + e18500 (Census shares) works perfectly.
+- Pension/SS targets: **RESOLVED** — target taxable versions directly (e01700, e01400, c02500 with SOI shares). Total pension/SS proxies investigated:
+  - SSA total SS: r=0.9927 vs SOI but caused PrimalInfeasible because SSA includes non-filers (unachievable distribution for filer-only reweighting)
+  - CPS total pension: only 34% of IRS concept (misses IRA/401k distributions), noisy (r=0.975)
+  - IRA distributions (e01400) are separately identified and well-aligned (-0.3%) — added to recipe
+  - Untargeted e01500 (total pension) achieves r=0.9956 vs SOI A01700; e02400 (total SS) achieves r=0.9928 vs SSA — good enough from taxable targeting alone
+  - Remaining nontaxable pension ($249B) has no proxy — only 16% of e01500, acceptable
+- c18300/c02500 count targets cause infeasibility — amounts-only for all Tax-Calculator output variables
+- Target-building logic in `/tmp/target_ira_test.py` — needs formalization into pipeline module
 
 ## Resume Instructions
 
 To continue this work in a new session, paste the following:
 
-> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-18 are complete. Current best recipe: **109 targets** = 91 safe + 6 e18400 (Census S&L shares) + 6 e18500 (Census property shares) + 6 c18300 (SOI a18300 shares), all stubs 5-10 ($50K+). All 51 states solve perfectly: c18300 r=0.9998 vs SOI, e18400 r=1.0000 vs Census. Clarabel is 6.5x faster than L-BFGS-B. Solver loads c18300 from cached_allvars.csv via `_load_taxcalc_data()`. Target-building script at `/tmp/target_both_salt.py` (needs formalization into pipeline module). Census data at `tmd/areas/prepare/data/census_2022_state_local_finance.xlsx`. Next steps: (A) pension/SS alignment, (B) extend to CDs, (C) consider c04470 targets, (D) formalize combined target builder, (E) upstream prep. Key files: `tmd/areas/create_area_weights_clarabel.py` (solver), `tmd/areas/batch_weights.py` (parallel runner), `tmd/areas/targets/prepare/target_recipes/states_safe.json` (safe recipe). Push only to `origin`, never upstream.
+> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-19 are complete. Current best recipe: **127 targets** = 91 safe + 6 e18400 (Census S&L shares) + 6 e18500 (Census property shares) + 6 c18300 (SOI a18300 shares) + 6 e01700 (SOI a01700 shares) + 6 e01400 (SOI a01400 shares) + 6 c02500 (SOI a02500 shares), all stubs 5-10 ($50K+). All 51 states solve. Solver loads c18300, c02500 from cached_allvars.csv via `_load_taxcalc_data()`. Target-building script at `/tmp/target_ira_test.py` (needs formalization into pipeline module). Census data at `tmd/areas/prepare/data/census_2022_state_local_finance.xlsx`. SSA data at `/tmp/oasdi_sc21.xlsx` (for analysis, not targeting). Next steps: (A) extend to CDs, (B) consider c04470 targets, (C) formalize combined target builder, (D) upstream prep. Key files: `tmd/areas/create_area_weights_clarabel.py` (solver), `tmd/areas/batch_weights.py` (parallel runner), `tmd/areas/targets/prepare/target_recipes/states_safe.json` (safe recipe). Push only to `origin`, never upstream.
