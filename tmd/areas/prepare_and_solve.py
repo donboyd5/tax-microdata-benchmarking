@@ -1,13 +1,14 @@
 """
 End-to-end area weight pipeline: SOI data → targets → weights.
 
-Three stages:
+Four stages:
   1. prepare  — build enhanced targets from SOI + TMD data
-  2. write    — write per-area target CSV files
-  3. solve    — run Clarabel optimizer for each area (parallel)
+  2. write    — write per-area target CSV files (base safe recipe)
+  3. extend   — append SOI-shared and Census-shared targets (145 total)
+  4. solve    — run Clarabel optimizer for each area (parallel)
 
 Usage:
-    # Full pipeline for all states:
+    # Full pipeline for all states (145 targets, 8 workers):
     python -m tmd.areas.prepare_and_solve --scope states --workers 8
 
     # Full pipeline for all CDs:
@@ -22,6 +23,9 @@ Usage:
     # Only solve (targets already written):
     python -m tmd.areas.prepare_and_solve \
         --scope states --stage solve --workers 8
+
+    # Use 2022 SOI shares instead of 2021:
+    python -m tmd.areas.prepare_and_solve --scope states --year 2022 --workers 8
 
     # Specific areas:
     python -m tmd.areas.prepare_and_solve --scope MN,MN01,MN02 --workers 4
@@ -39,9 +43,9 @@ _REPO_ROOT = Path(__file__).parent.parent.parent
 _RECIPES = (
     _REPO_ROOT / "tmd" / "areas" / "targets" / "prepare" / "target_recipes"
 )
-_STATE_RECIPE = _RECIPES / "states_final.json"
+_STATE_RECIPE = _RECIPES / "states_safe.json"
 _CD_RECIPE = _RECIPES / "cds_final.json"
-_STATE_VARMAP = _RECIPES / "state_variable_mapping_allshares.csv"
+_STATE_VARMAP = _RECIPES / "state_variable_mapping_safe.csv"
 _CD_VARMAP = _RECIPES / "cd_variable_mapping_allshares.csv"
 _TARGET_DIR = AREAS_FOLDER / "targets"
 
@@ -90,6 +94,7 @@ def _prepare_and_write(
             pop_year=pop_year,
         )
         # Filter to specific areas if requested
+        state_areas = None
         if specific:
             state_codes = [
                 a.upper()
@@ -98,16 +103,35 @@ def _prepare_and_write(
             ]
             if state_codes:
                 enhanced = enhanced[enhanced["area"].isin(state_codes)]
+                state_areas = state_codes
+        # Write base targets (safe recipe)
         result = write_area_target_files(
             recipe_path=_STATE_RECIPE,
             enhanced_targets=enhanced,
             variable_mapping_path=_STATE_VARMAP,
             output_dir=_TARGET_DIR,
         )
+        base_count = next(iter(result.values()), 0)
+        # Append extended targets (SOI-shared + Census-shared)
+        from tmd.areas.prepare.extended_targets import (
+            append_extended_targets,
+        )
+
+        ext_result = append_extended_targets(
+            target_dir=_TARGET_DIR,
+            enhanced_targets=enhanced,
+            soi_year=area_data_year,
+            areas=state_areas,
+        )
         elapsed = time.time() - t0
-        n_areas = len(result)
-        print(f"  Wrote {n_areas} state target files " f"({elapsed:.1f}s)")
-        all_results.update(result)
+        n_areas = len(ext_result) if ext_result else len(result)
+        ext_count = next(iter(ext_result.values()), 0) if ext_result else 0
+        print(
+            f"  Wrote {n_areas} state target files: "
+            f"{base_count} base + {ext_count - base_count} extended "
+            f"= {ext_count} total ({elapsed:.1f}s)"
+        )
+        all_results.update(ext_result if ext_result else result)
 
     if do_cds:
         print("Preparing CD targets (with 117→118 crosswalk)...")
