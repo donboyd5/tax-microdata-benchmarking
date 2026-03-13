@@ -23,6 +23,52 @@ from tmd.areas.prepare.constants import ALL_STATES
 
 WEIGHT_DIR = AREAS_FOLDER / "weights"
 
+# Decode raw constraint descriptions into human-readable labels
+_CNT_LABELS = {0: "amt", 1: "returns", 2: "nz-count"}
+_FS_LABELS = {0: "all", 1: "single", 2: "MFJ", 4: "HoH"}
+
+
+def _humanize_desc(desc: str) -> str:
+    """
+    Turn 'c00100/cnt=1/scope=1/agi=[500000.0,1000000.0)/fs=4'
+    into 'c00100 returns HoH $500K-$1M'.
+    """
+    parts = desc.split("/")
+    varname = parts[0]
+    attrs = {}
+    for p in parts[1:]:
+        if "=" in p:
+            k, v = p.split("=", 1)
+            attrs[k] = v
+
+    cnt = int(attrs.get("cnt", -1))
+    fs = int(attrs.get("fs", 0))
+    agi_raw = attrs.get("agi", "")
+
+    cnt_label = _CNT_LABELS.get(cnt, f"cnt{cnt}")
+    fs_label = _FS_LABELS.get(fs, f"fs{fs}")
+
+    # Parse AGI range like [500000.0,1000000.0)
+    agi_label = ""
+    m = re.match(r"\[([^,]+),([^)]+)\)", agi_raw)
+    if m:
+        lo_s, hi_s = m.group(1), m.group(2)
+        lo = float(lo_s)
+        hi = float(hi_s)
+        if lo < -1e10:
+            agi_label = f"<${hi / 1000:.0f}K"
+        elif hi > 1e10:
+            agi_label = f"${lo / 1000:.0f}K+"
+        else:
+            agi_label = f"${lo / 1000:.0f}K-${hi / 1000:.0f}K"
+
+    pieces = [varname, cnt_label]
+    if fs != 0:
+        pieces.append(fs_label)
+    if agi_label:
+        pieces.append(agi_label)
+    return " ".join(pieces)
+
 
 def parse_log(logpath: Path) -> dict:
     """Parse a single area solver log file into a summary dict."""
@@ -277,7 +323,7 @@ def generate_report(areas=None):
                     f"target=${r['target']:>15,.0f}  "
                     f"achieved=${r['achieved']:>15,.0f}  "
                     f"miss=${r['abs_miss']:>12,.0f}  "
-                    f"{r['desc']}"
+                    f"{_humanize_desc(r['desc'])}"
                 )
         lines.append("")
 
@@ -295,7 +341,7 @@ def generate_report(areas=None):
                     f"target={r['target']:>12,.0f}  "
                     f"achieved={r['achieved']:>12,.0f}  "
                     f"miss={r['abs_miss']:>8,.0f}  "
-                    f"{r['desc']}"
+                    f"{_humanize_desc(r['desc'])}"
                 )
         lines.append("")
 
