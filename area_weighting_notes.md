@@ -250,22 +250,57 @@ The SOI SALT geographic distribution is distorted by TCJA (itemizer-only, $10K c
 - c04470 (total itemized): TMD $620.8B vs SOI $658.1B (ratio 0.94, 6% low)
 - c04470 count: TMD 16.63M vs SOI 14.89M (ratio 1.12)
 
-### Current Best Recipe: Safe + c18300 Direct
+**Phase 18: Combined SALT targeting — e18400 + c18300 + e18500** (2026-03-12)
+
+Tested targeting BOTH the input variable (e18400, SALT available, Census shares) and output variable (c18300, SALT deducted, SOI shares) simultaneously.
+
+**Target recipe**: 91 safe + 6 c18300 (SOI a18300 shares) + 6 e18400 (Census combined S&L shares) + 6 e18500 (Census property shares), all AGI stubs 5-10 ($50K+) = **109 targets per state**.
+
+**Result — ALL states solved, no failures!**
+
+| Metric | c18300-only (97 tgts) | **Combined (109 tgts)** |
+|---|---|---|
+| c18300 vs SOI r | 0.9998 | **0.9998** (no degradation) |
+| c18300 mean\|diff\| | 0.056pp | **0.054pp** |
+| e18400 vs Census r | 0.9674 | **1.0000** |
+| e18400 mean\|diff\| | 0.345pp | **0.009pp** |
+| e18400 max\|diff\| (CA) | 3.902pp | **0.014pp** |
+| e18500 vs Census r | 0.9535 | **0.9997** |
+| e18500 mean\|diff\| | 0.419pp | **0.049pp** |
+
+Key insight: the optimizer has enough degrees of freedom (~290K records × multipliers) to satisfy both the input-concept (Census SALT available) and output-concept (SOI SALT deducted) targets simultaneously. The earlier tension only arose when using wrong shares on a single variable.
+
+**Timing comparison: Clarabel vs L-BFGS-B** (MN, 91 safe targets)
+
+| Metric | Clarabel | L-BFGS-B |
+|---|---|---|
+| Wall clock time | **10.6s** | **69.3s** |
+| Mean \|rel error\| | 0.376% | 0.007% |
+| Max \|rel error\| | 0.400% | 0.112% |
+
+**Clarabel is 6.5x faster.** Clarabel's errors cluster at the 0.4% tolerance boundary (by design — it minimizes weight distortion within the tolerance band, so constraints are binding). L-BFGS-B uses penalty optimization that drives errors closer to zero at the cost of 6x more time.
+
+For 52 states at 8 workers: Clarabel batch ~186s (3.1 min) vs projected L-BFGS-B ~20 min.
+
+### Current Best Recipe: Safe + Census SALT + SOI c18300
 
 - **91 safe targets**: c00100 (AGI amounts + counts by filing status), e00200 (wages amt + nz count), e00300 (interest amt), e26270 (partnership/S-corp amt)
-- **6 c18300 targets**: SALT after cap, amounts only, AGI stubs 5-10 ($50K+), SOI a18300 shares
-- **Total: 97 targets per state**
-- All 51 states solve (NY with InsufficientProgress)
-- c18300 geographic distribution matches SOI within 1pp for every state
+- **6 e18400 targets**: income/sales tax available, Census combined S&L shares, stubs 5-10
+- **6 e18500 targets**: real estate tax available, Census property shares, stubs 5-10
+- **6 c18300 targets**: SALT after $10K cap (Tax-Calculator output), SOI a18300 shares, stubs 5-10
+- **Total: 109 targets per state**
+- All 51 states solve; c18300 matches SOI within 0.4pp for every state; e18400 matches Census within 0.07pp
+- Census data: `tmd/areas/prepare/data/census_2022_state_local_finance.xlsx`
+- Target-building script: `/tmp/target_both_salt.py`
 
 ### Potential Next Steps
 
 - **A. Pension/SS targets**: e01500 and e02400 are badly misaligned with SOI. Consider dropping or finding alternative share sources.
-- **B. Full CD batch**: Run all 436 CDs with safe + c18300 recipe; identify problem districts.
+- **B. Full CD batch**: Run all 436 CDs with combined recipe; identify problem districts.
 - **C. DC as state**: Treat DC as a state (10 AGI bins, state recipe) rather than CD.
-- **D. Clarabel vs L-BFGS-B timing comparison**: Run same targets on both solvers, compare speed and accuracy.
+- **D. Consider c04470 targets**: Total itemized deductions — TMD/SOI are within 6%, good candidate.
 - **E. Upstream prep**: Clean up for eventual PR — remove R dependency, ensure raw data in-repo, documentation.
-- **F. Consider c04470 targets**: Total itemized deductions — TMD/SOI are within 6%, good candidate for targeting.
+- **F. Formalize target builder**: Turn `/tmp/target_both_salt.py` into a proper pipeline module that the batch solver can call.
 
 ## Branch
 
@@ -309,15 +344,15 @@ Modified files:
 - Both 2021 and 2022 CD SOI data are on 117th Congress boundaries. Crosswalk now integrated into pipeline (Phase 11) — `prepare_area_targets()` applies it by default for CDs.
 - Decide on Clarabel multiplier bounds for area weights (currently [0.0, 100.0])
 - When creating upstream PR: include only necessary source data (not spreadsheets, etc.)
-- SALT targets: **RESOLVED** — direct c18300 targeting works excellently (r=0.9999 vs SOI). Census data saved to `tmd/areas/prepare/data/census_2022_state_local_finance.xlsx` for reference but not currently used in the best recipe.
+- SALT targets: **RESOLVED** — combined targeting of e18400 (Census shares) + c18300 (SOI shares) + e18500 (Census shares) works perfectly. No degradation in c18300 accuracy when adding Census e18400/e18500 targets. Census data at `tmd/areas/prepare/data/census_2022_state_local_finance.xlsx`.
 - Pension/SS targets: SOI has only taxable versions (a01700, a02500), not total (a01500, a02400). TMD total is 77-93% larger than SOI taxable. Need alternative approach.
 - TMD national c18300 ($131.1B) vs SOI a18300 ($120.3B): 9% gap is acceptable for share-based targeting.
-- NY InsufficientProgress with 97 targets: produces usable weights, may need tuning.
-- Clarabel vs L-BFGS-B timing/accuracy comparison: requested but not yet done.
+- Clarabel vs L-BFGS-B: **DONE** — Clarabel is 6.5x faster (10.6s vs 69.3s for MN). Clarabel pushes to tolerance boundary (0.4%) by design; L-BFGS-B gets closer to zero error but takes much longer.
 - c18300 count targets cause infeasibility for CA, NY, MA — amounts-only is the current approach.
+- The target-building logic for the combined recipe is in `/tmp/target_both_salt.py` — needs to be formalized into a proper pipeline module.
 
 ## Resume Instructions
 
 To continue this work in a new session, paste the following:
 
-> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-17 are complete. Key breakthrough: targeting c18300 (Tax-Calculator SALT after $10K cap) directly with SOI a18300 shares achieves r=0.9999 vs SOI with all states within 1pp — far better than targeting e18400 (SALT available). Current best recipe: 97 targets = 91 safe + 6 c18300 amounts (stubs 5-10, $50K+). Solver loads c18300 from cached_allvars.csv via modified `_load_taxcalc_data()`. Census data saved to `tmd/areas/prepare/data/census_2022_state_local_finance.xlsx`. Next steps: (A) consider c04470 (total itemized) targets, (B) pension/SS alignment, (C) extend to CDs, (D) Clarabel vs L-BFGS-B timing comparison. Key files: `tmd/areas/create_area_weights_clarabel.py` (solver + data loader), `tmd/areas/batch_weights.py` (parallel runner), `tmd/areas/targets/prepare/target_recipes/states_safe.json` (safe recipe). Push only to `origin`, never upstream.
+> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-18 are complete. Current best recipe: **109 targets** = 91 safe + 6 e18400 (Census S&L shares) + 6 e18500 (Census property shares) + 6 c18300 (SOI a18300 shares), all stubs 5-10 ($50K+). All 51 states solve perfectly: c18300 r=0.9998 vs SOI, e18400 r=1.0000 vs Census. Clarabel is 6.5x faster than L-BFGS-B. Solver loads c18300 from cached_allvars.csv via `_load_taxcalc_data()`. Target-building script at `/tmp/target_both_salt.py` (needs formalization into pipeline module). Census data at `tmd/areas/prepare/data/census_2022_state_local_finance.xlsx`. Next steps: (A) pension/SS alignment, (B) extend to CDs, (C) consider c04470 targets, (D) formalize combined target builder, (E) upstream prep. Key files: `tmd/areas/create_area_weights_clarabel.py` (solver), `tmd/areas/batch_weights.py` (parallel runner), `tmd/areas/targets/prepare/target_recipes/states_safe.json` (safe recipe). Push only to `origin`, never upstream.
