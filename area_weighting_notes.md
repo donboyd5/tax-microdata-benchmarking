@@ -417,7 +417,8 @@ For 52 states at 8 workers: Clarabel batch ~186s (3.1 min) vs projected L-BFGS-B
 **Phase 20E: Cross-state quality summary report — COMPLETE** (2026-03-13)
 - Created `tmd/areas/quality_report.py` — parses all state solver logs, produces summary
   - Usage: `python -m tmd.areas.quality_report`
-  - Shows: overall stats, target accuracy, weight distortion, per-state table, violations by variable
+  - Shows: overall stats, target accuracy, weight distortion, per-state table, violations by variable, worst-5 violations
+  - Per-state table has legend clarifying units (error = fraction, weight cols = multiplier on national weight)
 - Key findings (51 states, 145 targets each):
   - 51/51 solved, 0 failures
   - 25 states hit all 145 targets; 26 states have minor violations (85 total)
