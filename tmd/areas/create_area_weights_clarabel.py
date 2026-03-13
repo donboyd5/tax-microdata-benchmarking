@@ -71,6 +71,9 @@ def _load_taxcalc_data():
         for col in CACHED_TC_OUTPUTS:
             if col in allvars.columns:
                 vdf[col] = allvars[col].values
+    # Synthetic combined variable for net capital gains targeting
+    if "p22250" in vdf.columns and "p23250" in vdf.columns:
+        vdf["capgains_net"] = vdf["p22250"] + vdf["p23250"]
     assert np.all(vdf.s006 > 0), "Not all weights are positive"
     return vdf
 
