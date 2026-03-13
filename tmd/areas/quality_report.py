@@ -243,10 +243,14 @@ def generate_report(areas=None):
 
     # Per-state table
     lines.append("PER-STATE DETAIL:")
+    lines.append(
+        "  Err cols = |relative error| (fraction); "
+        "weight cols = multiplier on national weight (1.0 = unchanged)"
+    )
     header = (
         f"{'St':<4} {'Status':<14} {'Hit':>5} {'Tot':>5} "
         f"{'Viol':>5} {'MeanErr':>8} {'MaxErr':>8} "
-        f"{'RMSE':>7} {'Med':>7} {'P95':>7} {'Max':>8}"
+        f"{'wRMSE':>7} {'wMed':>7} {'wP95':>7} {'wMax':>8}"
     )
     lines.append(header)
     lines.append("-" * len(header))
