@@ -663,6 +663,9 @@ Added c19200 (interest deduction) and c19700 (charitable deduction) targeting â€
 - Added total target count to report header (51 Ã— 161 = 8,211)
 - Clarified violation threshold as "+/-0.4% + eps" (eps=1e-9)
 - Removed "Below 0.5" line from multiplier section (not informative)
+- Renamed worst-violation sections to "WORST 5 ... (by % error)" for clarity
+- Added **weight exhaustion diagnostic**: for each record, computes sum-of-state-weights / national-weight across all 51 states. Median=0.988, mean=0.976, std=0.098. 2.7% over-used (>1.10), 10.4% under-used (<0.90). One extreme outlier at 11.4x.
+- Added **cross-state aggregation diagnostic**: compares sum-of-states weighted totals to national TMD for key variables. Returns -0.07%, AGI -0.56%, wages -0.76%, capital gains -1.26%, SALT -0.32%, income tax -1.22%. Small negative bias expected (51 states exclude "Other Areas" ~0.5% of returns).
 
 **2022 SOI shares test (161-target recipe)**:
 - All 51 states solve with 2022 SOI shares + 2021 TMD national data
@@ -719,4 +722,4 @@ Added c19200 (interest deduction) and c19700 (charitable deduction) targeting â€
 
 To continue this work in a new session, paste the following:
 
-> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-23 are complete. **161-target recipe fully confirmed** â€” all 51 states solve, 0 failures. Phase 23 added mortgage interest (c19200/a19300) and charitable contributions (c19700/a19700) targeting: r=0.9996 and r=0.9995 respectively, zero degradation. Recipe: 91 safe + 54 SOI-shared by stub + 12 Census-shared by stub + 4 credit aggregate = 161 targets. Pending: (A) extend to CDs, (D) upstream prep. Key modules: `create_area_weights_clarabel.py` (solver), `extended_targets.py` (target specs), `batch_weights.py` (parallel runner), `quality_report.py`. Push only to `origin`, never upstream.
+> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-23 are complete. **161-target recipe fully confirmed** â€” all 51 states solve, 0 failures. Phase 23 added mortgage interest (c19200/a19300) and charitable contributions (c19700/a19700) targeting: r=0.9996 and r=0.9995 respectively, zero degradation. Recipe: 91 safe + 54 SOI-shared by stub + 12 Census-shared by stub + 4 credit aggregate = 161 targets. Quality report includes weight exhaustion (median usage=0.988) and cross-state aggregation diagnostics (all key vars within ~1.3% of national). Pending: (A) extend to CDs, (D) upstream prep. Key modules: `create_area_weights_clarabel.py` (solver), `extended_targets.py` (target specs), `batch_weights.py` (parallel runner), `quality_report.py`. Push only to `origin`, never upstream.
