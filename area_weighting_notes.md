@@ -501,7 +501,8 @@ Modified files:
 - Pension/SS targets: **RESOLVED** — target taxable versions directly (e01700, e01400, c02500 with SOI shares).
 - Capital gains: **RESOLVED** — synthetic `capgains_net = p22250 + p23250`, targeted with SOI A01000 shares.
 - Dividends and business income: **RESOLVED** — e00600 with SOI A00600, e00900 with SOI A00900. All 51 states solve.
-- Mortgage interest and charitable contributions: not yet targeted. Available vs deducted mismatch (e19200 $356B vs SOI a19300 $136B; e19800 $193B vs SOI a19700 $262B). Could target deducted amounts with SOI shares similar to SALT approach if Tax-Calculator outputs them separately.
+- Mortgage interest: **RESOLVED** — target c19200 (TC interest deduction) with SOI A19300 shares. r=0.9995, max 0.552pp.
+- Charitable contributions: **RESOLVED** — target c19700 (TC charitable deduction) with SOI A19700 shares. r=0.9995, max 0.552pp.
 - EITC and CTC credit targeting: **RESOLVED** — Phase 22 added aggregate amount + count targets per state. r=1.0000 for both, zero violations, zero degradation.
 - c18300/c02500 count targets cause infeasibility — amounts-only for all Tax-Calculator output variables.
 - Pipeline flexibility: confirmed that all targets recompute from TMD when tmd.csv.gz changes (share-based: TMD_national × SOI_share). Prerequisite: cached_allvars.csv and cached_c00100.npy must be regenerated if tmd.csv.gz changes.
@@ -631,8 +632,91 @@ Added EITC and CTC (total) as aggregate state-level targets (amount + nonzero co
 - 25 states hit all 149 targets; 26 states have minor violations (same pattern as before)
 - Despite 2x level misalignment on CTC (ARPA vs TCJA), share-based targeting works perfectly
 
+**Phase 23: Mortgage interest and charitable contributions targeting** (2026-03-14)
+
+Added c19200 (interest deduction) and c19700 (charitable deduction) targeting — both Tax-Calculator output variables targeted with SOI shares, stubs 5-10. Same pattern as c18300 SALT targeting.
+
+**Mortgage interest (c19200 with SOI A19300 shares)**:
+- TMD e19200 (all interest available): $355.7B (34.6M returns, includes pre-TCJA non-itemizers)
+- TMD c19200 (interest deducted, TC): $215.1B (14.1M itemizers) — equals e19200 for itemizers, 0 for non-itemizers
+- SOI A19300 (mortgage interest deduction): $136.1B (2021), $142.0B (2022)
+- Ratio c19200/SOI = 1.58 (TMD has more itemizers from 2015 PUF base)
+- Mortgage is 98% of total interest in SOI — investment interest only $2.6B — so c19200 ≈ A19300 conceptually
+- Untargeted: r=0.9821, CA worst at -5.9pp
+- After targeting: r=0.9996, mean|diff|=0.064pp, max=0.821pp (CA)
+
+**Charitable contributions (c19700 with SOI A19700 shares)**:
+- TMD e19800 (cash/check donations): $192.7B; e20100 (noncash): $100.8B
+- TMD c19700 (TC charitable deduction): $205.9B (14.5M itemizers)
+- SOI A19700 (total charitable deduction): $261.6B
+- Ratio c19700/SOI = 0.79 (TMD 21% below SOI — opposite direction from mortgage)
+- Untargeted: r=0.9900, TX worst at -1.2pp
+- After targeting: r=0.9995, mean|diff|=0.069pp, max=0.552pp (NY)
+
+**Combined results — 161 targets, all 51 states solved, 0 failures, 242s**:
+- 77 total violations (same as 155-target baseline), all c00100/e00200 counts
+- Zero amount violations, zero degradation of any existing metric
+- 25 states hit all 161 targets; 26 with minor violations
+
+**Quality report improvements**:
+- Changed "NEAR-ZERO WEIGHTS" → "NEAR-ZERO WEIGHT MULTIPLIERS" (clarifies x is a multiplier, not a weight)
+- Added total target count to report header (51 × 161 = 8,211)
+- Clarified violation threshold as "+/-0.4% + eps" (eps=1e-9)
+- Removed "Below 0.5" line from multiplier section (not informative)
+
+**2022 SOI shares test (161-target recipe)**:
+- All 51 states solve with 2022 SOI shares + 2021 TMD national data
+- 133 violations (vs 77 with 2021) — more stress from larger share shifts
+- ID and NY got AlmostSolved (17 and 10 violations respectively)
+- Some amount violations appeared (ID c18300/e18500, NY capgains_net)
+- Capital gains FL share shift (+4.25pp) is the largest movement
+- Recipe robust to SOI year choice but 2021 shares are cleaner with 2021 national data
+
+### Current Best Recipe: 161 targets (CONFIRMED)
+
+- **91 safe targets**: c00100 (AGI amounts + counts by filing status), e00200 (wages amt + nz count), e00300 (interest amt), e26270 (partnership/S-corp amt)
+- **6 e18400 targets**: income/sales tax available, Census combined S&L shares, stubs 5-10
+- **6 e18500 targets**: real estate tax available, Census property shares, stubs 5-10
+- **6 c18300 targets**: SALT after $10K cap (Tax-Calculator output), SOI a18300 shares, stubs 5-10
+- **6 e01700 targets**: taxable pensions, SOI a01700 shares, stubs 5-10
+- **6 e01400 targets**: taxable IRA distributions, SOI a01400 shares, stubs 5-10
+- **6 c02500 targets**: taxable SS (Tax-Calculator output), SOI a02500 shares, stubs 5-10
+- **6 capgains_net targets**: net capital gains (p22250+p23250), SOI a01000 shares, stubs 5-10
+- **6 e00600 targets**: ordinary dividends, SOI a00600 shares, stubs 5-10
+- **6 e00900 targets**: business/professional income, SOI a00900 shares, stubs 5-10
+- **6 c19200 targets**: interest deduction (Tax-Calculator output), SOI a19300 shares, stubs 5-10
+- **6 c19700 targets**: charitable deduction (Tax-Calculator output), SOI a19700 shares, stubs 5-10
+- **1 eitc amount target**: aggregate EITC, SOI a59660 shares, all AGI
+- **1 eitc count target**: EITC nonzero count, SOI n59660 shares, all AGI
+- **1 ctc_total amount target**: aggregate CTC (a07225+a11070), SOI combined shares, all AGI
+- **1 ctc_total count target**: CTC nonzero count, SOI combined n-shares, all AGI
+- **Total: 161 targets per state** — all 51 states solve, 0 failures
+- **Pipeline**: `python -m tmd.areas.prepare_and_solve --scope states --workers 8` (242s total)
+- **Quality report**: `python -m tmd.areas.quality_report` → 25 states perfect, 26 with minor violations (77 total, all c00100/e00200 counts)
+
+| Variable | Reference | r | mean|diff| | max|diff| (worst) |
+|---|---|---|---|---|
+| capgains_net (capital gains) | SOI A01000 | 0.9999 | 0.027pp | 0.183pp (FL) |
+| c18300 (SALT deducted) | SOI A18300 | 0.9998 | 0.054pp | 0.353pp (CA) |
+| e18400 (SALT available) | Census S&L | 1.0000 | 0.009pp | 0.064pp (NY) |
+| e18500 (RE tax available) | Census property | 0.9997 | 0.049pp | 0.304pp (NY) |
+| e01700 (taxable pension) | SOI A01700 | 0.9991 | 0.059pp | 0.739pp (CA) |
+| e01400 (taxable IRA) | SOI A01400 | 0.9991 | 0.047pp | 0.530pp (CA) |
+| c02500 (taxable SS) | SOI A02500 | 0.9994 | 0.040pp | 0.483pp (CA) |
+| e00600 (dividends) | SOI A00600 | 0.999+ | ~0.05pp | ~0.5pp |
+| e00900 (business income) | SOI A00900 | 0.999+ | ~0.05pp | ~0.5pp |
+| c19200 (interest deduction) | SOI A19300 | 0.9996 | 0.064pp | 0.821pp (CA) |
+| c19700 (charitable deduction) | SOI A19700 | 0.9995 | 0.069pp | 0.552pp (NY) |
+| eitc (EITC) | SOI A59660 | 1.0000 | 0.008pp | 0.043pp (CA) |
+| ctc_total (CTC) | SOI A07225+A11070 | 1.0000 | 0.009pp | 0.079pp (CA) |
+
+### Potential Next Steps
+
+- **A. Full CD batch**: Run all 436 CDs with recipe; identify problem districts. Extend `extended_targets.py` for CDs.
+- **D. Upstream prep**: Clean up for eventual PR — remove R dependency, ensure raw data in-repo, documentation.
+
 ## Resume Instructions
 
 To continue this work in a new session, paste the following:
 
-> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-22 are complete. **149-target recipe fully confirmed** — all 51 states solve, 0 failures. Phase 22 added EITC+CTC credit targeting: aggregate amount + nonzero count per state (4 new targets), r=1.0000 for both credits vs SOI, zero degradation. Recipe: 91 safe + 42 SOI-shared by stub + 12 Census-shared by stub + 4 credit aggregate = 149 targets. Pending: (A) extend to CDs, (B) mortgage/charitable, (D) upstream prep. Key modules: `create_area_weights_clarabel.py` (solver), `extended_targets.py` (target specs), `batch_weights.py` (parallel runner), `quality_report.py`. Push only to `origin`, never upstream.
+> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-23 are complete. **161-target recipe fully confirmed** — all 51 states solve, 0 failures. Phase 23 added mortgage interest (c19200/a19300) and charitable contributions (c19700/a19700) targeting: r=0.9996 and r=0.9995 respectively, zero degradation. Recipe: 91 safe + 54 SOI-shared by stub + 12 Census-shared by stub + 4 credit aggregate = 161 targets. Pending: (A) extend to CDs, (D) upstream prep. Key modules: `create_area_weights_clarabel.py` (solver), `extended_targets.py` (target specs), `batch_weights.py` (parallel runner), `quality_report.py`. Push only to `origin`, never upstream.
