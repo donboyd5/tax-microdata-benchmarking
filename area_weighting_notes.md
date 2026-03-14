@@ -282,7 +282,7 @@ Key insight: the optimizer has enough degrees of freedom (~290K records × multi
 
 For 52 states at 8 workers: Clarabel batch ~186s (3.1 min) vs projected L-BFGS-B ~20 min.
 
-### Current Best Recipe: 145 targets (CONFIRMED)
+### Current Best Recipe: 149 targets (CONFIRMED)
 
 - **91 safe targets**: c00100 (AGI amounts + counts by filing status), e00200 (wages amt + nz count), e00300 (interest amt), e26270 (partnership/S-corp amt)
 - **6 e18400 targets**: income/sales tax available, Census combined S&L shares, stubs 5-10
@@ -294,11 +294,15 @@ For 52 states at 8 workers: Clarabel batch ~186s (3.1 min) vs projected L-BFGS-B
 - **6 capgains_net targets**: net capital gains (p22250+p23250), SOI a01000 shares, stubs 5-10
 - **6 e00600 targets**: ordinary dividends, SOI a00600 shares, stubs 5-10
 - **6 e00900 targets**: business/professional income, SOI a00900 shares, stubs 5-10
-- **Total: 145 targets per state** — all 51 states solve, 0 failures
-- **Pipeline**: `python -m tmd.areas.prepare_and_solve --scope states --workers 8` (230s total)
+- **1 eitc amount target**: aggregate EITC, SOI a59660 shares, all AGI
+- **1 eitc count target**: EITC nonzero count, SOI n59660 shares, all AGI
+- **1 ctc_total amount target**: aggregate CTC (a07225+a11070), SOI combined shares, all AGI
+- **1 ctc_total count target**: CTC nonzero count, SOI combined n-shares, all AGI
+- **Total: 149 targets per state** — all 51 states solve, 0 failures
+- **Pipeline**: `python -m tmd.areas.prepare_and_solve --scope states --workers 8` (229s total)
 - **Quality report**: `python -m tmd.areas.quality_report` → 25 states perfect, 26 with minor violations (85 total, 92% count targets)
 - Census data: `tmd/areas/prepare/data/census_2022_state_local_finance.xlsx`
-- Extended target config: `tmd/areas/prepare/extended_targets.py` (SOI_SHARED_SPECS + CENSUS_SHARED_SPECS)
+- Extended target config: `tmd/areas/prepare/extended_targets.py` (SOI_SHARED_SPECS + CENSUS_SHARED_SPECS + SOI_AGGREGATE_SPECS)
 
 **Timing comparison (estimated):**
 - Old L-BFGS-B method: ~60-90s/state sequential ≈ 50-90 min total
@@ -315,12 +319,13 @@ For 52 states at 8 workers: Clarabel batch ~186s (3.1 min) vs projected L-BFGS-B
 | c02500 (taxable SS) | SOI A02500 | 0.9994 | 0.040pp | 0.483pp (CA) |
 | e00600 (dividends) | SOI A00600 | 0.999+ | ~0.05pp | ~0.5pp |
 | e00900 (business income) | SOI A00900 | 0.999+ | ~0.05pp | ~0.5pp |
+| eitc (EITC) | SOI A59660 | 1.0000 | 0.008pp | 0.043pp (CA) |
+| ctc_total (CTC) | SOI A07225+A11070 | 1.0000 | 0.009pp | 0.079pp (CA) |
 
 ### Potential Next Steps
 
 - **A. Full CD batch**: Run all 436 CDs with recipe; identify problem districts. Extend `extended_targets.py` for CDs.
 - **B. Mortgage/charitable targeting**: Available vs deducted mismatch — investigate Tax-Calculator outputs.
-- **C. EITC and child care credits**: Geographic distribution for policy analysis.
 - **D. Upstream prep**: Clean up for eventual PR — remove R dependency, ensure raw data in-repo, documentation.
 
 **Phase 19: Pension and Social Security targeting** (2026-03-13)
@@ -497,7 +502,7 @@ Modified files:
 - Capital gains: **RESOLVED** — synthetic `capgains_net = p22250 + p23250`, targeted with SOI A01000 shares.
 - Dividends and business income: **RESOLVED** — e00600 with SOI A00600, e00900 with SOI A00900. All 51 states solve.
 - Mortgage interest and charitable contributions: not yet targeted. Available vs deducted mismatch (e19200 $356B vs SOI a19300 $136B; e19800 $193B vs SOI a19700 $262B). Could target deducted amounts with SOI shares similar to SALT approach if Tax-Calculator outputs them separately.
-- EITC and CTC credit targeting: explored in Phase 21 — see findings below. Next step is to test geographic share targeting.
+- EITC and CTC credit targeting: **RESOLVED** — Phase 22 added aggregate amount + count targets per state. r=1.0000 for both, zero violations, zero degradation.
 - c18300/c02500 count targets cause infeasibility — amounts-only for all Tax-Calculator output variables.
 - Pipeline flexibility: confirmed that all targets recompute from TMD when tmd.csv.gz changes (share-based: TMD_national × SOI_share). Prerequisite: cached_allvars.csv and cached_c00100.npy must be regenerated if tmd.csv.gz changes.
 - 2022 SOI state data: **TESTED** — all 51 states solve with 2022 shares. Pipeline supports `--year 2022`.
@@ -590,8 +595,44 @@ Under 2022 TCJA law: CTC alignment greatly improved (1.11x vs 2.03x). EITC still
 
 **Open question**: Should credit targets be added to national reweighting first (so `tmd.csv.gz` starts with better credit totals), or only at area weighting stage? Adding nationally would benefit all downstream uses.
 
+**Phase 22: Credit targeting at area level — EITC + CTC** (2026-03-14)
+
+Added EITC and CTC (total) as aggregate state-level targets (amount + nonzero count per state, no AGI stub breakdown).
+
+**Design decisions**:
+- EITC is concentrated in AGI stubs 2-4 ($1-50K), zero above $50K — cannot use default stubs 5-10
+- CTC spans stubs 3-8 but has large level misalignment (ARPA vs TCJA) in lower stubs
+- Solution: target **aggregate amounts and counts** per state (one target each, all-AGI) rather than per-stub
+- SOI shares: a59660 (EITC), a07225+a11070 (total CTC) — derived `a_ctc_total` in SOI loading
+- Count targets: SOI n59660 (EITC), n07225+n11070 (total CTC) — derived `n_ctc_total`
+
+**Implementation**:
+- Added `eitc`, `ctc_total` to `CACHED_TC_OUTPUTS` in `create_area_weights_clarabel.py`
+- Created `SOI_AGGREGATE_SPECS` in `extended_targets.py` — new spec type for aggregate (all-AGI) targets
+- Added `_build_soi_aggregate_rows()` — builds amount (count=0) + nonzero count (count=2) rows with agilo=-9e99, agihi=9e99
+- Created derived SOI variables `a_ctc_total` and `n_ctc_total` (= a/n07225 + a/n11070) in `_load_soi_by_stub()`
+- Added `aggregate_specs` parameter to `append_extended_targets()`
+
+**National alignment (TMD 2021 ARPA vs SOI 2021)**:
+- EITC: TMD $59.7B vs SOI $65.2B (ratio 0.91) — 100% from PUF records
+- CTC total: TMD $249.2B vs SOI $122.9B (ratio 2.03) — ARPA fully refundable vs TCJA
+
+**Results — 149 targets, all 51 states solved, 0 failures, 229s**:
+
+| Variable | Reference | r | mean|diff| | max|diff| (worst) |
+|---|---|---|---|---|
+| eitc (EITC amount) | SOI A59660 | 1.0000 | 0.008pp | 0.043pp (CA) |
+| ctc_total (CTC amount) | SOI A07225+A11070 | 1.0000 | 0.009pp | 0.079pp (CA) |
+| eitc count | SOI N59660 | (within ±0.40% tolerance) | — | — |
+| ctc_total count | SOI N07225+N11070 | (within ±0.40% tolerance) | — | — |
+
+- Zero credit target violations — both amounts and counts hit within tolerance for all 51 states
+- Zero degradation of existing targets: 85 violations (same as 145-target baseline), all c00100/e00200 counts
+- 25 states hit all 149 targets; 26 states have minor violations (same pattern as before)
+- Despite 2x level misalignment on CTC (ARPA vs TCJA), share-based targeting works perfectly
+
 ## Resume Instructions
 
 To continue this work in a new session, paste the following:
 
-> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-20E are complete. **145-target recipe fully confirmed** — all 51 states solve, 0 failures. Phase 21 explored EITC+CTC credit targeting: national alignment analyzed (2015 PUF excellent, 2021 TMD badly misaligned due to ARPA, 2022 TMD rebuild shows CTC 1.11x and EITC 1.19x — workable). Key finding: 100% of credits from PUF records, CPS contributes $0 under non-ARPA law. `is_tax_filer = (DATA_SOURCE == 1)` is a tautology, not income-based. SOI has state-level credit data (a59660, a07225, a11070) for all years. Next: test EITC+CTC geographic share targeting at area level, decide whether to add credit targets to national reweighting first. Also pending: (A) extend to CDs, (B) mortgage/charitable, (D) upstream prep. Key modules: `create_area_weights_clarabel.py` (solver), `extended_targets.py` (target specs), `batch_weights.py` (parallel runner), `quality_report.py`. Push only to `origin`, never upstream.
+> Continue the area weighting system overhaul on the `area-weighting-overhaul` branch. Read the session notes at `session_notes/area_weighting_notes.md`. Phases 1-22 are complete. **149-target recipe fully confirmed** — all 51 states solve, 0 failures. Phase 22 added EITC+CTC credit targeting: aggregate amount + nonzero count per state (4 new targets), r=1.0000 for both credits vs SOI, zero degradation. Recipe: 91 safe + 42 SOI-shared by stub + 12 Census-shared by stub + 4 credit aggregate = 149 targets. Pending: (A) extend to CDs, (B) mortgage/charitable, (D) upstream prep. Key modules: `create_area_weights_clarabel.py` (solver), `extended_targets.py` (target specs), `batch_weights.py` (parallel runner), `quality_report.py`. Push only to `origin`, never upstream.
