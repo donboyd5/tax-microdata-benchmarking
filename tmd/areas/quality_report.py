@@ -387,11 +387,11 @@ def generate_report(areas=None):
             lines.append(f"  {st}: {cnt} violated")
         lines.append("")
 
-        # Worst 5 amount violations (cnt=0)
+        # Worst 5 amount violations by % error (cnt=0)
         amt_viol = vdf[vdf["cnt_type"] == 0].sort_values(
             ["pct_err", "abs_miss"], ascending=[False, False]
         )
-        lines.append("WORST 5 AMOUNT TARGET VIOLATIONS:")
+        lines.append("WORST 5 AMOUNT VIOLATIONS (by % error):")
         if amt_viol.empty:
             lines.append("  (none — all amount targets met)")
         else:
@@ -405,11 +405,11 @@ def generate_report(areas=None):
                 )
         lines.append("")
 
-        # Worst 5 count violations (cnt=1 or cnt=2)
+        # Worst 5 count violations by % error (cnt=1 or cnt=2)
         cnt_viol = vdf[vdf["cnt_type"].isin([1, 2])].sort_values(
             ["pct_err", "abs_miss"], ascending=[False, False]
         )
-        lines.append("WORST 5 COUNT TARGET VIOLATIONS:")
+        lines.append("WORST 5 COUNT VIOLATIONS (by % error):")
         if cnt_viol.empty:
             lines.append("  (none — all count targets met)")
         else:
