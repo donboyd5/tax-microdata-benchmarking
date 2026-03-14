@@ -423,8 +423,168 @@ def generate_report(areas=None):
                 )
         lines.append("")
 
+    # --- Weight exhaustion diagnostic ---
+    lines.extend(_weight_exhaustion_diagnostic(areas or ALL_STATES))
+
+    # --- Cross-state aggregation vs national totals ---
+    lines.extend(_national_aggregation_diagnostic(areas or ALL_STATES))
+
     report = "\n".join(lines)
     return report
+
+
+def _weight_exhaustion_diagnostic(areas):
+    """
+    For each record, sum its state weight across all states and compare
+    to its national weight.  Shows the distribution of usage ratios
+    (sum_of_state_weights / national_weight).
+
+    A ratio of 1.0 means the record is fully allocated across states.
+    >1.0 means over-used; <1.0 means under-used.
+    """
+    import numpy as np
+
+    from tmd.storage import STORAGE_FOLDER
+
+    lines = []
+
+    tmd_path = STORAGE_FOLDER / "output" / "tmd.csv.gz"
+    tmd = pd.read_csv(tmd_path, usecols=["s006"])
+    n_records = len(tmd)
+
+    # Sum WT2021 across all states for each record
+    weight_sum = np.zeros(n_records)
+    n_loaded = 0
+    for st in areas:
+        wpath = WEIGHT_DIR / f"{st.lower()}_tmd_weights.csv.gz"
+        if not wpath.exists():
+            continue
+        wdf = pd.read_csv(wpath, usecols=["WT2021"])
+        weight_sum += wdf["WT2021"].values
+        n_loaded += 1
+
+    if n_loaded == 0:
+        return lines
+
+    usage = weight_sum / tmd["s006"].values
+
+    lines.append("WEIGHT EXHAUSTION (sum of state weights / national weight):")
+    lines.append(
+        f"  A ratio of 1.0 means the record's national weight is fully "
+        f"allocated across {n_loaded} states."
+    )
+    pcts = [0, 1, 5, 10, 25, 50, 75, 90, 95, 99, 100]
+    quantiles = np.percentile(usage, pcts)
+    parts = []
+    for p, q in zip(pcts, quantiles):
+        label = {0: "min", 50: "median", 100: "max"}.get(p, f"p{p}")
+        parts.append(f"{label}={q:.4f}")
+    lines.append("  " + ", ".join(parts))
+    lines.append(f"  Mean: {usage.mean():.4f}, Std: {usage.std():.4f}")
+
+    # Records substantially over/under-used
+    n_over = int((usage > 1.10).sum())
+    n_under = int((usage < 0.90).sum())
+    lines.append(
+        f"  Over-used (>1.10): {n_over} ({100*n_over/n_records:.1f}%)  "
+        f"Under-used (<0.90): {n_under} ({100*n_under/n_records:.1f}%)"
+    )
+    lines.append("")
+
+    return lines
+
+
+def _national_aggregation_diagnostic(areas):
+    """
+    Compare sum-of-states weighted totals to national TMD totals
+    for key variables.
+    """
+    import numpy as np
+
+    from tmd.areas.create_area_weights_clarabel import _load_taxcalc_data
+    from tmd.storage import STORAGE_FOLDER
+
+    lines = []
+
+    # Load TMD data with Tax-Calculator outputs
+    vdf = _load_taxcalc_data()
+    s006 = vdf["s006"].values
+
+    # Load iitax from cached_allvars
+    allvars_path = (
+        STORAGE_FOLDER / "output" / "cached_allvars.csv"
+    )
+    if allvars_path.exists():
+        allvars = pd.read_csv(allvars_path, usecols=["iitax"])
+        vdf["iitax"] = allvars["iitax"].values
+
+    # Variables to compare: (display_name, varname, is_count)
+    check_vars = [
+        ("Returns (s006)", "s006", True),
+        ("AGI (c00100)", "c00100", False),
+        ("Wages (e00200)", "e00200", False),
+        ("Capital gains (capgains_net)", "capgains_net", False),
+        ("SALT ded (c18300)", "c18300", False),
+        ("Income tax (iitax)", "iitax", False),
+    ]
+
+    # National totals (all records — state weights apply to all records)
+    national = {}
+    for label, var, is_count in check_vars:
+        if var == "s006":
+            national[var] = float(s006.sum())
+        elif var in vdf.columns:
+            national[var] = float((s006 * vdf[var].values).sum())
+        else:
+            national[var] = None
+
+    # Sum across states
+    state_sums = {var: 0.0 for _, var, _ in check_vars}
+    n_loaded = 0
+    for st in areas:
+        wpath = WEIGHT_DIR / f"{st.lower()}_tmd_weights.csv.gz"
+        if not wpath.exists():
+            continue
+        wdf = pd.read_csv(wpath, usecols=["WT2021"])
+        w = wdf["WT2021"].values
+        for label, var, is_count in check_vars:
+            if var == "s006":
+                state_sums[var] += float(w.sum())
+            elif var in vdf.columns:
+                state_sums[var] += float((w * vdf[var].values).sum())
+        n_loaded += 1
+
+    if n_loaded == 0:
+        return lines
+
+    lines.append(
+        f"CROSS-STATE AGGREGATION vs NATIONAL TOTALS "
+        f"({n_loaded} states):"
+    )
+    lines.append(
+        f"  {'Variable':<30} {'National':>16} {'Sum-of-States':>16} "
+        f"{'Diff%':>8}"
+    )
+    lines.append("  " + "-" * 72)
+    for label, var, is_count in check_vars:
+        nat = national[var]
+        sos = state_sums[var]
+        if nat is None or nat == 0:
+            continue
+        diff_pct = (sos / nat - 1) * 100
+        if is_count:
+            lines.append(
+                f"  {label:<30} {nat:>16,.0f} {sos:>16,.0f} "
+                f"{diff_pct:>+7.2f}%"
+            )
+        else:
+            lines.append(
+                f"  {label:<30} ${nat/1e9:>14.1f}B ${sos/1e9:>14.1f}B "
+                f"{diff_pct:>+7.2f}%"
+            )
+    lines.append("")
+
+    return lines
 
 
 def main():
