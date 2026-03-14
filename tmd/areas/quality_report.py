@@ -120,6 +120,25 @@ def parse_log(logpath: Path) -> dict:
     if m:
         result["w_rmse"] = float(m.group(1))
 
+    # Weight distribution histogram — parse bin counts from log
+    # Bins like: [    0.0000,     0.0000):    2662 (  1.24%)
+    dist_bins = {}
+    for line in log.splitlines():
+        m_bin = re.match(
+            r"\s+\[\s*([\d.]+),\s*([\d.]+)\):\s+(\d+)\s+\(\s*([\d.]+)%\)",
+            line,
+        )
+        if m_bin:
+            lo, hi = float(m_bin.group(1)), float(m_bin.group(2))
+            cnt, pct = int(m_bin.group(3)), float(m_bin.group(4))
+            dist_bins[(lo, hi)] = {"count": cnt, "pct": pct}
+    result["dist_bins"] = dist_bins
+
+    # Extract total records from "distribution (n=NNNN):"
+    m_n = re.search(r"distribution \(n=(\d+)\)", log)
+    if m_n:
+        result["n_records"] = int(m_n.group(1))
+
     # Violated target details — lines after "VIOLATED: N targets"
     # Each line: "  0.400% | target=  29 | achieved=  29 | varname/cnt=.../..."
     violated = []
@@ -192,6 +211,11 @@ def generate_report(areas=None):
         f"States with violated targets: "
         f"{n_violated_states}/{n_solved}"
     )
+    lines.append(
+        f"Total targets: {n_solved} states × "
+        f"{solved['targets_total'].iloc[0] if not solved.empty and 'targets_total' in solved.columns else '?'}"
+        f" = {int(solved['targets_total'].sum()) if not solved.empty and 'targets_total' in solved.columns else '?'}"
+    )
     lines.append(f"Total violated targets: {int(total_violated)}")
     lines.append("")
 
@@ -215,7 +239,8 @@ def generate_report(areas=None):
                 f"  Hit rate:  "
                 f"avg={hit_pcts.mean():.1f}%, "
                 f"min={hit_pcts.min():.1f}% "
-                f"(out of {total_t} targets)"
+                f"(out of {total_t} targets, "
+                f"tolerance: +/-0.4% + eps)"
             )
         lines.append("")
 
@@ -225,6 +250,14 @@ def generate_report(areas=None):
         lines.append(
             f"  RMSE:   avg={solved['w_rmse'].mean():.3f}, "
             f"max={solved['w_rmse'].max():.3f}"
+        )
+        lines.append(
+            f"  Min:    avg={solved['w_min'].mean():.3f}, "
+            f"min={solved['w_min'].min():.3f}"
+        )
+        lines.append(
+            f"  P05:    avg={solved['w_p5'].mean():.3f}, "
+            f"min={solved['w_p5'].min():.3f}"
         )
         lines.append(
             f"  Median: avg={solved['w_median'].mean():.3f}, "
@@ -241,6 +274,37 @@ def generate_report(areas=None):
         )
         lines.append("")
 
+    # Near-zero weight summary
+    if not solved.empty:
+        zero_pcts = []
+        lt01_pcts = []
+        for _, row in solved.iterrows():
+            dist = row.get("dist_bins", {})
+            n_rec = row.get("n_records", 0)
+            if not dist or n_rec == 0:
+                continue
+            # Exact zeros: bin [0.0, 0.0)
+            n_zero = dist.get((0.0, 0.0), {}).get("count", 0)
+            # Below 0.1 (including zeros)
+            n_lt01 = n_zero + dist.get((0.0, 0.1), {}).get("count", 0)
+            zero_pcts.append(100 * n_zero / n_rec)
+            lt01_pcts.append(100 * n_lt01 / n_rec)
+        if zero_pcts:
+            import numpy as np
+
+            lines.append("NEAR-ZERO WEIGHT MULTIPLIERS (% of records):")
+            lines.append(
+                f"  Exact zero (x=0):  "
+                f"avg={np.mean(zero_pcts):.1f}%, "
+                f"max={np.max(zero_pcts):.1f}%"
+            )
+            lines.append(
+                f"  Below 0.1 (x<0.1): "
+                f"avg={np.mean(lt01_pcts):.1f}%, "
+                f"max={np.max(lt01_pcts):.1f}%"
+            )
+            lines.append("")
+
     # Per-state table
     lines.append("PER-STATE DETAIL:")
     lines.append(
@@ -250,7 +314,8 @@ def generate_report(areas=None):
     header = (
         f"{'St':<4} {'Status':<14} {'Hit':>5} {'Tot':>5} "
         f"{'Viol':>5} {'MeanErr':>8} {'MaxErr':>8} "
-        f"{'wRMSE':>7} {'wMed':>7} {'wP95':>7} {'wMax':>8}"
+        f"{'wRMSE':>7} {'wP05':>7} {'wMed':>7} "
+        f"{'wP95':>7} {'wMax':>8} {'%zero':>6}"
     )
     lines.append(header)
     lines.append("-" * len(header))
@@ -261,13 +326,22 @@ def generate_report(areas=None):
         me = row.get("mean_err", 0)
         mx = row.get("max_err", 0)
         rmse = row.get("w_rmse", 0)
+        p5 = row.get("w_p5", 0)
         med = row.get("w_median", 0)
         p95 = row.get("w_p95", 0)
         wmax = row.get("w_max", 0)
+        # Compute % zero from distribution
+        dist = row.get("dist_bins", {})
+        n_rec = row.get("n_records", 0)
+        n_zero = 0
+        if isinstance(dist, dict):
+            n_zero = dist.get((0.0, 0.0), {}).get("count", 0)
+        pct_zero = 100 * n_zero / n_rec if n_rec > 0 else 0
         lines.append(
             f"{row['state']:<4} {row['status']:<14} {hit:>5} {tot:>5} "
             f"{viol:>5} {me:>8.4f} {mx:>8.4f} "
-            f"{rmse:>7.3f} {med:>7.3f} {p95:>7.3f} {wmax:>8.1f}"
+            f"{rmse:>7.3f} {p5:>7.3f} {med:>7.3f} "
+            f"{p95:>7.3f} {wmax:>8.1f} {pct_zero:>5.1f}%"
         )
     lines.append("")
 

@@ -50,7 +50,7 @@ TAXCALC_AGI_CACHE = STORAGE_FOLDER / "output" / "cached_c00100.npy"
 CACHED_ALLVARS_PATH = STORAGE_FOLDER / "output" / "cached_allvars.csv"
 
 # Tax-Calculator output variables to load from cached_allvars for targeting
-CACHED_TC_OUTPUTS = ["c18300", "c04470", "c02500"]
+CACHED_TC_OUTPUTS = ["c18300", "c04470", "c02500", "c19200", "c19700", "eitc", "ctc_total"]
 
 # Default solver parameters
 AREA_CONSTRAINT_TOL = 0.004
@@ -357,11 +357,12 @@ def _print_target_diagnostics(
     out.write(f"  mean |relative error|: {rel_errors.mean():.6f}\n")
     out.write(f"  max  |relative error|: {rel_errors.max():.6f}\n")
 
-    n_violated = int((rel_errors > constraint_tol + 1e-9).sum())
+    eps = 1e-9
+    n_violated = int((rel_errors > constraint_tol + eps).sum())
     n_hit = len(targets) - n_violated
     out.write(
         f"  targets hit: {n_hit}/{len(targets)}"
-        f" (tolerance: +/-{constraint_tol * 100:.1f}%)\n"
+        f" (tolerance: +/-{constraint_tol * 100:.1f}% + eps)\n"
     )
     if n_violated > 0:
         out.write(f"  VIOLATED: {n_violated} targets\n")

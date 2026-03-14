@@ -43,6 +43,15 @@ SOI_SHARED_SPECS: List[Tuple[str, str]] = [
     ("capgains_net", "a01000"),  # Net capital gains (p22250+p23250)
     ("e00600", "a00600"),  # Ordinary dividends
     ("e00900", "a00900"),  # Business/professional net income
+    ("c19200", "a19300"),  # Interest deduction (mortgage dominates)
+    ("c19700", "a19700"),  # Charitable contributions deduction
+]
+
+# SOI-shared targets at AGGREGATE level (one target per state, no AGI stub breakdown):
+# (tmd_varname, soi_amount_varname)
+SOI_AGGREGATE_SPECS: List[Tuple[str, str]] = [
+    ("eitc", "a59660"),  # Earned Income Tax Credit
+    ("ctc_total", "a_ctc_total"),  # Total CTC (a07225 + a11070)
 ]
 
 # Census-shared targets: (tmd_varname, census_type)
@@ -198,6 +207,15 @@ def _load_soi_by_stub(soi_year: int) -> pd.DataFrame:
     soi.columns = [c.lower() for c in soi.columns]
     soi_by_stub = soi[soi["agi_stub"] > 0].copy()
     soi_by_stub["stabbr"] = soi_by_stub["state"].str.strip().str.upper()
+    # Derived variables: total CTC = nonrefundable CTC/ODC + refundable ACTC
+    if "a07225" in soi_by_stub.columns and "a11070" in soi_by_stub.columns:
+        soi_by_stub["a_ctc_total"] = (
+            soi_by_stub["a07225"] + soi_by_stub["a11070"]
+        )
+    if "n07225" in soi_by_stub.columns and "n11070" in soi_by_stub.columns:
+        soi_by_stub["n_ctc_total"] = (
+            soi_by_stub["n07225"] + soi_by_stub["n11070"]
+        )
     return soi_by_stub
 
 
@@ -265,6 +283,57 @@ def _build_soi_stub_rows(
     return rows
 
 
+def _build_soi_aggregate_rows(
+    st: str,
+    varname: str,
+    soi_varname: str,
+    tmd_national_amount: float,
+    tmd_national_count: float,
+    soi_by_stub: pd.DataFrame,
+) -> List[dict]:
+    """Build aggregate (all-AGI) amount + nonzero count target rows for one state."""
+    rows = []
+    st_soi = soi_by_stub[soi_by_stub["stabbr"] == st]
+    us_soi = soi_by_stub[soi_by_stub["stabbr"] == "US"]
+    # Sum across all AGI stubs for aggregate share
+    st_total = st_soi[soi_varname].sum()
+    us_total = us_soi[soi_varname].sum()
+    if us_total <= 0:
+        return rows
+    share = st_total / us_total
+    # Amount target (count=0)
+    rows.append(
+        {
+            "varname": varname,
+            "count": 0,
+            "scope": 1,
+            "agilo": -9e99,
+            "agihi": 9e99,
+            "fstatus": 0,
+            "target": tmd_national_amount * share,
+        }
+    )
+    # Nonzero count target (count=2) — use SOI n-variable shares
+    soi_nvarname = "n" + soi_varname[1:]  # a59660 → n59660
+    if soi_nvarname in st_soi.columns:
+        st_n = st_soi[soi_nvarname].sum()
+        us_n = us_soi[soi_nvarname].sum()
+        if us_n > 0:
+            n_share = st_n / us_n
+            rows.append(
+                {
+                    "varname": varname,
+                    "count": 2,
+                    "scope": 1,
+                    "agilo": -9e99,
+                    "agihi": 9e99,
+                    "fstatus": 0,
+                    "target": tmd_national_count * n_share,
+                }
+            )
+    return rows
+
+
 def _build_census_stub_rows(
     st: str,
     varname: str,
@@ -317,6 +386,7 @@ def append_extended_targets(
     areas: Optional[List[str]] = None,
     soi_specs: Optional[List[Tuple[str, str]]] = None,
     census_specs: Optional[List[Tuple[str, str]]] = None,
+    aggregate_specs: Optional[List[Tuple[str, str]]] = None,
 ) -> Dict[str, int]:
     """
     Append extended (SOI-shared and Census-shared) targets to area files.
@@ -358,6 +428,8 @@ def append_extended_targets(
         soi_specs = SOI_SHARED_SPECS
     if census_specs is None:
         census_specs = CENSUS_SHARED_SPECS
+    if aggregate_specs is None:
+        aggregate_specs = SOI_AGGREGATE_SPECS
 
     agi_labels = build_agi_labels(AreaType.STATE)
 
@@ -368,7 +440,11 @@ def append_extended_targets(
     allvars_path = repo_root / "tmd" / "storage" / "output" / "cached_allvars.csv"
     if allvars_path.exists():
         allvars = pd.read_csv(allvars_path)
-        needed = {v for v, _ in soi_specs} | {v for v, _ in census_specs}
+        needed = (
+            {v for v, _ in soi_specs}
+            | {v for v, _ in census_specs}
+            | {v for v, _ in aggregate_specs}
+        )
         for var in needed:
             if var not in vdf.columns and var in allvars.columns:
                 vdf[var] = allvars[var].values
@@ -383,6 +459,19 @@ def append_extended_targets(
     # Compute TMD national sums by stub
     all_vars = [v for v, _ in soi_specs] + [v for v, _ in census_specs]
     tmd_by_stub = _compute_tmd_stub_sums(vdf, all_vars)
+
+    # Compute TMD aggregate national sums for aggregate-targeted variables
+    puf_mask = vdf["data_source"] == 1
+    s006 = vdf["s006"]
+    tmd_agg_amounts = {}
+    tmd_agg_counts = {}
+    for varname, _ in aggregate_specs:
+        tmd_agg_amounts[varname] = float(
+            (s006[puf_mask] * vdf.loc[puf_mask, varname]).sum()
+        )
+        tmd_agg_counts[varname] = float(
+            (s006[puf_mask] * (vdf.loc[puf_mask, varname] != 0)).sum()
+        )
 
     # Load SOI data
     soi_by_stub = _load_soi_by_stub(soi_year)
@@ -438,6 +527,19 @@ def append_extended_targets(
                     tmd_by_stub[varname],
                     agi_labels,
                     stubs,
+                )
+            )
+
+        # Aggregate SOI-shared targets (one amount + one count per variable)
+        for varname, soi_varname in aggregate_specs:
+            new_rows.extend(
+                _build_soi_aggregate_rows(
+                    st,
+                    varname,
+                    soi_varname,
+                    tmd_agg_amounts[varname],
+                    tmd_agg_counts[varname],
+                    soi_by_stub,
                 )
             )
 
