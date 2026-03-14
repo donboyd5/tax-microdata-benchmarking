@@ -713,6 +713,14 @@ Added c19200 (interest deduction) and c19700 (charitable deduction) targeting â€
 | eitc (EITC) | SOI A59660 | 1.0000 | 0.008pp | 0.043pp (CA) |
 | ctc_total (CTC) | SOI A07225+A11070 | 1.0000 | 0.009pp | 0.079pp (CA) |
 
+### Phase 24: Batch runner progress improvements
+
+- Replaced verbose per-area completion lines with compact inline progress: area IDs printed as they complete, 10 per row with count prefix, elapsed time after each group of 10
+- Excluded faux areas (`xx`, etc.) and non-state areas (`pr`, `us`) from `--areas states` â€” now correctly reports 51 areas
+- Suppressed spurious stderr warnings from `valid_area()` during area scanning
+- Fixed-width area IDs (`ljust`) to handle both 2-char states and 4-char CDs
+- Added parallel ordering note to output
+
 ### Potential Next Steps
 
 - **A. Full CD batch**: Run all 436 CDs with recipe; identify problem districts. Extend `extended_targets.py` for CDs.
