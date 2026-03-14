@@ -146,12 +146,19 @@ def _solve_one_area(area):
 
 def _list_target_areas():
     """Return sorted list of area codes with target files."""
+    import io
+
     tfolder = AREAS_FOLDER / "targets"
     tpaths = sorted(tfolder.glob("*_targets.csv"))
     areas = []
     for tpath in tpaths:
         area = tpath.name.split("_")[0]
-        if valid_area(area):
+        # Suppress stderr warnings from valid_area for non-state files
+        old_stderr = sys.stderr
+        sys.stderr = io.StringIO()
+        ok = valid_area(area)
+        sys.stderr = old_stderr
+        if ok:
             areas.append(area)
     return areas
 
@@ -161,7 +168,8 @@ def _filter_areas(areas, area_filter):
     if area_filter == "all":
         return areas
     if area_filter == "states":
-        return [a for a in areas if len(a) == 2]
+        import re
+        return [a for a in areas if len(a) == 2 and not re.match(r"[x-z]", a)]
     if area_filter == "cds":
         return [a for a in areas if len(a) > 2]
     # Treat as comma-separated list
@@ -215,14 +223,9 @@ def run_batch(
         return
 
     n = len(areas)
-    print(f"Processing {n} areas with {num_workers} workers:")
-    for i, area in enumerate(areas):
-        sys.stdout.write(f"{area:>7s}")
-        if (i + 1) % 10 == 0:
-            sys.stdout.write("\n")
-    if n % 10 != 0:
-        sys.stdout.write("\n")
-    print()
+    print(f"Processing {n} areas with {num_workers} workers...")
+    print("(Areas shown in completion order, which varies with"
+          " parallel workers.)")
 
     # Ensure weights directory exists
     (AREAS_FOLDER / "weights").mkdir(parents=True, exist_ok=True)
@@ -230,6 +233,7 @@ def run_batch(
     t_start = time.time()
     completed = 0
     violated_areas = []
+    max_id_width = max(len(a) for a in areas)
 
     with ProcessPoolExecutor(
         max_workers=num_workers,
@@ -243,27 +247,27 @@ def run_batch(
             try:
                 area_code, elapsed, n_tgt, n_viol, status = future.result()
                 completed += 1
-                elapsed_total = time.time() - t_start
-                avg_per_area = elapsed_total / completed
-                remaining = (
-                    (n - completed) * avg_per_area / max(num_workers, 1)
-                )
 
-                viol_str = ""
                 if n_viol > 0:
-                    viol_str = f" [{n_viol} VIOLATED]"
                     violated_areas.append((area_code, n_viol))
 
-                print(
-                    f"  {area_code:>6s}: {elapsed:5.1f}s"
-                    f" ({n_tgt} targets, {status})"
-                    f"{viol_str}"
-                    f"  [{completed}/{n},"
-                    f" ~{remaining:.0f}s remaining]"
-                )
+                # Start new line every 10 areas with count prefix
+                if (completed - 1) % 10 == 0:
+                    sys.stdout.write(f"\n{completed:4d} ")
+                sys.stdout.write(f" {area_code.ljust(max_id_width)}")
+                sys.stdout.flush()
+
+                # After every 10th area (or the last), print elapsed time
+                if completed % 10 == 0 or completed == n:
+                    elapsed_total = time.time() - t_start
+                    sys.stdout.write(f"  [{elapsed_total:.0f}s elapsed]")
+                    sys.stdout.flush()
+
             except Exception as exc:
                 completed += 1
-                print(f"  {area:>6s}: FAILED - {exc}")
+                sys.stdout.write(f" {area}:FAIL")
+                sys.stdout.flush()
+        sys.stdout.write("\n")
 
     total = time.time() - t_start
     print(f"\nCompleted {completed}/{n} areas in {total:.1f}s")
