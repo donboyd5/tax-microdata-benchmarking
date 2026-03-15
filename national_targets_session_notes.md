@@ -806,30 +806,101 @@ Two follow-up issues identified during PR #2a work:
 
 ---
 
+## Session Update: 2026-03-15
+
+### What we accomplished:
+
+#### PR #5 Implementation: All-Python IRS Pipeline (`python-irs-pipeline` branch)
+
+Branch: `python-irs-pipeline` (5 commits, based on master)
+PR: https://github.com/donboyd5/tax-microdata-benchmarking/pull/1 (donboyd5 fork)
+
+**This is the "PR #5: All-Python, data-driven targets" from the 5-PR strategy.**
+
+Replaced the entire R/Quarto pipeline with a pure Python pipeline that reads IRS SOI Excel files and produces `soi.csv` through three stages:
+
+**Stage 1: `extract_irs_to_csv.py`**
+- Reads raw IRS `.xls` files using `xlrd`
+- Writes `data/extracted/{year}/{table}.csv` for each IRS table (tab11, tab12, tab14, tab21)
+- One-time step; skips files that already exist (use `--overwrite` to regenerate)
+- Captures full hierarchical column headers including merged/spanner cells for auditability
+
+**Stage 2: `build_targets.py`**
+- Assembles extracted CSVs into `data/irs_aggregate_values.csv`
+- Preserves all cross-table data including redundancy and minor integer differences
+- This file is the complete audit trail (not deduplicated)
+
+**Stage 3: `potential_targets_to_soi.py` (lightly modified)**
+- Maps IRS variables to TMD names
+- Deduplicates to one row per optimizer key (tab11 wins when sources conflict)
+- Value excluded from dedup key so ±1 integer differences don't create duplicate rows
+- Writes `soi.csv`
+
+**New files added:**
+- `tmd/national_targets/extract_irs_to_csv.py` — Stage 1 extraction
+- `tmd/national_targets/build_targets.py` — Stage 2 assembly
+- `tmd/national_targets/config/__init__.py` — config package
+- `tmd/national_targets/config/table_layouts.py` — IRS table column definitions (1,069 lines)
+- `tmd/national_targets/data/extracted/{2015,2021,2022}/{tab11,tab12,tab14,tab21}.csv` — extracted data
+- `tmd/national_targets/data/irs_aggregate_values.csv` — complete audit trail (6,282 rows)
+- `tmd/national_targets/docs/adding_a_new_year.md` — documentation for adding new years
+- `tests/test_national_targets.py` — 79 tests
+
+**Files removed:**
+- All R code (`R/functions_excel.R`, `R/functions_helpers.R`, `R/legacy_code.R`, `R/libraries.R`, `setup.R`)
+- All Quarto files (`_quarto.yml`, `examine.qmd`, `index.qmd`, `mapping.qmd`, `prepare.qmd`)
+- All images (`images/` directory)
+- Old data files (`pufirs_fullmap.json`, `qbid analysis.xlsx`, `target_recipes.xlsx`, `target_recipes_v2.xlsx`)
+- `targeted_variables_summary.md`
+
+**Key findings:**
+- New `soi.csv` corrects 8 off-by-one errors from the old R pipeline
+- IRS Excel files remain in repo as ground truth; extracted CSVs committed for reproducibility
+
+#### Session context:
+- The conversation that originally created this branch was lost
+- Don provided PR description from the fork PR for reference
+- PR notes saved to `session_notes/python_irs_pipeline_pr1_draft.md`
+
+### Commits on python-irs-pipeline:
+1. `93f111f` Add Python IRS-to-targets pipeline (replaces R Quarto)
+2. `ff1b1c5` Expand merged/spanner cells in IRS header extraction
+3. `cee78ea` Stage post-session fixes before rebase
+4. `d836f86` Fix lint, rename intermediate CSV, clean up dedup logic
+5. `10b916c` Remove old R/Quarto infrastructure, add new-year documentation
+
+---
+
 ## Resume Instructions
 
 When resuming this session:
 1. Read `repo_conventions_session_notes.md` first
-2. Currently on **`pr2a-parameterize-taxyear`** branch. Code is complete but needs commit + PR.
+2. Currently on **`python-irs-pipeline`** branch. Code is complete; PR #1 open on donboyd5 fork.
 3. **PR #424 merged.** Infrastructure for 2022 targets is in production master.
-4. **IMMEDIATE TASK**: Commit remaining changes (test fixes + `__init__.py` + taxcalc_utils.py), format/lint, then Don creates PR.
-5. **Verified:** TAXYEAR=2021 → 51 passed, 3 skipped. TAXYEAR=2022 → pipeline completes, tests run (5 fail on value mismatches, 0 crashes).
-6. **SUBSEQUENT STEPS** (from 5-PR strategy):
+4. **IMMEDIATE TASK**: Review and refine the python-irs-pipeline code. Run the test plan:
+   - `python -m pytest tests/test_national_targets.py -v`
+   - `make format && make lint`
+   - Full pipeline: `extract_irs_to_csv.py --overwrite` → `build_targets.py` → `potential_targets_to_soi.py`
+   - `make data` with TAXYEAR=2021 and TAXYEAR=2022
+5. **OTHER PENDING WORK** (from 5-PR strategy):
+   - **PR #2a**: Parameterize TAXYEAR (branch `pr2a-parameterize-taxyear` exists, code complete, needs commit + PR)
    - **PR #2b**: Actually change TAXYEAR default to 2022. Depends on PR #3.
    - **PR #3**: CPS 2022 classes (RawCPS_2022, CPS_2022). CPS 2022 data URL already in cps.py.
    - **PR #4**: Update tests for year flexibility (hardcoded fingerprint values).
-   - **PR #5**: All-Python pipeline, data-driven targets.
-7. **Issues to create:**
+6. **Issues to create:**
    - Growth factor calibration 2022→2023 (TMD repo, involve Martin)
    - Tax-Calculator `tmd_constructor()` start_year parameter (TC repo)
-8. **Workflow reminders**:
+7. **Workflow reminders**:
    - Don't push or create PRs without explicit user direction
    - Run `make format` and lint (pycodestyle + pylint) before committing
    - Don pushes upstream and creates PRs; Claude prepares branches and commits
-9. Key files:
+8. Key files on python-irs-pipeline:
+   - `tmd/national_targets/extract_irs_to_csv.py` — Stage 1: IRS Excel → CSV
+   - `tmd/national_targets/build_targets.py` — Stage 2: CSVs → irs_aggregate_values.csv
+   - `tmd/national_targets/potential_targets_to_soi.py` — Stage 3: → soi.csv
+   - `tmd/national_targets/config/table_layouts.py` — IRS table column definitions
+   - `tests/test_national_targets.py` — 79 tests
    - `tmd/imputation_assumptions.py` — `TAXYEAR = 2021` — single source of truth
-   - `tests/conftest.py` — `create_tmd_records()` helper (bypasses `tmd_constructor`)
-   - `tmd/create_taxcalc_growth_factors.py` — guarded 2022 calibration adjustments
-   - `tmd/create_taxcalc_cached_files.py` — direct `tc.Records()` construction
+9. **PR notes:** `session_notes/python_irs_pipeline_pr1_draft.md`
 10. **Plan file:** `~/.claude/plans/sprightly-munching-finch.md` — detailed analysis of all PRs
 11. This session notes file is at `session_notes/national_targets_session_notes.md`
