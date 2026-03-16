@@ -4,13 +4,14 @@
 
 ### Branch: `state-weights-clarabel`
 
-### Commits (6)
+### Commits (7)
 1. `bb56d06` — Add Clarabel QP solver and share-based state targeting pipeline
 2. `2333b5a` — Use separate target/weight subfolders for states and CDs
 3. `2c87ea6` — Exclude PR and US from state target file generation
 4. `c2b7afe` — Change default SOI area data year from 2021 to 2022
 5. `7b65f57` — Add cross-state quality summary report
 6. `bfd320a` — Print SOI year in prepare and solve stage messages
+7. `a9da9a6` — Optimize quality report: load data once, read only needed columns
 
 ### Files Changed (14 files, +3,842 lines)
 - `tmd/areas/create_area_weights_clarabel.py` — Clarabel QP solver (626 lines)
