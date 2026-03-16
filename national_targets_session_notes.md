@@ -871,18 +871,42 @@ Replaced the entire R/Quarto pipeline with a pure Python pipeline that reads IRS
 
 ---
 
+## Session Update: 2026-03-16
+
+### What we accomplished:
+
+#### Pushed upstream: delete-r-targets-pipeline (PR #449, merged)
+- Removed all R/Quarto files, images, unused data files from `national_targets/`
+- Kept IRS Excel ground truth, PDFs, `irs_to_puf_map.json`, `potential_targets_to_soi.py`
+
+#### Pushed upstream: add-python-targets-pipeline (PR pending review)
+- Clean 4-commit branch on master (after deletion PR merged)
+- Commits:
+  1. Add Python IRS-to-targets pipeline (code + config)
+  2. Add irs_aggregate_values.csv, update soi.csv
+  3. Add pipeline tests (79 tests in `tests/national_targets_pipeline/`)
+  4. Add pipeline documentation (README.md, adding_a_new_year.md)
+
+#### Key improvements made during review:
+- Renamed `tests/pipeline/` → `tests/national_targets_pipeline/`
+- Added deterministic sort order to soi.csv output
+- Fixed `adding_a_new_year.md`: corrected "tips and overtime" → wage sub-columns,
+  marked 2023 as hypothetical example, added 2015 PUF booklet discovery docs
+- Fixed README.md: soi.csv defines *available* targets, reweight.py selects
+- Excluded pipeline tests from `make data` via `--ignore` in Makefile
+- Extracted CSVs gitignored (derived data); irs_aggregate_values.csv kept as audit trail
+- Confirmed id/count/nz skip is deliberate (same data via id_* sub-components)
+
+---
+
 ## Resume Instructions
 
 When resuming this session:
 1. Read `repo_conventions_session_notes.md` first
-2. Currently on **`python-irs-pipeline`** branch. Code is complete; PR #1 open on donboyd5 fork.
+2. **Pipeline PR** is pushed upstream on branch `add-python-targets-pipeline`, pending review/merge.
 3. **PR #424 merged.** Infrastructure for 2022 targets is in production master.
-4. **IMMEDIATE TASK**: Review and refine the python-irs-pipeline code. Run the test plan:
-   - `python -m pytest tests/test_national_targets.py -v`
-   - `make format && make lint`
-   - Full pipeline: `extract_irs_to_csv.py --overwrite` → `build_targets.py` → `potential_targets_to_soi.py`
-   - `make data` with TAXYEAR=2021 and TAXYEAR=2022
-5. **OTHER PENDING WORK** (from 5-PR strategy):
+4. **PR #449 merged.** Old R/Quarto pipeline deleted from master.
+5. **PENDING WORK** (from 5-PR strategy):
    - **PR #2a**: Parameterize TAXYEAR (branch `pr2a-parameterize-taxyear` exists, code complete, needs commit + PR)
    - **PR #2b**: Actually change TAXYEAR default to 2022. Depends on PR #3.
    - **PR #3**: CPS 2022 classes (RawCPS_2022, CPS_2022). CPS 2022 data URL already in cps.py.
@@ -894,12 +918,12 @@ When resuming this session:
    - Don't push or create PRs without explicit user direction
    - Run `make format` and lint (pycodestyle + pylint) before committing
    - Don pushes upstream and creates PRs; Claude prepares branches and commits
-8. Key files on python-irs-pipeline:
+8. Key files:
    - `tmd/national_targets/extract_irs_to_csv.py` — Stage 1: IRS Excel → CSV
    - `tmd/national_targets/build_targets.py` — Stage 2: CSVs → irs_aggregate_values.csv
    - `tmd/national_targets/potential_targets_to_soi.py` — Stage 3: → soi.csv
    - `tmd/national_targets/config/table_layouts.py` — IRS table column definitions
-   - `tests/test_national_targets.py` — 79 tests
+   - `tests/national_targets_pipeline/test_national_targets.py` — 79 tests
    - `tmd/imputation_assumptions.py` — `TAXYEAR = 2021` — single source of truth
 9. **PR notes:** `session_notes/python_irs_pipeline_pr1_draft.md`
 10. **Plan file:** `~/.claude/plans/sprightly-munching-finch.md` — detailed analysis of all PRs
