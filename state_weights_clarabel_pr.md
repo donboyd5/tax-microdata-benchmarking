@@ -72,13 +72,19 @@ TMD data unaffected — no regeneration needed.
 **Largest violation stat**: Solve summary now shows e.g.
 "Largest violation: 5.46%." alongside the violated target count.
 
-### Current Quality Summary (51/51 solved)
+**Double-scaling fix (e00900/e26270)**: Rebased onto upstream
+`fix-double-scaling-e00900-e26270` branch and regenerated TMD data.
+E00900 and E26270 were 35.5% overstated due to double application of
+growth factors. State weighting results essentially unchanged (as expected
+— sharing formula is self-correcting), but input data is now correct.
+
+### Current Quality Summary (51/51 solved, after double-scaling fix)
 ```
-Total violated targets: 75 (all count targets, no amount violations)
-Hit rate: avg=98.8%, min=94.1%
-wRMSE: avg=0.289, max=0.805
-SALT aggregation: -0.18%
-Returns: -0.40%, AGI: -0.74%, Wages: -0.81%, Income tax: -1.02%
+Total violated targets: 83 (mostly count targets, 2 small amount violations)
+Hit rate: avg=98.6%, min=93.3%
+wRMSE: avg=0.294, max=0.827
+SALT aggregation: -0.19%
+Returns: -0.58%, AGI: -0.74%, Wages: -0.81%, Income tax: -1.01%
 ```
 
 ### Usage
