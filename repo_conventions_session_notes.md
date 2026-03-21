@@ -17,11 +17,15 @@
 - `origin` = `https://github.com/donboyd5/tax-microdata-benchmarking.git` (Don's fork)
 - `upstream` = `https://github.com/PSLmodels/tax-microdata-benchmarking.git` (main PSLmodels repo)
 
-### **DO NOT PUSH TO UPSTREAM OR CREATE UPSTREAM PRs WITHOUT EXPLICIT USER PERMISSION**
+### **CLAUDE MUST NEVER PUSH TO UPSTREAM OR CREATE UPSTREAM PRs**
 
-- Push branches to `origin` (Don's fork): `git push origin <branch-name>`
-- **NEVER** push to `upstream` or create PRs against `upstream` (PSLmodels) unless the user explicitly says to do so
-- The user will decide when and how to create upstream PRs
+- Claude prepares branches locally (based on current upstream master) and commits changes
+- For backup purposes, user may push branches to origin.
+- **PR's are only pushed to upstream, and only by the user.**
+- If a branch is going to be converted to a pr, it must have a different name from any branch on origin.
+- **The user pushes branches to `upstream` and creates PRs on GitHub** — this is the repo's PR workflow
+- Claude should provide the push command (`git push upstream <branch-name>`) for the user to run
+- Claude may push to `origin` (Don's fork) for backup/WIP branches
 - **Never commit directly to local master.** Master should only be updated by pulling from upstream.
 
 ---
