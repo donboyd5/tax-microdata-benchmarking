@@ -83,8 +83,11 @@ Assess the feasibility of county-level area targets and weights, to inform pipel
 - County sums match state aggregates almost exactly (ratio ~1.0000). This is better than CDs (~0.984) and means no rescaling is needed. However, this also means there's no "slack" — every return is assigned to a county, so county weights are more tightly constrained than CD weights in aggregate.
 
 ### Computational Scale
-- 3,143 QP solves vs 436 for CDs. Even with parallelization, wall-clock time scales with `areas / workers`. At 8 workers: ~390 batches for counties vs ~55 for CDs.
-- Memory: each worker loads the full TMD dataset. With 3,143 areas, total memory usage stays the same (workers are reused), but if solver setup has per-area memory overhead, it could matter.
+- 3,143 QP solves vs 436 for CDs. Each solve takes ~26 seconds (dominated by Clarabel QP solver).
+- **Benchmarked on Ryzen 9 9950X (16C/32T):** 16 workers is the sweet spot. 28 workers is slower due to memory contention (each worker holds ~0.55 GB TMD data copy).
+- Estimated wall time at 16 workers: ~1.5 hours. With tolerance relaxation (option C), possibly ~1 hour.
+- With conservative recipe (fewer targets → smaller QP), per-area solve time may drop to 15-18s.
+- Memory: each worker loads full TMD dataset (~0.55 GB). 16 workers = ~9 GB. Manageable on most systems.
 - Log/output file count: 3,143 weight files + 3,143 logs. File I/O and directory operations may become a factor.
 
 ### Recipe Design

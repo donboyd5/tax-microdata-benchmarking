@@ -76,6 +76,37 @@ After the analysis, we may need to make minor adjustments to the proportion-of-n
 - 2022 CD docguide: `tmd/areas/targets/prepare/prepare_cds/data/data_raw/22incddocguide.docx`
 - Exploration script: `tmd/areas/explore_cd_data.py`
 
+## Performance Analysis and Optimization (2026-03-21)
+
+### Solver Timing
+- Per-area solve: ~26 seconds (dominated by Clarabel QP solver, not matrix construction).
+- 16 workers is the sweet spot on Ryzen 9 9950X (16C/32T). 28 workers is slower due to memory contention.
+
+### Projected Times (16 workers)
+
+| Scope | Areas | Estimated time |
+|-------|-------|---------------|
+| States | 51 | ~3.5 min |
+| CDs | 436 | ~12 min |
+| Counties | 3,143 | ~1.5 hrs |
+
+### Optimization A+B: Constraint Matrix (branch `optimize-constraint-matrix`)
+- **A:** Pre-cache DataFrame column arrays — avoid repeated `vardf[col].astype(float).values` in per-target loop.
+- **B:** Build sparse B matrix directly using COO format — avoid allocating dense n_records × n_targets intermediate (~0.3 GB).
+- Result: ~3-5% wall-time improvement, less memory churn, all tests pass, identical results.
+- Benefit grows with more targets per area (CDs and especially counties).
+- **To merge:** This branch should be merged to master before starting the CD pipeline branch.
+
+### Optimization C (not yet implemented): Relax Clarabel Tolerances
+- Currently `tol_gap_abs = tol_feas = 1e-7`. Relaxing to `1e-5` could cut solver iterations by 20-30%.
+- Estimated savings: ~6-8s per area, which matters for counties (~40 min saved).
+- Risk: May increase target violations slightly. Needs testing.
+
+### Other Speed Considerations for Counties
+- Conservative recipe (fewer targets) → smaller QP → faster solve.
+- Tiered recipe by county size (full recipe for 50K+ returns, reduced for <5K).
+- Shared memory (Ray) could reduce per-worker memory from 0.55 GB to shared.
+
 ## County Analysis
 
 See `county_weighting_notes.md` for detailed county feasibility analysis. County data is stored on a separate `county-data` branch pushed to origin fork, not merged into CD or master branches.
