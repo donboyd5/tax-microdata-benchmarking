@@ -107,6 +107,79 @@ After the analysis, we may need to make minor adjustments to the proportion-of-n
 - Tiered recipe by county size (full recipe for 50K+ returns, reduced for <5K).
 - Shared memory (Ray) could reduce per-worker memory from 0.55 GB to shared.
 
+## CD Pipeline Implementation (2026-03-22)
+
+### Branch: `cd-pipeline` (off master)
+
+Implemented the full CD target preparation and weight solving pipeline.
+
+### New Files
+- `tmd/areas/prepare/soi_cd_data.py` — CD SOI data ingestion, 117th→118th crosswalk, base targets
+- `tmd/areas/prepare/recipes/cds.json` — CD recipe (9 AGI bins, same variables as states)
+- `tmd/areas/prepare/recipes/cd_variable_mapping.csv` — Variable mapping (identical to state)
+- `tmd/areas/prepare/data/soi_cds/22incd.csv` — CD SOI data in canonical location
+
+### Modified Files
+- `tmd/areas/prepare/constants.py` — Added `AreaType.CD`, `CD_AGI_CUTS` (9 bins), `SOI_CD_CSV_PATTERNS`, `AT_LARGE_STATES`, helper functions
+- `tmd/areas/prepare/target_sharing.py` — Added `compute_cd_soi_shares`, `build_cd_shares_targets`, CD branch in `prepare_area_targets`
+- `tmd/areas/prepare/target_file_writer.py` — Added CD areatype dispatch
+- `tmd/areas/prepare_targets.py` — Added `prepare_cd_targets()`, `--scope cds` CLI
+- `tmd/areas/create_area_weights.py` — Added `CD_TARGET_DIR`, `CD_WEIGHT_DIR`
+- `tmd/areas/solve_weights.py` — Added `solve_cd_weights()`, `--scope cds` CLI
+
+### Key Design Decisions
+- **XTOT uses N2** from CD SOI file (exemptions, proxy for population)
+- **Shares use CD file's own totals** as denominators (internally consistent)
+- **117th→118th crosswalk** properly handles MT (1→2 districts) and 7 other at-large states
+- **At-large recode:** SOI `CONG_DISTRICT=0` recoded to district 1; variable renamed to `cd117_district` to avoid confusion with documentation meaning
+- **AGI and returns sum exactly** to TMD national totals (ratio = 1.000000)
+- **102 targets per CD** (vs 179 for states — no extended targets yet)
+
+### Solver Tuning and Infeasibility Investigation (2026-03-22)
+
+Initial run with default 25x multiplier cap: 16 of 436 CDs PrimalInfeasible.
+
+**Root cause analysis:**
+- 15 of 16 failures caused by `e02400` (Social Security) target in the negative-AGI bin. These CDs have extremely high SS income per negative-AGI return ($40K-$314K) — the national microdata lacks enough records with this profile to satisfy the constraint within 25x multiplier bounds.
+- 1 failure (FL-28) caused by `e26270` (partnership/S-corp) profile incompatible with national microdata in low-AGI bins.
+- AZ-01 and TX-07: no individually unreachable targets, but constraint interactions made the system infeasible.
+
+**Fixes applied (uniform rules for all CDs):**
+1. **Recipe:** Excluded `e02400` from AGI stub 1 (negative-AGI bin) via `agi_exclude: [1]` in `cds.json`.
+2. **Multiplier cap:** Raised from 25x to 50x (`CD_MULTIPLIER_MAX`). States stay at 25x.
+3. **Unreachable target detection:** `_drop_impossible_targets` now checks whether each target is achievable within multiplier bounds, not just whether the B matrix row is all zeros. Auto-drops with diagnostic log message.
+4. **Variable-bin slack penalties:** e02400, e00300, e26270 amounts in stubs 1-3 and filing-status counts in stubs 1-2 get reduced slack penalty (1e3 vs 1e6). Solver relaxes these before distorting weights.
+5. **LP feasibility pre-check:** Fast linear program runs before QP to detect infeasibility early and identify which constraints are problematic.
+6. **Solver override framework:** `solver_overrides.py` supports per-area parameter customization via centralized YAML file. Designed for future developer mode.
+
+### Final Results (all 436 CDs, 50x cap, recipe fix)
+
+| Metric | Initial (25x) | Final (50x + fixes) |
+|--------|---------------|---------------------|
+| Failed | 16 | **0** |
+| Largest violation | 730% | **48%** |
+| All amount targets met | No | **Yes** |
+| AGI aggregation error | -6.5% | **-0.3%** |
+| Wages error | -5.2% | **-0.2%** |
+| SALT error | -5.5% | **-0.1%** |
+| Solve time (16 workers) | ~17 min | **~23 min** |
+
+Remaining violations are filing-status counts in the negative-AGI bin (small cells, max 48% on 542 returns).
+
+### Production Architecture (planned)
+
+- **Developer mode (offline, iterative):** Runs LP feasibility checks on all areas, applies relaxation cascade (drop unreachable → reduce slack → drop targets → raise tolerance), writes per-area overrides YAML. Runs once per new data vintage.
+- **Production mode (single pass):** Reads override file, solves all areas in one pass. Guaranteed to succeed.
+- Override file is committed to repo, not generated at runtime.
+
+### Future Work
+- See `future_state_consistency_pr.md` for potential state pipeline alignment changes
+- Extended targets for CDs (SOI-shared, credits) — needs Census SALT data adaptation
+- Developer mode auto-relaxation implementation
+- Multi-perspective bystander reporting (% of CD total, not just % of bin target)
+- Optimization A+B (stashed on `optimize-constraint-matrix` branch)
+- Optimization C (relaxed Clarabel tolerances)
+
 ## County Analysis
 
 See `county_weighting_notes.md` for detailed county feasibility analysis. County data is stored on a separate `county-data` branch pushed to origin fork, not merged into CD or master branches.
