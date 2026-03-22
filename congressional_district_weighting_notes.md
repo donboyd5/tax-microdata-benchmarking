@@ -152,19 +152,35 @@ Initial run with default 25x multiplier cap: 16 of 436 CDs PrimalInfeasible.
 5. **LP feasibility pre-check:** Fast linear program runs before QP to detect infeasibility early and identify which constraints are problematic.
 6. **Solver override framework:** `solver_overrides.py` supports per-area parameter customization via centralized YAML file. Designed for future developer mode.
 
-### Final Results (all 436 CDs, 50x cap, recipe fix)
+### Recipe Evolution and Final Results
 
-| Metric | Initial (25x) | Final (50x + fixes) |
-|--------|---------------|---------------------|
+**Lean recipe (78 targets, 50x cap, Census population XTOT):**
+
+Key recipe decisions:
+- **Dollar amounts** (count=0): all 7 income variables × 9 AGI bins (minus e02400 in stub 1). These carry the geographic income story.
+- **Total return counts** (count=1, fs=0): bins 4-9 only ($25K+), plus one all-bins total. Low-AGI bins (1-3) dropped — small cells cause infeasibility.
+- **Filing-status totals** (count=1, fs=1/2/4): one target each across all bins. Anchors demographic mix. Sum implicitly constrains total returns.
+- **Wage nz-count** (count=2): bins 2-8.
+- **XTOT**: Census 2020 population from geocorr crosswalk (not SOI N2). Matches state pipeline approach. Fixed -11% returns aggregation error.
+
+Previous recipe attempts:
+- 102 targets (per-bin filing-status counts): 16 failures, 730% max violation
+- 105 targets (added totals to old recipe): 0 failures but 1,680 violated targets
+- 77 targets (lean, no total returns): 44 violated, but -11% returns gap
+- **78 targets (lean + total returns + Census pop): 37 violated, 0.50% max, -0.31% returns**
+
+| Metric | Initial (25x, 102 tgts) | Final (50x, 78 tgts) |
+|--------|-------------------------|----------------------|
 | Failed | 16 | **0** |
-| Largest violation | 730% | **48%** |
-| All amount targets met | No | **Yes** |
-| AGI aggregation error | -6.5% | **-0.3%** |
-| Wages error | -5.2% | **-0.2%** |
-| SALT error | -5.5% | **-0.1%** |
-| Solve time (16 workers) | ~17 min | **~23 min** |
-
-Remaining violations are filing-status counts in the negative-AGI bin (small cells, max 48% on 542 returns).
+| Violated targets | 1,648+ | **37** |
+| Largest violation | 730% | **0.50%** |
+| Returns aggregation | -14.5% | **-0.31%** |
+| AGI aggregation | -6.5% | **+0.25%** |
+| Wages aggregation | -5.2% | **+0.26%** |
+| SALT aggregation | -5.5% | **+0.44%** |
+| Capital gains | -19.7% | **-1.72%** |
+| Income tax | -7.2% | **+0.54%** |
+| Solve time (16 workers) | ~17 min | **~27 min** |
 
 ### Production Architecture (planned)
 
@@ -172,8 +188,14 @@ Remaining violations are filing-status counts in the negative-AGI bin (small cel
 - **Production mode (single pass):** Reads override file, solves all areas in one pass. Guaranteed to succeed.
 - Override file is committed to repo, not generated at runtime.
 
+### Target Specification Redesign (planned)
+- Replace JSON recipe + crossing with a flat CSV target spec file where each row is one target (varname, type, scope, fstatus, agilo, agihi). What you see is what you get — no crossing, no exclude lists, no area-type-specific stub numbering.
+- Separate solver params file (CSV or YAML) for per-area overrides.
+- Self-documenting, easy to modify, data-driven.
+
 ### Future Work
 - See `future_state_consistency_pr.md` for potential state pipeline alignment changes
+- Target specification redesign (flat CSV, no crossing)
 - Extended targets for CDs (SOI-shared, credits) — needs Census SALT data adaptation
 - Developer mode auto-relaxation implementation
 - Multi-perspective bystander reporting (% of CD total, not just % of bin target)
