@@ -101,6 +101,52 @@ Assess the feasibility of county-level area targets and weights, to inform pipel
 - County FIPS codes are 3-digit within state (e.g., `037` for Los Angeles). Combined with 2-digit state FIPS, the full code is 5 digits. Need consistent zero-padding throughout the pipeline.
 - Some "counties" are independent cities (VA), parishes (LA), boroughs (AK), or census areas. The SOI data handles this, but naming/coding conventions vary.
 
+## Lessons from CD Pipeline (2026-03-23)
+
+The CD implementation revealed several patterns directly applicable to counties:
+
+### Developer mode is essential
+- With 436 CDs, manual tuning of solver parameters is impractical. With 3,143 counties it's impossible.
+- The developer mode auto-relaxation cascade (try default → drop unreachable → reduce slack → drop targets → raise cap → raise tolerance) finds per-area overrides automatically.
+- For CDs: most areas solve at level 0 (default params). Only a handful of extreme areas (NY-12/Manhattan) need targets dropped. Counties will likely have more problem areas due to smaller sizes.
+- The override YAML file is committed to the repo. Production solve reads it for guaranteed first-pass success.
+
+### Flat CSV target spec works well
+- One row per target, no crossing/exclude logic. WYSIWYG.
+- Easy to add/remove targets incrementally.
+- For counties: tiered specs could be separate CSV files per size tier, or one spec with a "min_returns" column indicating minimum county size for each target.
+
+### Pre-computed shares separate stable from volatile
+- SOI geographic shares change rarely (new SOI vintage). TMD national sums change with every rebuild.
+- Shares file computed once per SOI year. Targets recomputed cheaply.
+- For counties: shares file will be ~3,143 × 100+ rows = 300K+ rows. Still manageable.
+
+### Extended targets: start with totals, then add bins
+- Total-only targets (one per variable, all bins) are nearly risk-free — they add one constraint each.
+- Per-bin targets for selected variables and stubs can then be added incrementally.
+- Developer mode identifies which per-bin targets cause infeasibility in which areas.
+- For counties: may need total-only targets only for small counties, per-bin for large ones.
+
+### Bystander analysis reveals untargeted distortion
+- The quality report's per-bin bystander check shows which variable-bin combinations drift even when not targeted.
+- For CDs: capital gains showed -71% distortion in one bin before being targeted. Adding a cap gains total target constrained it.
+- For counties: expect worse bystander distortion due to smaller areas and fewer targets.
+
+### One-to-many SOI-to-TMD variable mapping
+- Multiple TMD variables can share the same SOI geographic distribution (e.g., e01500 total pensions and e01700 taxable pensions both use SOI A01700).
+- The shares file handles this by producing separate rows for each TMD variable.
+- Counties use the same 161 SOI columns as CDs, so the same mappings work.
+
+### Solve time scales linearly
+- CDs (436 areas, 107 targets): ~52 min at 16 workers.
+- Counties (3,143 areas): estimated ~6 hours with same recipe. With conservative recipe (fewer targets), ~3-4 hours.
+- Developer mode adds 2-5x multiplier for problem areas (multiple solve iterations). But most areas solve first try.
+
+### County-specific considerations not present for CDs
+- **Tiered specs:** CDs are all similar size (~70K+ returns). Counties range from 40 to 5M+ returns. Need different target counts per tier.
+- **Data suppression:** SOI suppresses small cells for confidentiality. CDs are large enough to avoid this. Small counties will have many suppressed cells that look like zeros.
+- **Developer mode tiers:** Could run developer mode separately per size tier with different starting parameters.
+
 ## Data Storage
 - County CSV and docguide committed on `county-data` branch, pushed to origin fork.
 - Location: `tmd/areas/targets/prepare/prepare_counties/data/data_raw/`

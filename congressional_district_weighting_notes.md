@@ -188,19 +188,131 @@ Previous recipe attempts:
 - **Production mode (single pass):** Reads override file, solves all areas in one pass. Guaranteed to succeed.
 - Override file is committed to repo, not generated at runtime.
 
-### Target Specification Redesign (planned)
-- Replace JSON recipe + crossing with a flat CSV target spec file where each row is one target (varname, type, scope, fstatus, agilo, agihi). What you see is what you get — no crossing, no exclude lists, no area-type-specific stub numbering.
-- Separate solver params file (CSV or YAML) for per-area overrides.
-- Self-documenting, easy to modify, data-driven.
+### Target Specification Redesign (implemented 2026-03-23)
+
+Replaced JSON recipe + AGI crossing with three clean artifacts:
+
+**Architecture:**
+```
+SOI data + crosswalks → shares file (stable, rarely recomputed)
+                              ↓
+TMD data → national sums (recomputed when TMD changes)
+                              ↓
+shares × national sums → universe of potential targets
+                              ↓
+spec CSV → select from universe → per-area _targets.csv
+```
+
+**Three artifacts, three change frequencies:**
+| Artifact | Location | Rows | Changes when |
+|----------|----------|------|-------------|
+| `cd_target_spec.csv` | `recipes/` | 78 | Recipe tuning |
+| `cds_shares.csv` | `prepare/data/` | 57,116 | New SOI vintage |
+| `{area}_targets.csv` | `targets/cds/` | 78 × 436 | TMD rebuild or recipe change |
+
+**Key design decisions:**
+- **Shares (stable):** SOI geographic distribution saved as `cds_shares.csv`. Depends only on SOI data and crosswalks. `python -m tmd.areas.prepare_shares --scope cds`.
+- **Spec (recipe):** Flat CSV, one row per target — WYSIWYG. Includes `description` column for documentation. No crossing, no exclude lists.
+- **Targets (volatile):** `target = TMD_national_sum × soi_share`. XTOT stored as fixed target (Census population). Total rows computed as sum of per-bin targets (not total_share × total_sum) for mathematical consistency.
+- **Verified:** 436/436 CDs produce identical targets vs old pipeline (worst relative diff: 5×10⁻¹⁰).
+
+**New files:**
+- `tmd/areas/prepare_shares.py` — pre-compute SOI shares
+- `tmd/areas/prepare/recipes/cd_target_spec.csv` — flat CD spec (78 targets)
+- `tmd/areas/prepare/recipes/state_target_spec.csv` — flat state spec (179 targets)
+- `tmd/areas/prepare/data/cds_shares.csv` — pre-computed CD shares
+
+**Variable name mapping (SOI → TMD):**
+- SOI raw `A00100` → SOI base `00100` → TMD `c00100`
+- Mapping defined in `ALL_SHARING_MAPPINGS` in `constants.py`
+- User-facing spec uses TMD names only; SOI mapping is internal
+
+### Quality Report Improvements (2026-03-23)
+
+Enhanced `quality_report.py` with:
+- **Auto-save to file:** `--output` flag, defaults to `quality_report.txt` in weight dir
+- **Scope/timestamp header:** `[cds]` label, generation time, cumulative + wall-clock solve time
+- **Aggregate multiplier distribution:** Combined histogram across all area-record pairs, shows old (x=1) vs optimized distribution with cumulative percentages
+- **Weight distribution by AGI stub:** National vs sum-of-areas returns and AGI per bin, with change %
+- **Per-bin bystander analysis:** Checks all variable × AGI bin combos, marks T (targeted) vs . (dropped/untargeted), sorted by distortion. CD results: 73 targeted bins avg 0.13% distortion; 69 dropped bins avg 5.0%
+- **Top-N per-area detail:** Shows all areas for states (≤60), top 20 by violations/wRMSE for CDs/counties, with omitted count
+
+### Extended Targets for CDs (2026-03-23)
+
+Added total-only (all-bins aggregate) extended targets, bringing spec from 78 → 92 targets.
+
+**New extended targets (14 rows, all total-only):**
+- 8 SOI-shared amounts: e01700 (taxable pensions), c02500 (taxable SS), e01400 (IRA), capgains_net, e00600 (dividends), e00900 (business income), c19200 (mortgage ded), c19700 (charitable)
+- 2 SALT components: e18400 (income/sales), e18500 (real estate) — using SOI CD data as proxy for Census (Census not available at CD level)
+- 2 credits amount + 2 credits nz-count: eitc, ctc_total
+
+**SALT approach for CDs:**
+- States target both c18300 (restricted/capped SALT via SOI shares) and e18400/e18500 (available/uncapped SALT via Census shares)
+- CDs can only do SOI-based: c18300 in base recipe + e18400/e18500 using SOI CD columns (a18425, a18500) as proxy
+- This is good enough for geographic distribution within the SOI file's coverage
+
+**Implementation:**
+- Extended `EXTENDED_SHARING_MAPPINGS` in `prepare_shares.py` — defines the 14 new variable mappings
+- One-to-many SOI→TMD mapping: e01500 and e01700 both use SOI 01700; e02400 and c02500 both use SOI 02500
+- Added `capgains_net` synthetic variable to `compute_tmd_national_sums` (p22250 + p23250)
+- `ctc_total` and `eitc` already exist in cached_allvars.csv
+- CTC shares use SOI 07225 (nonrefundable CTC) as the geographic distribution basis; derived `_add_ctc_total` sums 07225 + 11070 in base_targets
+
+**Test-solve results (4 CDs):**
+- AL01, AK01: 92/92 targets hit
+- CA52: 91/92 (1 minor violation at 0.50%)
+- NY12: 86/92 (6 violations, RMSE 9.3) — already the hardest CD, extra targets stress it further
+
+**Incremental extension plan:**
+1. ✅ Total-only extended targets (done, 92 targets)
+2. ✅ Developer mode toolkit (difficulty table, dual analysis, auto-cascade)
+3. ✅ Per-bin cap gains ($100K+): 3 targets, +1.5s, all hit
+4. ✗ Per-bin credits (EITC/CTC bins): rejected — 60-90% gap, 7x solve time explosion
+5. Final spec: 95 targets (78 base + 14 ext totals + 3 capgains bins)
+
+### Developer Mode Implementation (2026-03-23)
+
+Built as a toolkit of diagnostics rather than a fully automated system:
+
+**Tools:**
+- `--difficulty AREA`: Target difficulty table — gap from proportionate share per target. Most useful single diagnostic.
+- `--dual AREA`: Shadow price analysis — solves area and shows which constraints are most expensive to satisfy.
+- `--lp-only`: LP feasibility check across all areas (fast).
+- Full auto-cascade: iterative relaxation for batch override generation.
+
+**Key findings from difficulty/dual analysis:**
+- Per-bin credit targets have 60-90% gap from proportionate AND pull weights in opposite directions (EITC: +86%, CTC: -89% in same bin) → solver explodes
+- Cap gains per-bin targets feasible (~50% gap, upper stubs only, concentrated records)
+- NY-12 (Manhattan) mean gap = 255%, max = 3,384% — an extreme outlier
+- Solve time scales super-linearly with target count AND target difficulty, not just count
+- Dense constraint rows (all-bin targets) are more expensive but still worthwhile for aggregate control
+
+**Developer workflow documented in `AREA_WEIGHTING_GUIDE.md`:**
+1. Identify high-value targets by policy importance
+2. Run difficulty tables on representative easy/hard areas
+3. Test incrementally on single areas
+4. Run dual analysis on problem areas
+5. Full batch + quality report
+6. Iterate
+
+See `cd_target_difficulty_analysis.md` for detailed comparison of AL-01, NY-12, TX-20, MN-03.
+
+### Solve Time Evolution
+
+| Spec | Targets | All-bin rows | Avg/area (AL01) | Wall@16 | Notes |
+|------|---------|-------------|-----------------|---------|-------|
+| Base | 78 | 5 | 7s | ~18 min | Original lean recipe |
+| +ext totals | 92 | 19 | 12s | ~34 min | +14 total-only extended |
+| +cg bins | 95 | 19 | 14s | ~20 min est | +3 capgains upper bins |
+| +credit bins | 107 | 19 | 92s | ~100 min est | Rejected — too expensive |
 
 ### Future Work
 - See `future_state_consistency_pr.md` for potential state pipeline alignment changes
-- Target specification redesign (flat CSV, no crossing)
-- Extended targets for CDs (SOI-shared, credits) — needs Census SALT data adaptation
-- Developer mode auto-relaxation implementation
-- Multi-perspective bystander reporting (% of CD total, not just % of bin target)
+- State spec pipeline (same pattern as CD, add extended targets)
+- Per-area weight distribution diagnostic (old vs new weight histogram)
 - Optimization A+B (stashed on `optimize-constraint-matrix` branch)
 - Optimization C (relaxed Clarabel tolerances)
+- PR strategy: infrastructure PR (quality report, spec redesign) then CD-specific PR
 
 ## County Analysis
 
