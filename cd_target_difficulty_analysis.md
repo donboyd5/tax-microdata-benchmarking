@@ -130,12 +130,18 @@ has a lot of them (Manhattan: +800%) or very few (South Texas: -70%).
 concentrated in specific financial centers.  Consider making
 partnership targets total-only in low-AGI bins.
 
-### 4. Credits need total-only targets
+### 4. Credits: per-bin targets work after shares fix
 
-Per-bin EITC/CTC targets require the solver to match both income
-distribution AND credit eligibility per bin — conflicting constraints
-that cause solve time explosions (12s → 92s).  Total-only credit
-targets are sufficient and dramatically cheaper.
+**Updated 2026-03-24:** The original CTC per-bin solver explosion
+(12s → 92s) was caused by a duplicate-shares bug, not a fundamental
+EITC/CTC conflict. With correct shares, 107 targets (6 EITC + 6 CTC
+per-bin) solve all 436 CDs in ~55 min with only 69 violations.
+
+EITC and CTC do have genuinely different geographic distributions
+(EITC concentrates at $10K-$50K AGI, CTC extends to $200K+), and
+97.5% of EITC recipients also have CTC (same children trigger both
+credits under tax law). But the solver handles this fine when the
+shares are correct and non-duplicated.
 
 ### 5. Difficulty predicts solve time
 

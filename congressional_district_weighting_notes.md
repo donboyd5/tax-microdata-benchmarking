@@ -303,16 +303,148 @@ See `cd_target_difficulty_analysis.md` for detailed comparison of AL-01, NY-12, 
 |------|---------|-------------|-----------------|---------|-------|
 | Base | 78 | 5 | 7s | ~18 min | Original lean recipe |
 | +ext totals | 92 | 19 | 12s | ~34 min | +14 total-only extended |
-| +cg bins | 95 | 19 | 14s | ~20 min est | +3 capgains upper bins |
-| +credit bins | 107 | 19 | 92s | ~100 min est | Rejected — too expensive |
+| +cg bins | 95 | 19 | 14s | ~54 min | +3 capgains upper bins |
+| +EITC bins | 101 | 19 | 14s | ~54 min est | +6 EITC per-bin (cheap) |
+| +credit bins | 107 | 19 | 92s | ~100 min est | Rejected — CTC bins too expensive |
+
+### Developer Mode Results (107-target spec, 2026-03-23)
+
+Full auto-relaxation cascade on all 436 CDs:
+- **Level 0 (default):** 337 areas (77%) — solved with no changes
+- **Level 3 (drop targets):** 76 areas (17%) — needed 1-8 targets dropped
+- **Level 4 (raise cap):** 4 areas (1%) — needed higher multiplier cap
+- **Level 5 (raise tolerance):** 19 areas (4%) — needed tolerance relaxation
+- **All 436 areas: 0 violations** after overrides applied
+- Developer mode time: ~224 min (13,455s)
+- Override YAML: `tmd/areas/prepare/recipes/cd_solver_overrides.yaml`
+
+### 95-Target Batch Solve Results (2026-03-23)
+
+| Metric | 78 targets | 92 targets | 95 targets |
+|--------|-----------|-----------|-----------|
+| Failed | 0 | 0 | 0 |
+| Areas with violations | 37 | 47 | 49 |
+| Total violated targets | 37 | 52 | 88 |
+| Largest violation | 0.50% | 0.50% | 0.50% |
+| Wall time (16 workers) | ~27 min | ~52 min | ~54 min |
+
+### EITC vs CTC Per-Bin Analysis
+
+**Initial finding (2026-03-23):** Adding 6 CTC per-bin targets caused
+solver explosion (14s → 88s for AL01). Diagnosed as "fundamental
+conflict" between EITC and CTC eligibility profiles in the same bins.
+
+**Corrected finding (2026-03-24):** The root cause was a **duplicate
+shares bug** in `_add_ctc_total()` in `prepare_shares.py`. The function
+added combined CTC (07225 + 11070) rows but didn't remove the original
+07225 rows, producing two conflicting shares for every CTC target. The
+solver saw contradictory constraints for the same variable.
+
+After fixing the bug and regenerating shares:
+- 107 targets (including 6 CTC per-bin) solve all 436 CDs
+- 69 total violated targets (max 0.50%)
+- ~55 min wall time (16 workers)
+- AL01 solves in ~34s (not 88s)
+
+**EITC/CTC co-occurrence is real but not a solver problem.** At AGI
+$25K-$50K, 97.5% of EITC recipients also have CTC. This reflects tax
+law: qualifying children under 17 trigger both credits. But the
+geographic shares genuinely differ because CTC extends to much higher
+incomes (phase-out at $200K/$400K) while EITC phases out at $43K-$59K.
+With correct (non-duplicate) shares, the solver handles this fine.
+
+**Decision:** Include both EITC and CTC per-bin targets. Final spec:
+107 targets.
+
+### 107-Target Batch Solve Results (2026-03-24)
+
+| Metric | 78 targets | 95 targets | 107 targets |
+|--------|-----------|-----------|-------------|
+| Failed | 0 | 0 | 0 |
+| Areas with violations | 37 | 49 | 46 |
+| Total violated targets | 37 | 88 | 69 |
+| Largest violation | 0.50% | 0.50% | 0.50% |
+| Wall time (16 workers) | ~27 min | ~54 min | ~55 min |
+
+Note: 107-target results are BETTER than 95 on violated targets (69 vs
+88) because the CTC shares fix also improved other CTC-related targets.
+
+### Optimization Benchmarks (2026-03-24)
+
+Tested on 49 CDs (every 9th area), 16 workers, 107 targets:
+
+| Optimization | Wall time | Speedup | Quality impact |
+|-------------|-----------|---------|---------------|
+| Baseline | 397.7s | — | 7 violations |
+| A+B (matrix construction) | 388.2s | +2.4% | Identical |
+| C (tol 1e-7 → 1e-5) | 388.4s | +2.3% | 92 violations (13x worse) |
+| OSQP (alt solver) | 325.9s | — | 40 violations, 50K iter (max) |
+
+**Decision:** None applied. A+B adds complexity for negligible gain.
+C degrades quality. OSQP can't converge. Clarabel at 1e-7 tolerance
+is the right choice. ~55 min for 436 CDs is acceptable.
+
+See `archive/optimization_ab_benchmark.md` for details.
+
+### SOI Data Bug: A59664 Unit Error (2026-03-24)
+
+Column A59664 (EITC amount, 3+ qualifying children) in the 2022 CD
+SOI file is in dollars, not $1,000s like all other amount columns.
+Workaround applied in `soi_cd_data.py` (divide by 1000 on ingestion).
+Email draft for SOI: `soi_a59664_unit_error_email.md`. State file is
+not affected.
+
+### PR Strategy (2026-03-24)
+
+Four PRs, sequenced by dependency:
+
+1. **Solver robustness** — range-based feasibility, per-constraint
+   penalties, LP pre-check (state-affecting)
+2. **Spec-based targets** — shares + spec architecture, constants,
+   target pipeline (additive)
+3. **Quality report** — multiplier histograms, bystander analysis,
+   output options (diagnostic only)
+4. **CD pipeline** — SOI data, crosswalk, solver, developer mode,
+   documentation (CD-only)
+
+### PR Implementation Progress (2026-03-25)
+
+PRs built as stacked git worktrees in `~/Documents/mixed_projects/`:
+- `pr1-solver-robustness/` — pushed upstream as PR #470
+- `pr2-spec-targets/` — pushed upstream as PR #471
+- `pr3-quality-report/` — ready to push
+- `pr4-cd-pipeline/` — ready to push
+
+Key decisions during PR preparation:
+
+**Per-constraint slack penalties (PR 1):** Initially applied to all areas,
+causing 126 state violations vs 35 baseline. Investigation showed weights
+were identical to 2e-8 — purely a boundary effect at the 0.50% tolerance.
+Fix: apply penalties only for CDs (multiplier_max > 25). States now match
+baseline exactly.
+
+**State SALT targeting (PR 2):** Replaced 12 per-bin e18400/e18500 targets
+with 2 total-only targets using Census shares. SOI per-bin SALT shares are
+distorted by $10K TCJA cap — high earners show $10K deducted, not $50K owed.
+Census total-only is more defensible. State targets: 179 → 169.
+
+**Unified CLI routing (PR 2):** Both states and CDs route through
+`prepare_targets_from_spec()`. States use Census shares for available SALT
+(e18400, e18500) applied at target-generation time, not in the shares file.
+
+**Memory optimization (PR 1):** Sparse COO matrix construction, sparse LP,
+column trimming, parent-process TMD preloading. Peak per-worker: 1,244 MB →
+798 MB. Prevents OOM with 16 workers on WSL2.
+
+**Fingerprint test:** On-demand reproducibility test comparing integer weight
+sums per area. Verified 8-worker and 16-worker results identical.
 
 ### Future Work
 - See `future_state_consistency_pr.md` for potential state pipeline alignment changes
-- State spec pipeline (same pattern as CD, add extended targets)
-- Per-area weight distribution diagnostic (old vs new weight histogram)
-- Optimization A+B (stashed on `optimize-constraint-matrix` branch)
-- Optimization C (relaxed Clarabel tolerances)
-- PR strategy: infrastructure PR (quality report, spec redesign) then CD-specific PR
+- PR 5: Share national XTOT by Census proportions (instead of raw Census pop)
+- Combined weight/target files (single parquet per scope)
+- Per-area weight distribution diagnostic
+- Legacy cleanup PR (remove old recipe system after spec pipeline proven)
 
 ## County Analysis
 
