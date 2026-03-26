@@ -407,13 +407,24 @@ Four PRs, sequenced by dependency:
 4. **CD pipeline** — SOI data, crosswalk, solver, developer mode,
    documentation (CD-only)
 
-### PR Implementation Progress (2026-03-25)
+### PR Implementation Progress (2026-03-25, updated 2026-03-26)
 
 PRs built as stacked git worktrees in `~/Documents/mixed_projects/`:
-- `pr1-solver-robustness/` — pushed upstream as PR #470
-- `pr2-spec-targets/` — pushed upstream as PR #471
-- `pr3-quality-report/` — ready to push
-- `pr4-cd-pipeline/` — ready to push
+- `pr1-solver-robustness/` — PR #470, **merged** 2026-03-26
+- `pr2-spec-targets/` — PR #471, **merged** 2026-03-26
+- `pr3-quality-report/` — needs rebase onto merged master, then push
+- `pr4-cd-pipeline/` — needs rebase onto PR 3, then push
+
+Cleanup: pr1 and pr2 worktrees deleted. Local master updated to
+upstream. Branches area-weighting-overhaul deleted (superseded by
+cd-pipeline). county-data kept for future reference.
+
+Martin's feedback on PRs 1-2:
+- Per-constraint penalties caused extra violations for states (fixed:
+  apply only for CDs)
+- CD tests should not be in PR 2 (they skip without pipeline data);
+  moved to PR 4
+- Suggested area-specific Makefile in tmd/areas/ for pipeline commands
 
 Key decisions during PR preparation:
 
@@ -438,6 +449,12 @@ column trimming, parent-process TMD preloading. Peak per-worker: 1,244 MB →
 
 **Fingerprint test:** On-demand reproducibility test comparing integer weight
 sums per area. Verified 8-worker and 16-worker results identical.
+
+### Next Steps (2026-03-26)
+- Rebase PR 3 onto merged master, push upstream
+- Rebase PR 4 onto PR 3, add areas Makefile, push upstream
+- Add areas/Makefile with `make states` and `make cds` targets
+- PR 5 candidates: XTOT sharing fix, combined parquet files
 
 ### Future Work
 - See `future_state_consistency_pr.md` for potential state pipeline alignment changes
