@@ -412,12 +412,17 @@ Four PRs, sequenced by dependency:
 PRs built as stacked git worktrees in `~/Documents/mixed_projects/`:
 - `pr1-solver-robustness/` — PR #470, **merged** 2026-03-26
 - `pr2-spec-targets/` — PR #471, **merged** 2026-03-26
-- `pr3-quality-report/` — needs rebase onto merged master, then push
-- `pr4-cd-pipeline/` — needs rebase onto PR 3, then push
+- `pr3-quality-report/` — PR #472, **merged** 2026-03-26
+- `pr5-state-ctc-bins/` — PR #473, **merged** 2026-03-26 (state CTC per-bin)
+- `pr4-cd-pipeline/` — submitted for review, worktree at
+  `~/Documents/mixed_projects/pr4-cd-pipeline`
 
-Cleanup: pr1 and pr2 worktrees deleted. Local master updated to
-upstream. Branches area-weighting-overhaul deleted (superseded by
-cd-pipeline). county-data kept for future reference.
+PR 4 results: 436/436 CDs solved, 55 areas with violations, 69 total
+violated targets, max 0.50%, ~54 min wall time (12 workers).
+
+Cleanup: pr1, pr2, pr3, pr5 worktrees and branches deleted. Local
+master updated to upstream. Branch area-weighting-overhaul deleted
+(superseded by cd-pipeline). county-data kept for future reference.
 
 Martin's feedback on PRs 1-2:
 - Per-constraint penalties caused extra violations for states (fixed:
@@ -451,17 +456,23 @@ column trimming, parent-process TMD preloading. Peak per-worker: 1,244 MB →
 sums per area. Verified 8-worker and 16-worker results identical.
 
 ### Next Steps (2026-03-26)
-- Rebase PR 3 onto merged master, push upstream
-- Rebase PR 4 onto PR 3, add areas Makefile, push upstream
-- Add areas/Makefile with `make states` and `make cds` targets
-- PR 5 candidates: XTOT sharing fix, combined parquet files
+- Await Martin's review of PR 4
+- Address any review feedback
+- After merge: update master, delete pr4-cd-pipeline worktree
 
-### Future Work
-- See `future_state_consistency_pr.md` for potential state pipeline alignment changes
-- PR 5: Share national XTOT by Census proportions (instead of raw Census pop)
-- Combined weight/target files (single parquet per scope)
+### Future Work (post-PR 4)
+- **XTOT sharing fix:** Share national TMD XTOT by Census proportions
+  instead of raw Census pop as fixed target
+- **Combined parquet files:** Single `cds_targets.parquet` and
+  `cds_weights.parquet` instead of 436 individual CSVs. Enables fast
+  cross-area analysis and instant gap-from-proportionate diagnostics
+- **Fast difficulty diagnostic:** Gap-from-proportionate metric
+  computes in 0.7s for 436 CDs vs 17 min for LP check. Add as
+  `--difficulty-all` flag to developer_tools.py
+- **Legacy cleanup:** Remove old `prepare_state_targets()`,
+  `prepare_cd_targets()`, `target_file_writer.py` recipe system
+- See `future_state_consistency_pr.md` for state pipeline alignment
 - Per-area weight distribution diagnostic
-- Legacy cleanup PR (remove old recipe system after spec pipeline proven)
 
 ## County Analysis
 
