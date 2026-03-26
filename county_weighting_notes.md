@@ -1,6 +1,6 @@
 **Read `repo_conventions_session_notes.md` first.**
 
-# Session Notes: County Considerations
+# Session Notes: County Area Weighting Feasibility
 *Created: 2026-03-21*
 
 ## Purpose
