@@ -721,6 +721,47 @@ Added c19200 (interest deduction) and c19700 (charitable deduction) targeting �
 - Fixed-width area IDs (`ljust`) to handle both 2-char states and 4-char CDs
 - Added parallel ordering note to output
 
+### Phase 25: 119th Congress support (GH #478, branch `add-cd-119`)
+
+Adds the ability to build CD targets and weights on **119th Congress**
+boundaries alongside the existing 118th Congress support, in parallel
+output directories.
+
+Key changes:
+
+- New crosswalk file `tmd/areas/prepare/data/geocorr2022_cd117_to_cd119.csv`
+  (same schema as the 118 crosswalk: `state, cd119, cd117, stab, pop20,
+  afact2, afact`, with one label row after the header).  Geocorr settings
+  match the 118 file: source = 117 CDs, target = 119 CDs, population-
+  weighted (`pop20`), zero-weighted blocks excluded.
+- Loader in `tmd/areas/prepare/soi_cd_data.py` now takes a `congress`
+  parameter (118 or 119), normalizes the target column to `cd_target`,
+  and dispatches to `_CROSSWALK_PATHS[congress]`.
+- All CD CLIs (`prepare_shares`, `prepare_targets`, `solve_weights`,
+  `quality_report`, `developer_tools`) require an explicit
+  `--congress {118,119}` flag — no default.  State pipelines are
+  unchanged.
+- Output layout: `targets/cds_118/` + `targets/cds_119/`,
+  `weights/cds_118/` + `weights/cds_119/`,
+  `cds_118_shares.csv` + `cds_119_shares.csv`.  Existing `cds/` outputs
+  were migrated to `cds_118/` siblings.
+- Makefile exposes `CONGRESS=118|119` and `cds-118` / `cds-119` aliases.
+- New `tmd.areas.prepare.validate_crosswalk` script and
+  `tests/test_cd_crosswalk.py` test suite check:
+    1. `afact2` per `(stabbr, cd117)` sums to 1.0 within CSV rounding
+       (~1e-4)
+    2. At-large states (MT, DE, WY, SD, ND, VT, AK) recoded to `01`
+    3. Population conservation (sum by source CD = sum by target CD)
+    4. 436 distinct target CDs (excluding PR)
+    5. Exactly AL, GA, LA, NY, NC differ between 118 and 119; all other
+       47 states/jurisdictions are bit-identical (within 1e-6).
+- `tests/test_prepare_targets.py` CD test classes are now parametrized
+  over `[118, 119]`; 119 tests skip gracefully when the 119 shares
+  file has not yet been generated.
+- The targeting recipe (`recipes/cds.json`, variable mapping, target
+  spec) is **identical** for 118 and 119 — only the geographic
+  allocation changes.
+
 ### Potential Next Steps
 
 - **A. Full CD batch**: Run all 436 CDs with recipe; identify problem districts. Extend `extended_targets.py` for CDs.
