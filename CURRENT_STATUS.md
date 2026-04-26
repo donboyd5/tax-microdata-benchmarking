@@ -4,42 +4,58 @@ One-screen "where were we" snapshot. Claude updates this at the end of each
 working session. If this looks stale, trust git + the topic-specific notes in
 this folder over this file, and tell Claude to refresh it.
 
-**Last updated:** 2026-04-26 (later in day)
+**Last updated:** 2026-04-26 (end of day — project closeout session)
 
 ## Active branch
 
-`master` — fast-forwarded to `9ecd3fe` after **PR #513** (issue #506
-PR 2 of 2) merged. Working tree clean.
+`master` — unchanged from previous session, last commit `9ecd3fe`
+(PR #513). Working tree clean.
 
-Local branch list pruned: only `master`, `county-data`, and
-`session-notes` remain. Eleven merged feature branches were deleted
-this session.
+Local branch list still pruned: only `master`, `county-data`, and
+`session-notes` remain.
 
 ## Where things stand
 
-**Issue #506 ("Improve area weights documentation") is DONE.** Both
-PRs landed in the same session.
+**Area-weights project closed out.**
 
-| Piece | PR | Branch | What it did |
-|---|---|---|---|
-| User docs | **#512** (merged) | `docs-areas-user` (deleted) | Restructured `tmd/areas/README.md` and rewrote `tmd/areas/weights/README.md` from scratch; added top-level README link; dropped Netlify references. Three commits including a year-mismatch fix to the pandas worked example. |
-| Developer docs | **#513** (merged) | `docs-areas-developer` (deleted) | Audience preface + TOC for `AREA_WEIGHTING_GUIDE.md`; added `--congress` to all CD commands; repaired File Locations tree; replaced duplicate Quality Report section with pointer up to user README. Updated `AREA_WEIGHTING_LESSONS.md` "CDs not implemented yet" framing. Reconciled `prepare/recipes/README.md` with what the CLI actually loads (CSV specs current; `states.json` legacy/test-only; `cds.json` no longer exists). Added "Key entry points / used by" to `create_area_weights.py` docstring. |
+- 3-page project summary report drafted at
+  `scratch/area_weights_project_report.md`. Pandoc-converted to
+  `.docx` and `.html` siblings in `scratch/`. The `.docx` was sent to
+  PSL.
+- **Issue #381 (umbrella)** closed. The closeout draft used was
+  `/tmp/issue_381_closeout.md` — eight-section accomplishment-to-PR
+  map mirroring the report's structure, plus a "beyond scope"
+  section, Martin Holmer's contributions grouped by theme, an
+  "earlier infrastructure" section, and a six-item future-improvements
+  list. Every PR-author attribution in the closeout was verified via
+  `gh api .../pulls/<n>` before posting; the existing task-list
+  comment got a one-paragraph note at the top pointing readers to the
+  closeout below.
 
-PR 1's worked examples were verified end-to-end:
-- pandas: `(tmd["e00200"] * wts["WT2022"]).sum()` = $1,371.9B for CA
-  2022 wages (BEA-consistent scale).
-- Tax-Calculator sketch: Records constructs cleanly; CA `iitax` 2024
-  = $365B, year-aged wages = $1,538.9B.
+**Lesson recorded.** During drafting I misattributed the Clarabel
+migration (#416) and PRs #362/#483 to Martin based on issue #381's
+task list, when in fact those are Don's. `gh api` would have caught
+this in seconds. `memory/feedback_verify_before_asserting.md` was
+updated with a third caught-instance entry and a "How to apply" line
+that explicitly requires `gh api repos/<org>/<repo>/pulls/<n> --jq
+'.user.login'` for every PR cited in any deliverable, before writing
+the name. Do not infer authorship from issue task lists, merge logs,
+or branch names.
 
-PR 2 was a docs-only pass; no code changes other than the
-`create_area_weights.py` docstring tweak.
+## Loose ends from this session
 
-## Open work threads
+- `scratch/area_weights_project_report.{md,docx,html}` and
+  `/tmp/issue_381_closeout.md` are on disk, untracked. Keep, archive,
+  or delete at the user's discretion.
+- The report doesn't include an author byline (user removed it during
+  editing); add manually in the Google Doc if needed.
+
+## Open work threads (unchanged from previous session)
 
 ### Future-year revenue comparator design (#502) — still awaiting Martin
 
-No movement since 2026-04-24. Four-option menu sits in the issue
-body. No action expected from us until Martin responds.
+No movement. Four-option menu sits in the issue body. No action
+expected from us until Martin responds.
 
 ### SALT growth rate PR — still incoming from upstream
 
@@ -59,5 +75,4 @@ work the user wants preserved. See MEMORY.md.
 
 ## Stale local branches
 
-None. The post-PR-513 cleanup deleted all 11 merged feature
-branches in this session.
+None.
